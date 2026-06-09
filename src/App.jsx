@@ -1440,11 +1440,14 @@ export default function App() {
       if (Array.isArray(mRows) && mRows.length > 0) {
         setMembersRaw(mRows.map(r => ({
           ...r,
-          auctionWins: r.auction_wins ?? r.auctionWins ?? 0,
-          joinDate: r.join_date || r.joinDate || "",
-          decayLog: r.decay_log || [],
-          txLog: r.tx_log || [],
-          attendLog: r.attend_log || [],
+          coins:       Number(r.coins)       || 0,
+          power:       Number(r.power)       || 0,
+          attendance:  Number(r.attendance)  || 0,
+          auctionWins: Number(r.auction_wins ?? r.auctionWins) || 0,
+          joinDate:    r.join_date || r.joinDate || "",
+          decayLog:    r.decay_log  || [],
+          txLog:       r.tx_log     || [],
+          attendLog:   r.attend_log || [],
         })));
       } else {
         // Seed the DB with default members on first run
@@ -1458,13 +1461,13 @@ export default function App() {
       if (Array.isArray(aRows) && aRows.length > 0) {
         setAuctionsRaw(aRows.map(r => ({
           ...r,
-          endsAt: r.ends_at ?? r.endsAt,
-          startedAt: r.started_at ?? r.startedAt,
-          currentBid: r.current_bid ?? r.currentBid ?? 0,
-          topBidder: r.top_bidder ?? r.topBidder ?? null,
-          minBid: r.min_bid ?? r.minBid ?? 0,
-          bids: r.bids || [],
-          image: r.image_data ? { dataUrl: r.image_data, name: r.image_name || "image" } : null,
+          endsAt:      Number(r.ends_at    ?? r.endsAt)    || 0,
+          startedAt:   Number(r.started_at ?? r.startedAt) || 0,
+          currentBid:  Number(r.current_bid ?? r.currentBid) || 0,
+          minBid:      Number(r.min_bid    ?? r.minBid)    || 0,
+          topBidder:   r.top_bidder ?? r.topBidder ?? null,
+          bids:        r.bids || [],
+          image:       r.image_data ? { dataUrl: r.image_data, name: r.image_name || "image" } : null,
         })));
       } else {
         await Promise.all(SEED_AUCTIONS.map(a => dbUpsert("auctions", {
