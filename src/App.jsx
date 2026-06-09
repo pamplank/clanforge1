@@ -1481,13 +1481,18 @@ export default function App() {
       const next = typeof updater === "function" ? updater(prev) : updater;
       const safe = next.filter(a => !deletedAuctionIds.current.has(a.id));
       safe.forEach(a => dbUpsert("auctions", {
-          id: a.id, name: a.name,
+          id: String(a.id),
+          name: a.name,
           description: a.description ?? a.desc ?? "",
           desc: a.desc ?? a.description ?? "",
-          status: a.status,
-          ends_at: a.endsAt, started_at: a.startedAt, current_bid: a.currentBid,
-          top_bidder: a.topBidder, min_bid: a.minBid,
-          image_data: a.image?.dataUrl || null, image_name: a.image?.name || null,
+          status: a.status ?? "active",
+          ends_at: a.endsAt ?? 0,
+          started_at: a.startedAt ?? a.started_at ?? Date.now(),
+          current_bid: a.currentBid ?? a.startBid ?? 0,
+          top_bidder: a.topBidder ?? null,
+          min_bid: a.minBid ?? a.startBid ?? 0,
+          image_data: a.image?.dataUrl ?? null,
+          image_name: a.image?.name ?? null,
         }));
       return safe;
     });
@@ -1521,13 +1526,18 @@ export default function App() {
             setMembers(ms => ms.map(m => m.name===a.topBidder ? {...m,auctionWins:m.auctionWins+1} : m));
           }
           dbUpsert("auctions", {
-            id: a.id, name: a.name,
+            id: String(a.id),
+            name: a.name,
             description: a.description ?? a.desc ?? "",
             desc: a.desc ?? a.description ?? "",
             status: "ended",
-            ends_at: a.endsAt, started_at: a.startedAt, current_bid: a.currentBid,
-            top_bidder: a.topBidder, min_bid: a.minBid,
-            image_data: a.image?.dataUrl || null, image_name: a.image?.name || null,
+            ends_at: a.endsAt ?? 0,
+            started_at: a.startedAt ?? a.started_at ?? Date.now(),
+            current_bid: a.currentBid ?? 0,
+            top_bidder: a.topBidder ?? null,
+            min_bid: a.minBid ?? a.startBid ?? 0,
+            image_data: a.image?.dataUrl ?? null,
+            image_name: a.image?.name ?? null,
           });
           return {...a, status:"ended"};
         }
@@ -2695,7 +2705,25 @@ function Auctions({ ctx }) {
 
   function createAuction() {
     if(!newAuction.name){addToast("Item name required.","red","Error");return;}
-    const a={id:Date.now(),name:newAuction.name,image:newAuction.image,emoji:"",rarity:newAuction.rarity,desc:newAuction.desc,startBid:parseInt(newAuction.startBid)||100,currentBid:parseInt(newAuction.startBid)||100,topBidder:null,endsAt:Date.now()+(parseInt(newAuction.duration)||30)*60000,status:"active",bids:[]};
+    const now = Date.now();
+    const minBid = parseInt(newAuction.startBid)||100;
+    const a={
+      id: String(now),
+      name: newAuction.name,
+      image: newAuction.image,
+      emoji: "",
+      rarity: newAuction.rarity,
+      desc: newAuction.desc || "",
+      description: newAuction.desc || "",
+      startBid: minBid,
+      minBid: minBid,
+      currentBid: minBid,
+      topBidder: null,
+      startedAt: now,
+      endsAt: now + (parseInt(newAuction.duration)||30)*60000,
+      status: "active",
+      bids: [],
+    };
     setAuctions(prev=>[...prev,a]);
     addToast(`Auction started: ${a.name}`,"gold","Auction Live");
     setNewAuction({name:"",image:null,rarity:"epic",desc:"",startBid:100,duration:30});
