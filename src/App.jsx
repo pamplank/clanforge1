@@ -129,7 +129,7 @@ function PowerIcon({ size = 16 }) {
 
 const EVENTS = [
   { id:"ISB", name:"Inter Server Battle", coins:100, color:"#e74c3c" },
-  { id:"CA",  name:"Clan Annihilation",   coins:80,  color:"#e67e22" },
+  { id:"CA",  name:"Clan Annihilation",   coins:40,  color:"#e67e22" },
   { id:"CS",  name:"Clan Sanctuary",      coins:60,  color:"#3498db" },
   { id:"STI", name:"Sindris Treasure Island", coins:40, color:"#9b59b6" },
   { id:"WB",  name:"World Boss",          coins:10,  color:"#27ae60" },
@@ -146,8 +146,8 @@ const WEEKLY_SCHEDULE = [
   { day:"Monday",    events:[{ name:"World Boss",             time:"Conqueror's Call", img:WORLDBOSS_IMG, coins:10, id:"WB" }]},
   { day:"Tuesday",   events:[{ name:"Inter-Server Battle",    time:"20:00",     img:SERVERBATTLE_IMG,    coins:100, id:"ISB" }]},
   { day:"Wednesday", events:[{ name:"World Boss",             time:"Conqueror's Call", img:WORLDBOSS_IMG, coins:10, id:"WB" }]},
-  { day:"Thursday",  events:[{ name:"Clan Annihilation",      time:"13:00",     img:CLAN_ANNIHILATION_IMG,coins:80, id:"CA"  },
-                              { name:"Clan Annihilation",      time:"20:00",     img:CLAN_ANNIHILATION_IMG,coins:80, id:"CA"  },
+  { day:"Thursday",  events:[{ name:"Clan Annihilation",      time:"13:00",     img:CLAN_ANNIHILATION_IMG,coins:40, id:"CA"  },
+                              { name:"Clan Annihilation",      time:"20:00",     img:CLAN_ANNIHILATION_IMG,coins:40, id:"CA"  },
                               { name:"Sindris Treasure Island",time:"13:00",     img:SINDRIS_IMG,         coins:40,  id:"STI" },
                               { name:"Sindris Treasure Island",time:"20:00",     img:SINDRIS_IMG,         coins:40,  id:"STI" }]},
   { day:"Friday",    events:[{ name:"World Boss",             time:"Conqueror's Call", img:WORLDBOSS_IMG, coins:10, id:"WB" }]},
@@ -1880,6 +1880,7 @@ function WorldBossSchedule() {
               fontSize: compact?14:19, color:"#f4e8cc",
               marginBottom:6, lineHeight:1.2,
               textShadow:`0 0 20px ${col}66`,
+              textAlign:"left",
             }}>{ev.name}</div>
             <div style={{
               display:"inline-flex", alignItems:"center", gap:5, marginBottom: compact?8:12,
@@ -2206,6 +2207,7 @@ function Members({ ctx }) {
   function removeMember(id) {
     if(!isAdmin) return;
     setMembers(ms=>ms.filter(m=>m.id!==id));
+    dbDelete("members", {id});
     addToast("Member removed.","red","Removed");
     setSelectedMember(null);
   }
@@ -2239,7 +2241,7 @@ function Members({ ctx }) {
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
                           <ClassIcon cls={m.cls} size={40} />
                           <div>
-                            <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13,color:"var(--text-bright)"}}>{m.name}</div>
+                            <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",textAlign:"left"}}>{m.name}</div>
                             <div style={{fontSize:10,color:"var(--text-dim)",fontWeight:500}}>Joined {m.joinDate}</div>
                           </div>
                         </div>
