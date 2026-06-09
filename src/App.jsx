@@ -1412,15 +1412,18 @@ export default function App() {
       }
       if (Array.isArray(aRows) && aRows.length > 0) {
         setAuctionsRaw(aRows.map(r => ({
-          ...r,
-          desc:        r.desc ?? r.description ?? "",
-          description: r.description ?? r.desc ?? "",
-          endsAt:      Number(r.ends_at    ?? r.endsAt)    || 0,
-          startedAt:   Number(r.started_at ?? r.startedAt) || 0,
-          currentBid:  Number(r.current_bid ?? r.currentBid) || 0,
-          minBid:      Number(r.min_bid    ?? r.minBid)    || 0,
-          topBidder:   r.top_bidder ?? r.topBidder ?? null,
-          bids:        r.bids || [],
+          id:          String(r.id),
+          name:        r.name ?? "",
+          desc:        r.description ?? "",
+          description: r.description ?? "",
+          status:      r.status ?? "active",
+          endsAt:      Number(r.ends_at)    || 0,
+          startedAt:   Number(r.started_at) || 0,
+          currentBid:  Number(r.current_bid) || 0,
+          minBid:      Number(r.min_bid)    || 0,
+          startBid:    Number(r.min_bid)    || 0,
+          topBidder:   r.top_bidder ?? null,
+          bids:        [],
           image:       r.image_data ? { dataUrl: r.image_data, name: r.image_name || "image" } : null,
         })));
       }
@@ -1481,18 +1484,17 @@ export default function App() {
       const next = typeof updater === "function" ? updater(prev) : updater;
       const safe = next.filter(a => !deletedAuctionIds.current.has(a.id));
       safe.forEach(a => dbUpsert("auctions", {
-          id: String(a.id),
-          name: a.name,
+          id:          String(a.id),
+          name:        a.name ?? "",
           description: a.description ?? a.desc ?? "",
-          desc: a.desc ?? a.description ?? "",
-          status: a.status ?? "active",
-          ends_at: a.endsAt ?? 0,
-          started_at: a.startedAt ?? a.started_at ?? Date.now(),
+          status:      a.status ?? "active",
+          ends_at:     a.endsAt ?? 0,
+          started_at:  a.startedAt ?? Date.now(),
           current_bid: a.currentBid ?? a.startBid ?? 0,
-          top_bidder: a.topBidder ?? null,
-          min_bid: a.minBid ?? a.startBid ?? 0,
-          image_data: a.image?.dataUrl ?? null,
-          image_name: a.image?.name ?? null,
+          top_bidder:  a.topBidder ?? null,
+          min_bid:     a.minBid ?? a.startBid ?? 0,
+          image_data:  a.image?.dataUrl ?? null,
+          image_name:  a.image?.name ?? null,
         }));
       return safe;
     });
@@ -1526,18 +1528,17 @@ export default function App() {
             setMembers(ms => ms.map(m => m.name===a.topBidder ? {...m,auctionWins:m.auctionWins+1} : m));
           }
           dbUpsert("auctions", {
-            id: String(a.id),
-            name: a.name,
+            id:          String(a.id),
+            name:        a.name ?? "",
             description: a.description ?? a.desc ?? "",
-            desc: a.desc ?? a.description ?? "",
-            status: "ended",
-            ends_at: a.endsAt ?? 0,
-            started_at: a.startedAt ?? a.started_at ?? Date.now(),
+            status:      "ended",
+            ends_at:     a.endsAt ?? 0,
+            started_at:  a.startedAt ?? Date.now(),
             current_bid: a.currentBid ?? 0,
-            top_bidder: a.topBidder ?? null,
-            min_bid: a.minBid ?? a.startBid ?? 0,
-            image_data: a.image?.dataUrl ?? null,
-            image_name: a.image?.name ?? null,
+            top_bidder:  a.topBidder ?? null,
+            min_bid:     a.minBid ?? a.startBid ?? 0,
+            image_data:  a.image?.dataUrl ?? null,
+            image_name:  a.image?.name ?? null,
           });
           return {...a, status:"ended"};
         }
