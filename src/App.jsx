@@ -140,16 +140,16 @@ const CLAN_ANNIHILATION_IMG = "data:image/webp;base64,UklGRuAXAABXRUJQVlA4INQXAA
 
 const WEEKLY_SCHEDULE = [
   { day:"Monday",    events:[{ name:"World Boss",             time:"21:00",     img:WORLDBOSS_IMG,       coins:10,  id:"WB"  }]},
-  { day:"Tuesday",   events:[{ name:"Inter-Server Battle",    time:"20:00",     img:SERVERBATTLE_IMG,    coins:100, id:"ISB" },
-                              { name:"Clan Sanctuary",         time:"After ISB", img:CLANSANCTUARY_IMG,   coins:60,  id:"CS"  }]},
-  { day:"Wednesday", events:[{ name:"Clan Annihilation",      time:"20:00",     img:CLAN_ANNIHILATION_IMG,coins:80, id:"CA"  },
-                              { name:"World Boss",             time:"21:00",     img:WORLDBOSS_IMG,       coins:10,  id:"WB"  }]},
-  { day:"Thursday",  events:[{ name:"Sindris Treasure Island",time:"20:00",     img:SINDRIS_IMG,         coins:40,  id:"STI" },
-                              { name:"World Boss",             time:"21:00",     img:WORLDBOSS_IMG,       coins:10,  id:"WB"  }]},
-  { day:"Friday",    events:[{ name:"World Boss",             time:"21:00",     img:WORLDBOSS_IMG,       coins:10,  id:"WB"  }]},
-  { day:"Saturday",  events:[{ name:"Sindris Treasure Island",time:"20:00",     img:SINDRIS_IMG,         coins:40,  id:"STI" },
-                              { name:"World Boss",             time:"21:00",     img:WORLDBOSS_IMG,       coins:10,  id:"WB"  }]},
-  { day:"Sunday",    events:[{ name:"World Boss",             time:"21:00",     img:WORLDBOSS_IMG,       coins:10,  id:"WB"  }]},
+  { day:"Monday",    events:[{ name:"World Boss",             time:"Conqueror's Call", img:WORLDBOSS_IMG, coins:10, id:"WB" }]},
+  { day:"Tuesday",   events:[{ name:"Inter-Server Battle",    time:"20:00",     img:SERVERBATTLE_IMG,    coins:100, id:"ISB" }]},
+  { day:"Wednesday", events:[{ name:"World Boss",             time:"Conqueror's Call", img:WORLDBOSS_IMG, coins:10, id:"WB" }]},
+  { day:"Thursday",  events:[{ name:"Clan Annihilation",      time:"13:00",     img:CLAN_ANNIHILATION_IMG,coins:80, id:"CA"  },
+                              { name:"Clan Annihilation",      time:"20:00",     img:CLAN_ANNIHILATION_IMG,coins:80, id:"CA"  },
+                              { name:"Sindris Treasure Island",time:"13:00",     img:SINDRIS_IMG,         coins:40,  id:"STI" },
+                              { name:"Sindris Treasure Island",time:"20:00",     img:SINDRIS_IMG,         coins:40,  id:"STI" }]},
+  { day:"Friday",    events:[{ name:"World Boss",             time:"Conqueror's Call", img:WORLDBOSS_IMG, coins:10, id:"WB" }]},
+  { day:"Saturday",  events:[{ name:"World Boss",             time:"Conqueror's Call", img:WORLDBOSS_IMG, coins:10, id:"WB" }]},
+  { day:"Sunday",    events:[{ name:"Clan Sanctuary",         time:"22:00",     img:CLANSANCTUARY_IMG,   coins:60,  id:"CS"  }]},
 ];
 const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
@@ -936,12 +936,7 @@ function LoginScreen({ members, onLogin }) {
         <div style={{marginTop:16,textAlign:"center",fontSize:11,color:"var(--text-dim)",fontFamily:"'Spectral',serif",letterSpacing:0.5}}>
           Contact your Master to get access.
         </div>
-        <div style={{marginTop:16,padding:14,background:"rgba(10,11,15,0.7)",border:"1px solid var(--border)",borderRadius:2,fontSize:11,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>
-          <div style={{marginBottom:5,fontWeight:700,color:"var(--gold-dim)",letterSpacing:2,fontSize:9,textTransform:"uppercase"}}>Demo Accounts</div>
-          <div>thomasshelby / master123 · Master</div>
-          <div>vanessa / elder123 · Elder</div>
-          <div>maconhado / member123 · Member</div>
-        </div>
+
       </div>
     </div>
   );
@@ -1468,6 +1463,7 @@ export default function App() {
           currentBid: r.current_bid ?? r.currentBid ?? 0,
           topBidder: r.top_bidder ?? r.topBidder ?? null,
           minBid: r.min_bid ?? r.minBid ?? 0,
+          bids: r.bids || [],
           image: r.image_data ? { dataUrl: r.image_data, name: r.image_name || "image" } : null,
         })));
       } else {
@@ -2691,7 +2687,7 @@ function Auctions({ ctx }) {
       if(prevBidder&&m.name===prevBidder&&prevBid>0) return {...m,coins:m.coins+prevBid};
       return m;
     }));
-    setAuctions(prev=>prev.map(x=>x.id===auctionId?{...x,currentBid:amount,topBidder:currentUser.name,bids:[...x.bids,{bidder:currentUser.name,amount,time:Date.now()}]}:x));
+    setAuctions(prev=>prev.map(x=>x.id===auctionId?{...x,currentBid:amount,topBidder:currentUser.name,bids:[...(x.bids||[]),{bidder:currentUser.name,amount,time:Date.now()}]}:x));
     addToast(`Bid of ${fmt(amount)} placed on ${a.name}!`,"gold","Bid Placed");
     setBidAmounts(prev=>({...prev,[auctionId]:""}));
   }
@@ -2812,7 +2808,7 @@ function Auctions({ ctx }) {
                     </div>
                     <div style={{textAlign:"right"}}>
                       <div className="bid-label">Bids</div>
-                      <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:20,color:"#a8b8c8"}}>{a.bids.length}</div>
+                      <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:20,color:"#a8b8c8"}}>{(a.bids||[]).length}</div>
                     </div>
                   </div>
                   <div style={{marginTop:12,display:"flex",gap:8}}>
@@ -2820,9 +2816,9 @@ function Auctions({ ctx }) {
                     <button className="btn btn-gold" onClick={()=>placeBid(a.id)}>Bid</button>
                   </div>
                   {isAdmin&&<button className="btn btn-red btn-sm" style={{width:"100%",marginTop:6}} onClick={()=>removeAuction(a.id)}>Remove Auction</button>}
-                  {a.bids.length>0&&(
+                  {(a.bids||[]).length>0&&(
                     <div style={{marginTop:10,fontSize:11,color:"var(--text-dim)",borderTop:"1px solid var(--border-dim)",paddingTop:8}}>
-                      {[...a.bids].reverse().slice(0,2).map((b,i)=>(
+                      {[...(a.bids||[])].reverse().slice(0,2).map((b,i)=>(
                         <div key={i} style={{display:"flex",justifyContent:"space-between",fontFamily:"'Spectral',serif"}}>
                           <span>{b.bidder}</span><span style={{color:"var(--gold)",fontWeight:700}}>{fmt(b.amount)}</span>
                         </div>
@@ -3292,7 +3288,7 @@ function Export({ ctx }) {
   const exports=[
     {title:"Coin Rankings",icon:<StatIcon src={COINS_ICON} size={32}/>,desc:"Member coin balances sorted by rank.",action:()=>downloadCSV([...members].sort((a,b)=>b.coins-a.coins).map((m,i)=>({Rank:i+1,Name:m.name,Class:m.cls,Coins:m.coins,Power:m.power})),"coin_rankings.csv",["Rank","Name","Class","Coins","Power"])},
     {title:"Attendance Logs",icon:<StatIcon src={ATTENDANCE_ICON} size={32}/>,desc:"All recorded attendance sessions.",action:()=>downloadCSV(attendanceLogs.map(l=>({Date:l.date,Event:l.event,Members:l.members,RecordedBy:l.recordedBy})),"attendance_logs.csv",["Date","Event","Members","RecordedBy"])},
-    {title:"Auction History",icon:<StatIcon src={AUCTION_ICON} size={32}/>,desc:"All auction results with winners.",action:()=>downloadCSV(auctions.map(a=>({Name:a.name,Winner:a.topBidder||"None",FinalBid:a.currentBid,Status:a.status,TotalBids:a.bids.length,Rarity:a.rarity})),"auction_history.csv",["Name","Winner","FinalBid","Status","TotalBids","Rarity"])},
+    {title:"Auction History",icon:<StatIcon src={AUCTION_ICON} size={32}/>,desc:"All auction results with winners.",action:()=>downloadCSV(auctions.map(a=>({Name:a.name,Winner:a.topBidder||"None",FinalBid:a.currentBid,Status:a.status,TotalBids:(a.bids||[]).length,Rarity:a.rarity})),"auction_history.csv",["Name","Winner","FinalBid","Status","TotalBids","Rarity"])},
     {title:"Power Leaderboard",icon:"⚡",desc:"Members sorted by power level.",action:()=>downloadCSV([...members].sort((a,b)=>b.power-a.power).map((m,i)=>({Rank:i+1,Name:m.name,Class:m.cls,Power:m.power,Attendance:m.attendance})),"power_leaderboard.csv",["Rank","Name","Class","Power","Attendance"])},
     {title:"Full Member Report",icon:<StatIcon src={WARRIORS_ICON} size={32}/>,desc:"Complete member database export.",action:()=>downloadCSV(members.map(m=>({Name:m.name,Class:m.cls,Role:m.role,Coins:m.coins,Power:m.power,Attendance:m.attendance,AuctionWins:m.auctionWins,JoinDate:m.joinDate,Discord:m.discord||""})),"full_members.csv",["Name","Class","Role","Coins","Power","Attendance","AuctionWins","JoinDate","Discord"])},
   ];
@@ -3595,4 +3591,3 @@ function RenameMemberModal({ ctx }) {
     </div>
   );
 }
-
