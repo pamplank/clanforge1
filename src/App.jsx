@@ -1511,12 +1511,19 @@ export default function App() {
 
   useEffect(() => { const iv = setInterval(() => setTick(t=>t+1), 1000); return () => clearInterval(iv); }, []);
   useEffect(() => {
-    setAuctions(prev => prev.map(a => {
+    setAuctionsRaw(prev => prev.map(a => {
       if (a.status==="active" && Date.now()>a.endsAt) {
         if (a.topBidder) {
           addToast(`${a.topBidder} won ${a.name} for ${fmt(a.currentBid)} coins!`, "gold", "Auction Ended");
           setMembers(ms => ms.map(m => m.name===a.topBidder ? {...m,auctionWins:m.auctionWins+1} : m));
         }
+        // Persist the status change to Supabase
+        dbUpsert("auctions", {
+          id: a.id, name: a.name, description: a.description, status: "ended",
+          ends_at: a.endsAt, started_at: a.startedAt, current_bid: a.currentBid,
+          top_bidder: a.topBidder, min_bid: a.minBid,
+          image_data: a.image?.dataUrl || null, image_name: a.image?.name || null,
+        });
         return {...a, status:"ended"};
       }
       return a;
@@ -1652,13 +1659,6 @@ export default function App() {
       <div className="app-shell">
         <div className="nav-wrapper">
         <nav className="sidebar">
-          <div className="sidebar-logo">
-            <div className="logo-emblem"><StatIcon src={WARRIORS_ICON} size={32}/></div>
-            <div>
-              <div className="logo-title">Ymir</div>
-              <div className="logo-sub">Peaky Blinders</div>
-            </div>
-          </div>
           {NAV.map((section, si) => (
             <div key={section.section} style={{display:"flex",flexDirection:"row",alignItems:"center"}}>
               {si > 0 && <div className="nav-section-divider"/>}
@@ -1719,13 +1719,6 @@ export default function App() {
           <div className="drawer-overlay" onClick={()=>setDrawerOpen(false)}/>
           <div className="drawer-panel">
             <div className="drawer-header">
-              <div className="sidebar-logo" style={{border:"none",margin:0,padding:0}}>
-                <div className="logo-emblem"><StatIcon src={WARRIORS_ICON} size={28}/></div>
-                <div>
-                  <div className="logo-title">Ymir</div>
-                  <div className="logo-sub">Peaky Blinders</div>
-                </div>
-              </div>
               <button className="drawer-close" onClick={()=>setDrawerOpen(false)}>✕</button>
             </div>
             <div className="drawer-nav">
@@ -2136,8 +2129,8 @@ function Dashboard({ ctx, setPage }) {
                   <div className="lb-rank">{rankIcon(i)}</div>
                   <ClassIcon cls={m.cls} size={36}/>
                   <div style={{flex:1,minWidth:0}}>
-                    <div className="lb-name" style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.name}</div>
-                    <div style={{fontSize:10,color:"var(--text-dim)",fontWeight:600,letterSpacing:1}}>{m.cls}</div>
+                    <div className="lb-name" style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:"left"}}>{m.name}</div>
+                    <div style={{fontSize:10,color:"var(--text-dim)",fontWeight:600,letterSpacing:1,textAlign:"left"}}>{m.cls}</div>
                   </div>
                   <div style={{textAlign:"right",flexShrink:0}}>
                     <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:14,color:valColor}}>{valFn(m)}</div>
@@ -3225,8 +3218,8 @@ function LBList({ data, valueKey, label, format, color, currentUser }) {
               <div className="lb-rank" style={{color:globalRank===0?"#f2d98a":globalRank===1?"#a8b8c8":globalRank===2?"#c87533":"var(--text-dim)"}}>{rankIcon(globalRank)}</div>
               <div style={{flexShrink:0}}><ClassIcon cls={m.cls} size={28}/></div>
               <div style={{flex:1,minWidth:0}}>
-                <div className="lb-name" style={{color:isMe?"var(--gold-light)":"var(--text-bright)"}}>{m.name}{isMe&&<span style={{fontSize:9,color:"var(--gold)",marginLeft:5,fontWeight:700}}>(You)</span>}</div>
-                <div style={{fontSize:9,color:"var(--text-dim)",fontWeight:600,letterSpacing:1,textTransform:"uppercase"}}>{m.cls}</div>
+                <div className="lb-name" style={{color:isMe?"var(--gold-light)":"var(--text-bright)",textAlign:"left"}}>{m.name}{isMe&&<span style={{fontSize:9,color:"var(--gold)",marginLeft:5,fontWeight:700}}>(You)</span>}</div>
+                <div style={{fontSize:9,color:"var(--text-dim)",fontWeight:600,letterSpacing:1,textTransform:"uppercase",textAlign:"left"}}>{m.role||m.cls}</div>
                 <div className="lb-bar-bg">
                   <div className="lb-bar" style={{width:`${(m[valueKey]/max)*100}%`,background:color||"linear-gradient(90deg,var(--gold-dim),var(--gold-light))"}}/>
                 </div>
