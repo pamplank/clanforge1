@@ -1415,6 +1415,8 @@ export default function App() {
       if (Array.isArray(aRows) && aRows.length > 0) {
         setAuctionsRaw(aRows.map(r => ({
           ...r,
+          desc:        r.desc ?? r.description ?? "",
+          description: r.description ?? r.desc ?? "",
           endsAt:      Number(r.ends_at    ?? r.endsAt)    || 0,
           startedAt:   Number(r.started_at ?? r.startedAt) || 0,
           currentBid:  Number(r.current_bid ?? r.currentBid) || 0,
@@ -1423,13 +1425,8 @@ export default function App() {
           bids:        r.bids || [],
           image:       r.image_data ? { dataUrl: r.image_data, name: r.image_name || "image" } : null,
         })));
-      } else {
-        await Promise.all(SEED_AUCTIONS.map(a => dbUpsert("auctions", {
-          id: a.id, name: a.name, description: a.description, status: a.status,
-          ends_at: a.endsAt, started_at: a.startedAt, current_bid: a.currentBid,
-          top_bidder: a.topBidder, min_bid: a.minBid,
-        })));
       }
+      // If table is empty, nothing is seeded (SEED_AUCTIONS is empty by design)
       if (Array.isArray(lRows)) setAttendanceLogsRaw(lRows);
       if (Array.isArray(cRows) && cRows.length > 0) setPendingCoinRequests(cRows.map(r => ({
         ...r,
@@ -1484,15 +1481,17 @@ export default function App() {
   function setAuctions(updater) {
     setAuctionsRaw(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      next
-        .filter(a => !deletedAuctionIds.current.has(a.id))
-        .forEach(a => dbUpsert("auctions", {
-          id: a.id, name: a.name, description: a.description, status: a.status,
+      const safe = next.filter(a => !deletedAuctionIds.current.has(a.id));
+      safe.forEach(a => dbUpsert("auctions", {
+          id: a.id, name: a.name,
+          description: a.description ?? a.desc ?? "",
+          desc: a.desc ?? a.description ?? "",
+          status: a.status,
           ends_at: a.endsAt, started_at: a.startedAt, current_bid: a.currentBid,
           top_bidder: a.topBidder, min_bid: a.minBid,
           image_data: a.image?.dataUrl || null, image_name: a.image?.name || null,
         }));
-      return next.filter(a => !deletedAuctionIds.current.has(a.id));
+      return safe;
     });
   }
 
@@ -1524,7 +1523,10 @@ export default function App() {
             setMembers(ms => ms.map(m => m.name===a.topBidder ? {...m,auctionWins:m.auctionWins+1} : m));
           }
           dbUpsert("auctions", {
-            id: a.id, name: a.name, description: a.description, status: "ended",
+            id: a.id, name: a.name,
+            description: a.description ?? a.desc ?? "",
+            desc: a.desc ?? a.description ?? "",
+            status: "ended",
             ends_at: a.endsAt, started_at: a.startedAt, current_bid: a.currentBid,
             top_bidder: a.topBidder, min_bid: a.minBid,
             image_data: a.image?.dataUrl || null, image_name: a.image?.name || null,
