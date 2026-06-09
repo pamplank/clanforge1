@@ -1479,16 +1479,20 @@ export default function App() {
     });
   }
 
+  const deletedAuctionIds = useRef(new Set());
+
   function setAuctions(updater) {
     setAuctionsRaw(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      next.forEach(a => dbUpsert("auctions", {
-        id: a.id, name: a.name, description: a.description, status: a.status,
-        ends_at: a.endsAt, started_at: a.startedAt, current_bid: a.currentBid,
-        top_bidder: a.topBidder, min_bid: a.minBid,
-        image_data: a.image?.dataUrl || null, image_name: a.image?.name || null,
-      }));
-      return next;
+      next
+        .filter(a => !deletedAuctionIds.current.has(a.id))
+        .forEach(a => dbUpsert("auctions", {
+          id: a.id, name: a.name, description: a.description, status: a.status,
+          ends_at: a.endsAt, started_at: a.startedAt, current_bid: a.currentBid,
+          top_bidder: a.topBidder, min_bid: a.minBid,
+          image_data: a.image?.dataUrl || null, image_name: a.image?.name || null,
+        }));
+      return next.filter(a => !deletedAuctionIds.current.has(a.id));
     });
   }
 
@@ -1511,23 +1515,25 @@ export default function App() {
 
   useEffect(() => { const iv = setInterval(() => setTick(t=>t+1), 1000); return () => clearInterval(iv); }, []);
   useEffect(() => {
-    setAuctionsRaw(prev => prev.map(a => {
-      if (a.status==="active" && Date.now()>a.endsAt) {
-        if (a.topBidder) {
-          addToast(`${a.topBidder} won ${a.name} for ${fmt(a.currentBid)} coins!`, "gold", "Auction Ended");
-          setMembers(ms => ms.map(m => m.name===a.topBidder ? {...m,auctionWins:m.auctionWins+1} : m));
+    setAuctionsRaw(prev => prev
+      .filter(a => !deletedAuctionIds.current.has(a.id))
+      .map(a => {
+        if (a.status==="active" && Date.now()>a.endsAt) {
+          if (a.topBidder) {
+            addToast(`${a.topBidder} won ${a.name} for ${fmt(a.currentBid)} coins!`, "gold", "Auction Ended");
+            setMembers(ms => ms.map(m => m.name===a.topBidder ? {...m,auctionWins:m.auctionWins+1} : m));
+          }
+          dbUpsert("auctions", {
+            id: a.id, name: a.name, description: a.description, status: "ended",
+            ends_at: a.endsAt, started_at: a.startedAt, current_bid: a.currentBid,
+            top_bidder: a.topBidder, min_bid: a.minBid,
+            image_data: a.image?.dataUrl || null, image_name: a.image?.name || null,
+          });
+          return {...a, status:"ended"};
         }
-        // Persist the status change to Supabase
-        dbUpsert("auctions", {
-          id: a.id, name: a.name, description: a.description, status: "ended",
-          ends_at: a.endsAt, started_at: a.startedAt, current_bid: a.currentBid,
-          top_bidder: a.topBidder, min_bid: a.minBid,
-          image_data: a.image?.dataUrl || null, image_name: a.image?.name || null,
-        });
-        return {...a, status:"ended"};
-      }
-      return a;
-    }));
+        return a;
+      })
+    );
   }, [tick]);
   useEffect(() => {
     if (currentUser) { const u = members.find(m=>m.id===currentUser.id); if (u) setCurrentUser(u); }
@@ -1556,8 +1562,8 @@ export default function App() {
     setModal(null);
   }
   function removeAuction(id) {
+    deletedAuctionIds.current.add(id);
     setAuctionsRaw(a => a.filter(x => x.id !== id));
-    // Force delete from Supabase directly
     (async () => {
       try {
         const res = await fetch(`${SUPA_URL}/rest/v1/auctions?id=eq.${encodeURIComponent(id)}`, {
