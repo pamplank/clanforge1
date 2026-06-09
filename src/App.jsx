@@ -1390,6 +1390,11 @@ export default function App() {
         dbLoad("coin_requests"),
       ]);
       if (Array.isArray(mRows) && mRows.length > 0) {
+        const safeJson = (v) => {
+          if (Array.isArray(v)) return v;
+          if (typeof v === "string") { try { return JSON.parse(v); } catch { return []; } }
+          return [];
+        };
         setMembersRaw(mRows.map(r => ({
           ...r,
           coins:       Number(r.coins)       || 0,
@@ -1397,9 +1402,9 @@ export default function App() {
           attendance:  Number(r.attendance)  || 0,
           auctionWins: Number(r.auction_wins ?? r.auctionWins) || 0,
           joinDate:    r.join_date || r.joinDate || "",
-          decayLog:    r.decay_log  || [],
-          txLog:       r.tx_log     || [],
-          attendLog:   r.attend_log || [],
+          decayLog:    safeJson(r.decay_log),
+          txLog:       safeJson(r.tx_log),
+          attendLog:   safeJson(r.attend_log),
         })));
       } else {
         // Seed the DB with default members on first run
@@ -1407,7 +1412,7 @@ export default function App() {
           id: m.id, name: m.name, username: m.username, password: m.password,
           role: m.role, cls: m.cls, power: m.power, coins: m.coins,
           attendance: m.attendance, join_date: m.joinDate, auction_wins: m.auctionWins,
-          decay_log: [], tx_log: [], attend_log: [], discord: m.discord || "",
+          decay_log: "[]", tx_log: "[]", attend_log: "[]", discord: m.discord || "",
         })));
       }
       if (Array.isArray(aRows) && aRows.length > 0) {
@@ -1428,7 +1433,14 @@ export default function App() {
         })));
       }
       // If table is empty, nothing is seeded (SEED_AUCTIONS is empty by design)
-      if (Array.isArray(lRows)) setAttendanceLogsRaw(lRows);
+      if (Array.isArray(lRows) && lRows.length > 0) {
+        setAttendanceLogsRaw(lRows.map(r => ({
+          ...r,
+          recordedBy: r.recorded_by || r.recordedBy || "",
+          members:    Number(r.members) || 0,
+          attendees:  (() => { try { return typeof r.attendees === "string" ? JSON.parse(r.attendees) : (r.attendees || []); } catch { return []; } })(),
+        })));
+      }
       if (Array.isArray(cRows) && cRows.length > 0) setPendingCoinRequests(cRows.map(r => ({
         ...r,
         memberId: r.member_id ?? r.memberId,
@@ -1470,8 +1482,11 @@ export default function App() {
         id: m.id, name: m.name, username: m.username, password: m.password,
         role: m.role, cls: m.cls, power: m.power, coins: m.coins,
         attendance: m.attendance, join_date: m.joinDate || m.join_date,
-        auction_wins: m.auctionWins, decay_log: m.decayLog || [],
-        tx_log: m.txLog || [], attend_log: m.attendLog || [], discord: m.discord || "",
+        auction_wins: m.auctionWins,
+        decay_log: JSON.stringify(m.decayLog || []),
+        tx_log: JSON.stringify(m.txLog || []),
+        attend_log: JSON.stringify(m.attendLog || []),
+        discord: m.discord || "",
       }));
       return next;
     });
@@ -1503,15 +1518,17 @@ export default function App() {
   function setAttendanceLogs(updater) {
     setAttendanceLogsRaw(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      // Only sync new entries (ones without an id yet)
-      next.filter(l => !l._synced).forEach(l => {
-        const entry = { ...l, _synced: true };
+      const prevIds = new Set(prev.map(l => l.id));
+      const newEntries = next.filter(l => !prevIds.has(l.id));
+      newEntries.forEach(l => {
         dbUpsert("attendance_logs", {
-          id: l.id, member_id: l.memberId, member_name: l.memberName,
-          event: l.event, date: l.date, qualifier: l.qualifier || null,
-          coins: l.coins, logged_by: l.loggedBy,
+          id:          l.id,
+          event:       l.event,
+          date:        l.date,
+          members:     l.members || 0,
+          recorded_by: l.recordedBy || "",
+          attendees:   JSON.stringify(l.attendees || []),
         });
-        Object.assign(l, { _synced: true });
       });
       return next;
     });
