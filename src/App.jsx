@@ -597,6 +597,7 @@ tbody tr:last-child td{border-bottom:none;}
 }
 
 .stat-card{text-align:center;padding:28px 16px;overflow:hidden;}
+.dashboard-banner-left{text-align:left!important;}
 .stat-card::before{
   content:'';position:absolute;top:0;left:0;right:0;height:2px;
   background:linear-gradient(90deg,transparent,var(--gold-dim),transparent);
@@ -1490,8 +1491,8 @@ export default function App() {
       })));
       setDbReady(true);
 
-      // ── Restore session from sessionStorage ───────────────────────────────
-      const savedId = sessionStorage.getItem("cf_user_id");
+      // ── Restore session from localStorage ───────────────────────────────
+      const savedId = localStorage.getItem("cf_user_id");
       if (savedId) {
         const allMembers = Array.isArray(mRows) && mRows.length > 0 ? mRows : SEED_MEMBERS;
         const found = allMembers.find(m => String(m.id) === String(savedId));
@@ -1585,13 +1586,13 @@ export default function App() {
   function handleLogin(m) {
     setCurrentUser(m);
     setLoggedIn(true);
-    sessionStorage.setItem("cf_user_id", m.id);
+    localStorage.setItem("cf_user_id", m.id);
   }
   function handleLogout() {
     setLoggedIn(false);
     setCurrentUser(null);
     setPage("dashboard");
-    sessionStorage.removeItem("cf_user_id");
+    localStorage.removeItem("cf_user_id");
   }
   function linkDiscord(id, tag) {
     setMembers(ms => ms.map(m => m.id===id ? {...m,discord:tag} : m));
@@ -1600,8 +1601,21 @@ export default function App() {
   }
   function removeAuction(id) {
     setAuctionsRaw(a => a.filter(x => x.id !== id));
-    dbDelete("auctions", { id });
-    addToast("Auction removed.", "gold", "Auction Removed");
+    // Force delete from Supabase directly
+    (async () => {
+      try {
+        const res = await fetch(`${SUPA_URL}/rest/v1/auctions?id=eq.${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          headers: {
+            "apikey": SUPA_KEY,
+            "Authorization": `Bearer ${SUPA_KEY}`,
+            "Prefer": "return=minimal",
+          }
+        });
+        if (res.ok) addToast("Auction removed.", "gold", "Auction Removed");
+        else addToast("Removed locally. DB sync may be delayed.", "gold", "Auction Removed");
+      } catch { addToast("Auction removed.", "gold", "Auction Removed"); }
+    })();
   }
   function submitCoinRequest(memberId, amount, type, reason) {
     const m = members.find(x=>x.id===memberId);
@@ -1931,6 +1945,7 @@ function WorldBossSchedule() {
               fontFamily:"'Spectral',serif", fontStyle:"italic",
               display:"-webkit-box", WebkitLineClamp: compact?2:3,
               WebkitBoxOrient:"vertical", overflow:"hidden",
+              textAlign:"left",
             }}>{desc}</div>
           </div>
         </div>
@@ -2077,7 +2092,7 @@ function Dashboard({ ctx, setPage }) {
           <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:20,textAlign:"left"}}>
 
             {/* Left — clan identity */}
-            <div style={{flex:"1 1 280px"}}>
+            <div className="dashboard-banner-left" style={{flex:"1 1 280px",textAlign:"left"}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
                 <div style={{width:28,height:1,background:"linear-gradient(90deg,transparent,rgba(200,146,42,0.6))"}} />
                 <span style={{fontSize:9,color:"rgba(200,146,42,0.7)",letterSpacing:5,textTransform:"uppercase",fontFamily:"'Spectral',serif",fontWeight:700}}>Clan HQ · Season 4</span>
