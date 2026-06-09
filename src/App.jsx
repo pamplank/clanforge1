@@ -28,7 +28,10 @@ const supa = {
       },
       async delete(match) {
         const params = Object.entries(match).map(([k,v])=>`${k}=eq.${encodeURIComponent(v)}`).join("&");
-        const res = await fetch(`${base}?${params}`, { method: "DELETE", headers });
+        const res = await fetch(`${base}?${params}`, {
+          method: "DELETE",
+          headers: { "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}`, "Prefer": "return=minimal" }
+        });
         return res.status;
       },
     };
@@ -492,8 +495,8 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
   border-bottom:1px solid var(--border);
   padding:13px 80px;display:flex;align-items:center;justify-content:space-between;
 }
-.page-title{font-family:'Spectral',serif;font-size:24px;font-weight:800;color:var(--text-bright);letter-spacing:2px}
-.page-sub{font-size:10px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;margin-top:2px;font-weight:600;}
+.page-title{font-family:'Spectral',serif;font-size:24px;font-weight:800;color:var(--text-bright);letter-spacing:2px;text-align:left;}
+.page-sub{font-size:10px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;margin-top:2px;font-weight:600;text-align:left;}
 .content{padding:28px 80px;flex:1;max-width:1600px;width:100%;margin:0 auto;box-sizing:border-box;}
 
 /* ── TABLE — stacking cards on mobile ── */
@@ -534,7 +537,8 @@ tbody tr:last-child td{border-bottom:none;}
   .topbar-logout-mobile{display:flex;}
   .main{margin-top:8px;}
   .topbar{padding:10px 16px;}
-  .topbar .page-title{font-size:18px;}
+  .topbar .page-title{font-size:18px;text-align:left;}
+  .topbar .page-sub{text-align:left;}
   .content{padding:14px 16px;}
   .grid-4{grid-template-columns:1fr 1fr;}
   .stat-card{padding:18px 10px;}
@@ -1485,6 +1489,27 @@ export default function App() {
         requestedAt: r.requested_at ?? r.requestedAt,
       })));
       setDbReady(true);
+
+      // ── Restore session from sessionStorage ───────────────────────────────
+      const savedId = sessionStorage.getItem("cf_user_id");
+      if (savedId) {
+        const allMembers = Array.isArray(mRows) && mRows.length > 0 ? mRows : SEED_MEMBERS;
+        const found = allMembers.find(m => String(m.id) === String(savedId));
+        if (found) {
+          setCurrentUser({
+            ...found,
+            coins: Number(found.coins) || 0,
+            power: Number(found.power) || 0,
+            attendance: Number(found.attendance) || 0,
+            auctionWins: Number(found.auction_wins ?? found.auctionWins) || 0,
+            joinDate: found.join_date || found.joinDate || "",
+            decayLog: found.decay_log || [],
+            txLog: found.tx_log || [],
+            attendLog: found.attend_log || [],
+          });
+          setLoggedIn(true);
+        }
+      }
     }
     loadAll();
   }, []);
@@ -1557,8 +1582,17 @@ export default function App() {
     setTimeout(() => setToasts(t => t.filter(x=>x.id!==id)), 4000);
   }
   function removeToast(id) { setToasts(t => t.filter(x=>x.id!==id)); }
-  function handleLogin(m) { setCurrentUser(m); setLoggedIn(true); }
-  function handleLogout() { setLoggedIn(false); setCurrentUser(null); setPage("dashboard"); }
+  function handleLogin(m) {
+    setCurrentUser(m);
+    setLoggedIn(true);
+    sessionStorage.setItem("cf_user_id", m.id);
+  }
+  function handleLogout() {
+    setLoggedIn(false);
+    setCurrentUser(null);
+    setPage("dashboard");
+    sessionStorage.removeItem("cf_user_id");
+  }
   function linkDiscord(id, tag) {
     setMembers(ms => ms.map(m => m.id===id ? {...m,discord:tag} : m));
     addToast(tag?`Discord linked: ${tag}`:"Discord unlinked.","blue","Discord");
@@ -2040,7 +2074,7 @@ function Dashboard({ ctx, setPage }) {
         <div style={{position:"absolute",bottom:14,right:14,width:18,height:18,borderBottom:"2px solid rgba(200,146,42,0.4)",borderRight:"2px solid rgba(200,146,42,0.4)"}} />
 
         <div style={{position:"relative",padding:"clamp(18px,4vw,32px) clamp(18px,4vw,36px)"}}>
-          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:20}}>
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:20,textAlign:"left"}}>
 
             {/* Left — clan identity */}
             <div style={{flex:"1 1 280px"}}>
