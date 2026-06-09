@@ -270,8 +270,8 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
   height:100%;flex-shrink:0;
 }
 .logo-emblem{font-size:20px;filter:drop-shadow(0 0 8px rgba(200,146,42,0.8));}
-.logo-title{font-family:'Spectral',serif;font-size:14px;font-weight:800;color:var(--gold-light);letter-spacing:2px;}
-.logo-sub{font-size:7px;color:var(--text-dim);letter-spacing:3px;text-transform:uppercase;font-weight:600;margin-top:1px;}
+.logo-title{font-family:'Spectral',serif;font-size:14px;font-weight:800;color:var(--gold-light);letter-spacing:2px;text-align:left;}
+.logo-sub{font-size:7px;color:var(--text-dim);letter-spacing:3px;text-transform:uppercase;font-weight:600;margin-top:1px;text-align:left;}
 
 .nav-section{display:flex;flex-direction:row;align-items:center;gap:0;padding:0 2px;}
 .nav-label{display:none;}
@@ -655,12 +655,12 @@ tbody tr:last-child td{border-bottom:none;}
   border:1px solid rgba(192,57,43,0.5);letter-spacing:1px;}
 .auction-rarity-badge{position:absolute;top:8px;left:8px;}
 .auction-body{padding:12px;min-width:0;}
-.auction-name{font-family:'Spectral',serif;font-size:14px;font-weight:700;color:var(--text-bright);margin-bottom:4px}
-.auction-desc{font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.6;font-weight:400;}
+.auction-name{font-family:'Spectral',serif;font-size:14px;font-weight:700;color:var(--text-bright);margin-bottom:4px;text-align:left;}
+.auction-desc{font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.6;font-weight:400;text-align:left;}
 .auction-bid-row{display:flex;align-items:center;justify-content:space-between;}
 .current-bid{font-family:'Spectral',serif;font-size:20px;font-weight:800;color:var(--gold-light)}
-.bid-label{font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:2px;font-weight:700;}
-.top-bidder{font-size:11px;color:var(--text-mid);margin-top:4px;font-weight:500;}
+.bid-label{font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:2px;font-weight:700;text-align:left;}
+.top-bidder{font-size:11px;color:var(--text-mid);margin-top:4px;font-weight:500;text-align:left;}
 
 /* ── IMAGE UPLOAD ── */
 .image-library{display:grid;grid-template-columns:repeat(auto-fill,minmax(60px,1fr));gap:8px;margin-top:10px;}
@@ -696,7 +696,7 @@ tbody tr:last-child td{border-bottom:none;}
 .lb-grid{display:flex;flex-wrap:wrap;gap:20px;width:100%;box-sizing:border-box;align-items:start;}.lb-grid>*{flex:1 1 300px;min-width:0;}
 .lb-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-dim);width:100%;}
 .lb-rank{font-family:'Spectral',serif;font-size:12px;font-weight:700;min-width:28px;width:28px;text-align:center;flex-shrink:0;color:var(--text-dim);letter-spacing:0.5px;}
-.lb-name{font-family:'Spectral',serif;font-size:12px;font-weight:700;color:var(--text-bright);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.lb-name{font-family:'Spectral',serif;font-size:12px;font-weight:700;color:var(--text-bright);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;}
 .lb-val{font-family:'Spectral',serif;font-size:13px;font-weight:800;color:var(--gold-light);min-width:72px;text-align:right;flex-shrink:0;}
 .lb-bar-bg{height:3px;background:rgba(255,255,255,0.06);border-radius:2px;margin-top:5px;}
 .lb-bar{height:3px;background:linear-gradient(90deg,var(--gold-dim),var(--gold-light));border-radius:2px;}
@@ -2804,7 +2804,7 @@ function Auctions({ ctx }) {
                   <div className="auction-name">{a.name}</div>
                   <div className="auction-desc">{a.desc}</div>
                   <div className="auction-bid-row">
-                    <div>
+                    <div style={{textAlign:"left"}}>
                       <div className="bid-label">Current Bid</div>
                       <div className="current-bid"><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={28}/>{fmt(a.currentBid)}</span></div>
                       <div className="top-bidder">{a.topBidder||"No bids yet"}</div>
