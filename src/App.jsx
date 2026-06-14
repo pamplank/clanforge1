@@ -2411,7 +2411,7 @@ function UpdateNotes() {
     <div style={{
       marginBottom: 24, position: "relative", overflow: "hidden",
       background: "linear-gradient(135deg,rgba(10,8,6,0.9),rgba(18,14,11,0.95))",
-      border: "1px solid rgba(200,146,42,0.25)", borderRadius: 8,
+      border: "1px solid rgba(200,146,42,0.25)", borderRadius: 8, textAlign: "left",
     }}>
       <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,rgba(200,146,42,0.8),transparent)"}} />
       {/* Header */}
@@ -2466,7 +2466,7 @@ function UpdateNotes() {
             </div>
             {/* Change list */}
             {expanded===pi&&(
-              <div style={{padding:"6px 14px 12px 14px",borderTop:`1px solid ${patch.color}18`}}>
+              <div style={{padding:"6px 14px 12px 14px",borderTop:`1px solid ${patch.color}18`,textAlign:"left"}}>
                 {patch.changes.map((c,ci)=>(
                   <div key={ci} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"5px 0",borderBottom:ci<patch.changes.length-1?`1px solid rgba(255,255,255,0.04)`:"none"}}>
                     <span style={{fontSize:13,flexShrink:0,marginTop:1}}>{c.icon}</span>
