@@ -3154,20 +3154,9 @@ function Auctions({ ctx }) {
 
       {(tab==="active"||tab==="ended") && (
         <div style={{display:"flex",alignItems:"center",gap:10,margin:"14px 0 4px",flexWrap:"wrap",justifyContent:"flex-end"}}>
-          {/* Sort dropdown */}
-          <div style={{position:"relative",display:"inline-block"}}>
-            <span style={{fontSize:11,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700,fontFamily:"'Spectral',serif",marginRight:6}}>Sort:</span>
-            <select
-              value={sortBy}
-              onChange={e=>setSortBy(e.target.value)}
-              style={{
-                fontSize:11,fontWeight:700,padding:"5px 28px 5px 10px",border:"1px solid var(--border)",cursor:"pointer",
-                fontFamily:"'Spectral',serif",background:"var(--bg-card)",color:"var(--text-mid)",
-                borderRadius:2,transition:"all .15s",appearance:"none",WebkitAppearance:"none",
-                backgroundImage:"url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E")",
-                backgroundRepeat:"no-repeat",backgroundPosition:"right 8px center",
-              }}
-            >
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <span style={{fontSize:11,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700,fontFamily:"'Spectral',serif"}}>Sort:</span>
+            <select className="select" style={{width:"auto",fontSize:11,padding:"4px 10px",cursor:"pointer"}} value={sortBy} onChange={e=>setSortBy(e.target.value)}>
               <option value="default">Default</option>
               <option value="bid-desc">Bid: High → Low</option>
               <option value="bid-asc">Bid: Low → High</option>
@@ -3175,20 +3164,9 @@ function Auctions({ ctx }) {
               <option value="has-bidder">🏆 Has Bidder</option>
             </select>
           </div>
-          {/* View dropdown */}
-          <div style={{position:"relative",display:"inline-block"}}>
-            <span style={{fontSize:11,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700,fontFamily:"'Spectral',serif",marginRight:6}}>View:</span>
-            <select
-              value={viewMode}
-              onChange={e=>setViewMode(e.target.value)}
-              style={{
-                fontSize:11,fontWeight:700,padding:"5px 28px 5px 10px",border:"1px solid var(--border)",cursor:"pointer",
-                fontFamily:"'Spectral',serif",background:"var(--bg-card)",color:"var(--text-mid)",
-                borderRadius:2,transition:"all .15s",appearance:"none",WebkitAppearance:"none",
-                backgroundImage:"url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E")",
-                backgroundRepeat:"no-repeat",backgroundPosition:"right 8px center",
-              }}
-            >
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <span style={{fontSize:11,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700,fontFamily:"'Spectral',serif"}}>View:</span>
+            <select className="select" style={{width:"auto",fontSize:11,padding:"4px 10px",cursor:"pointer"}} value={viewMode} onChange={e=>setViewMode(e.target.value)}>
               <option value="grid">⊞ Grid</option>
               <option value="compact">≡ Compact</option>
               <option value="collapsed">⊟ Collapsed</option>
