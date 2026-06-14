@@ -2230,8 +2230,8 @@ function WorldBossSchedule() {
             flexShrink:0,
           }}><StatIcon src={WARRIORS_ICON} size={28}/></div>
           <div>
-            <div style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:17,color:"#e6b048",letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 20px rgba(200,146,42,0.5)"}}>Event Schedule</div>
-            <div style={{fontSize:9,color:"rgba(110,88,64,0.9)",letterSpacing:3,fontWeight:700,textTransform:"uppercase",marginTop:1}}>Peaky Blinders · Server Time</div>
+            <div style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:17,color:"#e6b048",letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 20px rgba(200,146,42,0.5)",textAlign:"left"}}>Event Schedule</div>
+            <div style={{fontSize:9,color:"rgba(110,88,64,0.9)",letterSpacing:3,fontWeight:700,textTransform:"uppercase",marginTop:1,textAlign:"left"}}>Peaky Blinders · Server Time</div>
           </div>
         </div>
         <div style={{display:"flex",gap:2,background:"rgba(0,0,0,0.5)",borderRadius:5,border:"1px solid rgba(200,146,42,0.15)",padding:3}}>
@@ -2417,7 +2417,7 @@ function UpdateNotes() {
       {/* Header */}
       <div style={{
         display:"flex",alignItems:"center",justifyContent:"space-between",
-        padding:"16px 20px",borderBottom:"1px solid rgba(200,146,42,0.12)",flexWrap:"wrap",gap:10
+        padding:"16px 20px",borderBottom:"1px solid rgba(200,146,42,0.12)",flexWrap:"wrap",gap:10,textAlign:"left"
       }}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{
@@ -2428,7 +2428,7 @@ function UpdateNotes() {
           }}>📋</div>
           <div>
             <div style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:14,color:"var(--gold-light)",letterSpacing:1}}>Update Notes</div>
-            <div style={{fontSize:10,color:"var(--text-dim)",fontWeight:600,letterSpacing:2,textTransform:"uppercase"}}>What's new in Ymir</div>
+            <div style={{fontSize:10,color:"var(--text-dim)",fontWeight:600,letterSpacing:2,textTransform:"uppercase"}}>Recent Changes</div>
           </div>
           <span style={{
             fontSize:9,fontWeight:900,letterSpacing:2,textTransform:"uppercase",
