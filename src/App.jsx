@@ -80,7 +80,7 @@ async function dbLoad(table, columns="*") {
 // to cause "select=*" to hit the statement timeout. List/poll queries
 // fetch everything except image_data; fetch it separately per-item only
 // when needed (e.g. opening an auction's detail/edit view).
-const AUCTION_LIST_COLS = "id,name,description,rarity,status,ends_at,started_at,current_bid,min_bid,top_bidder,image_name";
+const AUCTION_LIST_COLS = "id,name,description,rarity,status,ends_at,started_at,current_bid,min_bid,top_bidder,image_name,bids";
 async function dbLoadAuctionImage(id) {
   try {
     const t = await supa.from("auctions");
@@ -907,6 +907,12 @@ function AuctionImage({ auction, alt="", style, fallback }) {
     return null;
   });
 
+  // Sync: if local state is null but the cache or parent now has the URL, apply it immediately
+  useEffect(() => {
+    if (!dataUrl && auction?.image?.dataUrl) { setDataUrl(auction.image.dataUrl); return; }
+    if (!dataUrl && auction?.id && _auctionImageCache.has(auction.id)) { setDataUrl(_auctionImageCache.get(auction.id)); return; }
+  }, [auction?.image?.dataUrl, auction?.id, dataUrl]);
+
   useEffect(() => {
     if (dataUrl) return;
     if (!auction?.image?.name) return; // no image for this auction
@@ -1584,7 +1590,7 @@ export default function App() {
           minBid:      Number(r.min_bid)    || 0,
           startBid:    Number(r.min_bid)    || 0,
           topBidder:   r.top_bidder ?? null,
-          bids:        [],
+          bids:        (() => { try { const b = typeof r.bids === "string" ? JSON.parse(r.bids) : (Array.isArray(r.bids) ? r.bids : []); return b || []; } catch { return []; } })(),
           image:       r.image_name ? { dataUrl: r.image_data || null, name: r.image_name } : null,
         })));
       } else if (aRows === null) {
@@ -1686,6 +1692,7 @@ export default function App() {
           min_bid:     a.minBid ?? a.startBid ?? 0,
           image_data:  a.image?.dataUrl ?? null,
           image_name:  a.image?.name ?? null,
+          bids:        JSON.stringify(a.bids ?? []),
         }));
       return safe;
     });
@@ -1763,8 +1770,8 @@ export default function App() {
           minBid:      Number(r.min_bid)    || 0,
           startBid:    Number(r.min_bid)    || 0,
           topBidder:   r.top_bidder ?? null,
-          bids:        prev.find(a => String(a.id) === String(r.id))?.bids || [],
-          image:       r.image_name ? { dataUrl: prev.find(a => String(a.id) === String(r.id))?.image?.dataUrl || null, name: r.image_name } : null,
+          bids:        (() => { try { const db = typeof r.bids === "string" ? JSON.parse(r.bids) : (Array.isArray(r.bids) ? r.bids : null); if (db && db.length > 0) return db; } catch {} return prev.find(a => String(a.id) === String(r.id))?.bids || []; })(),
+          image:       r.image_name ? { dataUrl: prev.find(a => String(a.id) === String(r.id))?.image?.dataUrl || _auctionImageCache.get(String(r.id)) || null, name: r.image_name } : null,
         })).filter(a => !deletedAuctionIds.current.has(a.id));
         return updated;
       });
@@ -1816,6 +1823,7 @@ export default function App() {
             min_bid:     a.minBid ?? a.startBid ?? 0,
             image_data:  a.image?.dataUrl ?? null,
             image_name:  a.image?.name ?? null,
+            bids:        JSON.stringify(a.bids ?? []),
           });
           return {...a, status:"ended"};
         }
