@@ -1827,6 +1827,21 @@ export default function App() {
     if (currentUser) { const u = members.find(m=>m.id===currentUser.id); if (u) setCurrentUser(u); }
   }, [members]);
 
+  // Poll bid_events every 3s and show a global toast to all users when someone bids
+  const seenBidEvents = useRef(new Set());
+  useJitteredInterval(async () => {
+    const rows = await dbLoad("bid_events", "id,bidder,auction_name,amount,ts");
+    if (!Array.isArray(rows)) return;
+    const cutoff = Date.now() - 30000; // only show events from last 30s
+    rows.forEach(r => {
+      if (seenBidEvents.current.has(r.id)) return;
+      if (Number(r.ts) < cutoff) { seenBidEvents.current.add(r.id); return; }
+      seenBidEvents.current.add(r.id);
+      if (currentUser && r.bidder === currentUser.name) return;
+      addToast(`${r.bidder} bid ${fmt(Number(r.amount))} coins on ${r.auction_name}!`, "blue", "🔨 New Bid");
+    });
+  }, 3000, 800, [currentUser]);
+
   function addToast(msg, type="gold", title="") {
     const id = Date.now()+Math.random();
     setToasts(t => [...t,{id,msg,type,title}]);
@@ -3262,6 +3277,7 @@ function Auctions({ ctx }) {
   const [sortBy, setSortBy] = useState("default");
   const [viewMode, setViewMode] = useState("grid");
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
+  const isMaster = currentUser.role==="Master";
 
 
   const RARITY_ORDER = { kari: 0, epic: 1, rare: 2 };
@@ -3323,6 +3339,9 @@ function Auctions({ ctx }) {
     setAuctions(prev=>prev.map(x=>x.id===auctionId?{...x,currentBid:amount,topBidder:currentUser.name,bids:[...(x.bids||[]),{bidder:currentUser.name,amount,time:Date.now()}]}:x));
     addToast(`Bid of ${fmt(amount)} placed on ${a.name}!`,"gold","Bid Placed");
     setBidAmounts(prev=>({...prev,[auctionId]:""}));
+    // Write to bid_events so all other users get a global announcement toast
+    const bidEventId = `${auctionId}_${Date.now()}`;
+    dbUpsert("bid_events", { id: bidEventId, bidder: currentUser.name, auction_name: a.name, amount, ts: Date.now() });
   }
 
   function retractBid(auctionId) {
@@ -3530,7 +3549,7 @@ function Auctions({ ctx }) {
                     <input className="input" type="number" min={minBid} placeholder={`Min ${fmt(minBid)}`} value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p,[a.id]:e.target.value}))} style={{width:88,fontSize:12,padding:"4px 8px"}} />
                     <button className="btn btn-gold btn-sm" onClick={()=>placeBid(a.id)} disabled={!!bidSubmitting[a.id]}>{bidSubmitting[a.id]?"…":"Bid"}</button>
                     {isWinning&&<button className="btn btn-outline btn-sm" onClick={()=>retractBid(a.id)} title="Retract your bid" style={{borderColor:"rgba(231,76,60,0.5)",color:"#e07070",fontSize:10}}>↩ Retract</button>}
-                    {isAdmin&&<button className="btn btn-red btn-sm" onClick={()=>removeAuction(a.id)} title="Remove">✕</button>}
+                    {isMaster&&<button className="btn btn-red btn-sm" onClick={()=>removeAuction(a.id)} title="Remove">✕</button>}
                   </div>
                 </div>
               </div>
@@ -3569,7 +3588,7 @@ function Auctions({ ctx }) {
                     <button className="btn btn-gold" onClick={()=>placeBid(a.id)} disabled={!!bidSubmitting[a.id]}>{bidSubmitting[a.id]?"…":"Bid"}</button>
                   </div>
                   {isWinning&&<button className="btn btn-outline btn-sm" style={{width:"100%",marginTop:6,borderColor:"rgba(231,76,60,0.5)",color:"#e07070"}} onClick={()=>retractBid(a.id)}>↩ Retract Bid</button>}
-                  {isAdmin&&<button className="btn btn-red btn-sm" style={{width:"100%",marginTop:6}} onClick={()=>removeAuction(a.id)}>Remove Auction</button>}
+                  {isMaster&&<button className="btn btn-red btn-sm" style={{width:"100%",marginTop:6}} onClick={()=>removeAuction(a.id)}>Remove Auction</button>}
                   {(a.bids||[]).length>0&&(
                     <div style={{marginTop:10,fontSize:11,color:"var(--text-dim)",borderTop:"1px solid var(--border-dim)",paddingTop:8}}>
                       {[...(a.bids||[])].reverse().slice(0,2).map((b,i)=>(
