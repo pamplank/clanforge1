@@ -2065,6 +2065,141 @@ function WorldBossSchedule() {
   );
 }
 
+
+// ─── UPDATE NOTES ─────────────────────────────────────────────────────────────
+const UPDATE_NOTES = [
+  {
+    version: "v1.4",
+    date: "June 2025",
+    title: "Bonus System Revamp",
+    color: "#9b59b6",
+    changes: [
+      { icon: "🏆", text: "Major Events bonus reduced to +300 coins (was +500) for attending all event types in a week" },
+      { icon: "🔮", text: "New: Sindri Veteran bonus — attend 2× Sindri's Treasure Island per week for 5 weeks to earn +400 coins (one-time)" },
+      { icon: "⚔", text: "ISB Veteran bonus reduced to +500 coins (was +1,000) for reaching 10 lifetime ISB events" },
+      { icon: "❌", text: "Streak Bonus removed and replaced by Sindri Veteran" },
+    ],
+  },
+  {
+    version: "v1.3",
+    date: "June 2025",
+    title: "Event Attendance Requirements",
+    color: "#e67e22",
+    changes: [
+      { icon: "🗡", text: "Clan Annihilation now requires 2× attendance per week to count toward Major Events bonus" },
+      { icon: "🔮", text: "Sindri's Treasure Island now requires 2× attendance per week to count toward Major Events bonus" },
+      { icon: "🌍", text: "World Boss now requires 3× attendance per week to count toward Major Events bonus" },
+      { icon: "✅", text: "Bonuses are now automatically paid out when attendance is recorded — no manual action needed" },
+    ],
+  },
+  {
+    version: "v1.2",
+    date: "June 2025",
+    title: "Loot Roulette Fix",
+    color: "#e74c3c",
+    changes: [
+      { icon: "🎲", text: "Fixed: Loot Roulette results now visible to all members after a roll, not just the Elder who rolled" },
+      { icon: "📡", text: "Results auto-sync to all members within 10 seconds via live database polling" },
+      { icon: "🔔", text: "New gold banner appears for everyone when a new loot roll is published" },
+      { icon: "↺", text: "Added manual Refresh Now button on the History tab for instant updates" },
+    ],
+  },
+  {
+    version: "v1.1",
+    date: "June 2025",
+    title: "Rank Multiplier & Coin System",
+    color: "#27ae60",
+    changes: [
+      { icon: "📊", text: "Power rank multiplier applied to all attendance coin rewards (top ranked members earn more)" },
+      { icon: "💰", text: "Coin decay of -10% applies every Sunday to encourage spending" },
+      { icon: "🏅", text: "Auction wins now tracked on member profiles and leaderboard" },
+    ],
+  },
+];
+
+function UpdateNotes() {
+  const [expanded, setExpanded] = React.useState(null);
+  const [dismissed, setDismissed] = React.useState(() => {
+    try { return localStorage.getItem("update_notes_dismissed") === "true"; } catch { return false; }
+  });
+
+  if (dismissed) return null;
+
+  return (
+    <div style={{
+      marginBottom: 24, position: "relative", overflow: "hidden",
+      background: "linear-gradient(135deg,rgba(10,8,6,0.9),rgba(18,14,11,0.95))",
+      border: "1px solid rgba(200,146,42,0.25)", borderRadius: 8,
+    }}>
+      <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,rgba(200,146,42,0.8),transparent)"}} />
+      {/* Header */}
+      <div style={{
+        display:"flex",alignItems:"center",justifyContent:"space-between",
+        padding:"16px 20px",borderBottom:"1px solid rgba(200,146,42,0.12)",flexWrap:"wrap",gap:10
+      }}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{
+            width:36,height:36,borderRadius:5,flexShrink:0,
+            background:"linear-gradient(135deg,rgba(200,146,42,0.3),rgba(200,146,42,0.1))",
+            border:"1px solid rgba(200,146,42,0.35)",
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,
+          }}>📋</div>
+          <div>
+            <div style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:14,color:"var(--gold-light)",letterSpacing:1}}>Update Notes</div>
+            <div style={{fontSize:10,color:"var(--text-dim)",fontWeight:600,letterSpacing:2,textTransform:"uppercase"}}>What's new in Ymir</div>
+          </div>
+          <span style={{
+            fontSize:9,fontWeight:900,letterSpacing:2,textTransform:"uppercase",
+            background:"linear-gradient(135deg,rgba(200,146,42,0.4),rgba(200,146,42,0.2))",
+            border:"1px solid rgba(200,146,42,0.4)",borderRadius:20,padding:"2px 10px",
+            color:"var(--gold-light)",
+          }}>{UPDATE_NOTES[0].version} · LATEST</span>
+        </div>
+        <button
+          className="btn btn-ghost btn-sm"
+          style={{fontSize:10,color:"var(--text-dim)",opacity:0.7}}
+          onClick={()=>{ setDismissed(true); try{localStorage.setItem("update_notes_dismissed","true");}catch{} }}
+        >✕ Dismiss</button>
+      </div>
+      {/* Patches list */}
+      <div style={{padding:"12px 20px",display:"flex",flexDirection:"column",gap:4}}>
+        {UPDATE_NOTES.map((patch,pi)=>(
+          <div key={pi} style={{borderRadius:5,overflow:"hidden",border:`1px solid ${patch.color}22`,background:"rgba(0,0,0,0.25)"}}>
+            {/* Patch row */}
+            <div
+              onClick={()=>setExpanded(expanded===pi?null:pi)}
+              style={{
+                display:"flex",alignItems:"center",gap:12,padding:"10px 14px",cursor:"pointer",
+                transition:"background 0.15s",
+                background:expanded===pi?`${patch.color}12`:"transparent",
+              }}
+              onMouseEnter={e=>e.currentTarget.style.background=`${patch.color}10`}
+              onMouseLeave={e=>e.currentTarget.style.background=expanded===pi?`${patch.color}12`:"transparent"}
+            >
+              <div style={{width:6,height:6,borderRadius:"50%",background:patch.color,boxShadow:`0 0 6px ${patch.color}`,flexShrink:0}} />
+              <span style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:11,color:patch.color,minWidth:32,flexShrink:0,letterSpacing:0.5}}>{patch.version}</span>
+              <span style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:12,color:"var(--text-bright)",flex:1}}>{patch.title}</span>
+              <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Spectral',serif",flexShrink:0}}>{patch.date}</span>
+              <span style={{fontSize:9,color:"var(--text-dim)",marginLeft:4,flexShrink:0,transition:"transform 0.2s",display:"inline-block",transform:expanded===pi?"rotate(180deg)":"rotate(0deg)"}}>▼</span>
+            </div>
+            {/* Change list */}
+            {expanded===pi&&(
+              <div style={{padding:"6px 14px 12px 14px",borderTop:`1px solid ${patch.color}18`}}>
+                {patch.changes.map((c,ci)=>(
+                  <div key={ci} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"5px 0",borderBottom:ci<patch.changes.length-1?`1px solid rgba(255,255,255,0.04)`:"none"}}>
+                    <span style={{fontSize:13,flexShrink:0,marginTop:1}}>{c.icon}</span>
+                    <span style={{fontSize:12,color:"var(--text-dim)",fontFamily:"'Spectral',serif",lineHeight:1.6}}>{c.text}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function Dashboard({ ctx, setPage }) {
   const { members, auctions, currentUser } = ctx;
@@ -2151,6 +2286,9 @@ function Dashboard({ ctx, setPage }) {
           </div>
         </div>
       </div>
+
+      {/* Update Notes */}
+      <UpdateNotes />
 
       {/* World Boss Schedule */}
       <WorldBossSchedule />
@@ -2451,25 +2589,38 @@ function Attendance({ ctx }) {
       const prevAttended = getAttendedIds(m.attendLog||[]);
       const newAttended  = getAttendedIds(newAttendLog);
       if(newAttended.size>=totalEvents && prevAttended.size<totalEvents && !alreadyReceivedThisWeek(m.txLog,"Major Events Bonus")) {
-        bonusCoins += 500;
-        newTxLog.push({change:500,reason:"Attended all major events this week",date:today,logType:"Major Events Bonus",addedBy:"System"});
-        bonusToasts.push({name:m.name,bonus:"Major Events",coins:500});
+        bonusCoins += 300;
+        newTxLog.push({change:300,reason:"Attended all major events this week",date:today,logType:"Major Events Bonus",addedBy:"System"});
+        bonusToasts.push({name:m.name,bonus:"Major Events",coins:300});
       }
       // ── ISB Veteran bonus (+1000) ──
       const isbCountNew = newAttendLog.filter(e=>e.event==="Inter-Server Battle"&&e.qualifier!=="afk").length;
       const isbCountOld = (m.attendLog||[]).filter(e=>e.event==="Inter-Server Battle"&&e.qualifier!=="afk").length;
       if(isbCountNew>=10 && isbCountOld<10 && !alreadyReceivedThisWeek(m.txLog,"ISB Veteran Bonus")) {
-        bonusCoins += 1000;
-        newTxLog.push({change:1000,reason:"Reached 10 ISB events (ISB Veteran)",date:today,logType:"ISB Veteran Bonus",addedBy:"System"});
-        bonusToasts.push({name:m.name,bonus:"ISB Veteran",coins:1000});
+        bonusCoins += 500;
+        newTxLog.push({change:500,reason:"Reached 10 ISB events (ISB Veteran)",date:today,logType:"ISB Veteran Bonus",addedBy:"System"});
+        bonusToasts.push({name:m.name,bonus:"ISB Veteran",coins:500});
       }
-      // ── Streak bonus (+200) — 3+ unique attendance dates all-time ──
-      const datesOld = [...new Set((m.attendLog||[]).filter(e=>e.qualifier!=="afk").map(e=>e.date))];
-      const datesNew = [...new Set(newAttendLog.filter(e=>e.qualifier!=="afk").map(e=>e.date))];
-      if(datesNew.length>=3 && datesOld.length<3 && !alreadyReceivedThisWeek(m.txLog,"Streak Bonus")) {
-        bonusCoins += 200;
-        newTxLog.push({change:200,reason:"3+ week streak achieved",date:today,logType:"Streak Bonus",addedBy:"System"});
-        bonusToasts.push({name:m.name,bonus:"Streak",coins:200});
+      // ── Sindri Veteran bonus (+400) — 2 STI/week for 5 weeks ──
+      function getISOWeekSV(dateStr) {
+        const d = new Date(dateStr); if(isNaN(d)) return null;
+        const thu = new Date(d); thu.setDate(d.getDate() - ((d.getDay()+6)%7) + 3);
+        const jan4 = new Date(thu.getFullYear(),0,4);
+        return thu.getFullYear()+"W"+Math.ceil(((thu-jan4)/86400000+1)/7);
+      }
+      function countStiQualWeeks(log) {
+        const byWeek = {};
+        log.filter(e=>e.event==="Sindris Treasure Island"&&e.qualifier!=="afk").forEach(e=>{
+          const wk=getISOWeekSV(e.date); if(wk){ byWeek[wk]=(byWeek[wk]||0)+1; }
+        });
+        return Object.values(byWeek).filter(c=>c>=2).length;
+      }
+      const stiWeeksOld = countStiQualWeeks(m.attendLog||[]);
+      const stiWeeksNew = countStiQualWeeks(newAttendLog);
+      if(stiWeeksNew>=5 && stiWeeksOld<5 && !(m.txLog||[]).some(tx=>tx.logType==="Sindri Veteran Bonus")) {
+        bonusCoins += 400;
+        newTxLog.push({change:400,reason:"Attended 2 Sindri's per week for 5 weeks",date:today,logType:"Sindri Veteran Bonus",addedBy:"System"});
+        bonusToasts.push({name:m.name,bonus:"Sindri Veteran",coins:400});
       }
       return{...m,coins:m.coins+earned+bonusCoins,attendance:m.attendance+(q!=="afk"?1:0),
         attendLog:newAttendLog,txLog:newTxLog};
@@ -2517,13 +2668,24 @@ function Attendance({ ctx }) {
       if(count >= required) attendedIds.add(id);
     });
     const attendedAll = attendedIds.size>=totalEvents;
-    // Streak: all-time consecutive weeks
-    const dates = [...new Set(log.filter(e=>e.qualifier!=="afk").map(e=>e.date))];
-    const streak = dates.length>=3;
+    // Sindri Veteran: attended 2 STI per week for 5 consecutive weeks
+    // Count distinct ISO week strings where STI count >= 2
+    function getISOWeek(dateStr) {
+      const d = new Date(dateStr); if(isNaN(d)) return null;
+      const thu = new Date(d); thu.setDate(d.getDate() - ((d.getDay()+6)%7) + 3);
+      const jan4 = new Date(thu.getFullYear(),0,4);
+      return thu.getFullYear()+"W"+Math.ceil(((thu-jan4)/86400000+1)/7);
+    }
+    const stiByWeek = {};
+    log.filter(e=>e.event==="Sindris Treasure Island"&&e.qualifier!=="afk").forEach(e=>{
+      const wk=getISOWeek(e.date); if(wk){ stiByWeek[wk]=(stiByWeek[wk]||0)+1; }
+    });
+    const stiQualWeeks = Object.values(stiByWeek).filter(c=>c>=2).length;
+    const sindriVet = stiQualWeeks>=5;
     // ISB Veteran: all-time ISB count
     const isbCount = log.filter(e=>e.event==="Inter-Server Battle"&&e.qualifier!=="afk").length;
     const isbVet = isbCount>=10;
-    return {attendedAll,streak,isbVet,isbCount,dates,recentEvents,totalEvents,attendedNames:attendedIds};
+    return {attendedAll,sindriVet,stiQualWeeks,isbVet,isbCount,recentEvents,totalEvents,attendedNames:attendedIds};
   }
 
   const pagedLogs = attendanceLogs.slice(logPage*PAGE_SIZE, (logPage+1)*PAGE_SIZE);
@@ -2673,29 +2835,29 @@ function Attendance({ ctx }) {
                   <div style={{marginBottom:10}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                       <span style={{fontFamily:"'Spectral',serif",fontSize:11,fontWeight:700,color:b.attendedAll?"var(--gold-light)":"var(--text-dim)"}}>Major Events</span>
-                      {b.attendedAll?<span className="badge badge-gold">+500</span>:<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>{b.attendedNames.size}/{b.totalEvents}</span>}
+                      {b.attendedAll?<span className="badge badge-gold">+300</span>:<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>{b.attendedNames.size}/{b.totalEvents}</span>}
                     </div>
                     <div style={{height:4,background:"rgba(255,255,255,0.07)",borderRadius:2}}>
                       <div style={{height:4,borderRadius:2,background:"linear-gradient(90deg,var(--gold-dim),var(--gold-light))",width:`${Math.min(100,(b.attendedNames.size/b.totalEvents)*100)}%`,transition:"width 0.4s"}} />
                     </div>
                     <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Spectral',serif"}}>ISB · CA×2 · STI×2 · CS · WB×3</div>
                   </div>
-                  {/* Streak Bonus */}
+                  {/* Sindri Veteran */}
                   <div style={{marginBottom:10}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                      <span style={{fontFamily:"'Spectral',serif",fontSize:11,fontWeight:700,color:b.streak?"var(--gold-light)":"var(--text-dim)"}}>Streak Bonus (3+ weeks)</span>
-                      {b.streak && <span className="badge badge-gold">+200/wk</span>}
+                      <span style={{fontFamily:"'Spectral',serif",fontSize:11,fontWeight:700,color:b.sindriVet?"var(--gold-light)":"var(--text-dim)"}}>Sindri Veteran</span>
+                      {b.sindriVet?<span className="badge badge-gold">✓ Earned</span>:<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>{b.stiQualWeeks}/5 weeks</span>}
                     </div>
                     <div style={{height:4,background:"rgba(255,255,255,0.07)",borderRadius:2}}>
-                      <div style={{height:4,borderRadius:2,background:"linear-gradient(90deg,#2980b9,#60aadd)",width:`${Math.min(100,(b.dates.length/3)*100)}%`,transition:"width 0.4s"}} />
+                      <div style={{height:4,borderRadius:2,background:"linear-gradient(90deg,#6c1e6c,#9b59b6)",width:`${Math.min(100,(b.stiQualWeeks/5)*100)}%`,transition:"width 0.4s"}} />
                     </div>
-                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Spectral',serif"}}>{b.dates.length}/3 consecutive weeks</div>
+                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Spectral',serif"}}>{b.stiQualWeeks}/5 weeks with 2× Sindri's</div>
                   </div>
                   {/* ISB Veteran */}
                   <div>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                       <span style={{fontFamily:"'Spectral',serif",fontSize:11,fontWeight:700,color:b.isbVet?"var(--gold-light)":"var(--text-dim)"}}>ISB Veteran</span>
-                      {b.isbVet && <span className="badge badge-gold">+1000</span>}
+                      {b.isbVet && <span className="badge badge-gold">+500</span>}
                     </div>
                     <div style={{height:4,background:"rgba(255,255,255,0.07)",borderRadius:2}}>
                       <div style={{height:4,borderRadius:2,background:"linear-gradient(90deg,#6c1e6c,#8e44ad)",width:`${Math.min(100,(b.isbCount/10)*100)}%`,transition:"width 0.4s"}} />
@@ -2712,9 +2874,9 @@ function Attendance({ ctx }) {
           <div className="card card-gold" style={{marginBottom:16}}>
             <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:14,color:"var(--gold-light)",marginBottom:6}}>Bonus Rules</div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
-              <div style={{fontSize:12,color:"var(--text-dim)"}}>Major Events — attend all 5 major event types this week: ISB (×1), Clan Annihilation (×2), Sindri's Treasure Island (×2), Clan Sanctuary (×1), World Boss (×3): <strong style={{color:"var(--gold)"}}>+500 Coins</strong></div>
-              <div style={{fontSize:12,color:"var(--text-dim)"}}>Streak Bonus — 3+ consecutive weeks of participation: <strong style={{color:"var(--gold)"}}>+200 / week</strong></div>
-              <div style={{fontSize:12,color:"var(--text-dim)"}}>ISB Veteran — participate in 10 Inter-Server Battles: <strong style={{color:"var(--gold)"}}>+1000 Coins</strong></div>
+              <div style={{fontSize:12,color:"var(--text-dim)"}}>Major Events — attend all 5 event types this week: ISB (×1), CA (×2), STI (×2), CS (×1), WB (×3): <strong style={{color:"var(--gold)"}}>+300 Coins</strong></div>
+              <div style={{fontSize:12,color:"var(--text-dim)"}}>Sindri Veteran — attend 2× Sindri's Treasure Island per week for 5 weeks: <strong style={{color:"var(--gold)"}}>+400 Coins</strong> (one-time)</div>
+              <div style={{fontSize:12,color:"var(--text-dim)"}}>ISB Veteran — participate in 10 Inter-Server Battles (lifetime): <strong style={{color:"var(--gold)"}}>+500 Coins</strong> (one-time)</div>
             </div>
           </div>
           <div className="card card-red">
