@@ -2444,7 +2444,7 @@ function UpdateNotes() {
         >✕ Dismiss</button>
       </div>
       {/* Patches list */}
-      <div style={{padding:"12px 20px",display:"flex",flexDirection:"column",gap:4}}>
+      <div style={{padding:"12px 20px",display:"flex",flexDirection:"column",gap:4,textAlign:"left"}}>
         {visibleNotes.map((patch,pi)=>(
           <div key={pi} style={{borderRadius:5,overflow:"hidden",border:`1px solid ${patch.color}22`,background:"rgba(0,0,0,0.25)"}}>
             {/* Patch row */}
@@ -2459,9 +2459,9 @@ function UpdateNotes() {
               onMouseLeave={e=>e.currentTarget.style.background=expanded===pi?`${patch.color}12`:"transparent"}
             >
               <div style={{width:6,height:6,borderRadius:"50%",background:patch.color,boxShadow:`0 0 6px ${patch.color}`,flexShrink:0}} />
-              <span style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:11,color:patch.color,minWidth:32,flexShrink:0,letterSpacing:0.5}}>{patch.version}</span>
-              <span style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:12,color:"var(--text-bright)",flex:1}}>{patch.title}</span>
-              <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Spectral',serif",flexShrink:0}}>{patch.date}</span>
+              <span style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:11,color:patch.color,minWidth:32,flexShrink:0,letterSpacing:0.5,textAlign:"left"}}>{patch.version}</span>
+              <span style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:12,color:"var(--text-bright)",flex:1,textAlign:"left"}}>{patch.title}</span>
+              <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Spectral',serif",flexShrink:0,textAlign:"left"}}>{patch.date}</span>
               <span style={{fontSize:9,color:"var(--text-dim)",marginLeft:4,flexShrink:0,transition:"transform 0.2s",display:"inline-block",transform:expanded===pi?"rotate(180deg)":"rotate(0deg)"}}>▼</span>
             </div>
             {/* Change list */}
@@ -2470,7 +2470,7 @@ function UpdateNotes() {
                 {patch.changes.map((c,ci)=>(
                   <div key={ci} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"5px 0",borderBottom:ci<patch.changes.length-1?`1px solid rgba(255,255,255,0.04)`:"none"}}>
                     <span style={{fontSize:13,flexShrink:0,marginTop:1}}>{c.icon}</span>
-                    <span style={{fontSize:12,color:"var(--text-dim)",fontFamily:"'Spectral',serif",lineHeight:1.6}}>{c.text}</span>
+                    <span style={{fontSize:12,color:"var(--text-dim)",fontFamily:"'Spectral',serif",lineHeight:1.6,textAlign:"left"}}>{c.text}</span>
                   </div>
                 ))}
               </div>
