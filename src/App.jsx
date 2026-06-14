@@ -1379,15 +1379,17 @@ export default function App() {
   const [tick, setTick] = useState(0);
   const [imageLibrary, addImage] = useImageLibrary();
   const [dbReady, setDbReady] = useState(false);
+  const [lootResults, setLootResults] = useState([]);
 
   // ── Load all data from Supabase on mount ──────────────────────────────────
   useEffect(() => {
     async function loadAll() {
-      const [mRows, aRows, lRows, cRows] = await Promise.all([
+      const [mRows, aRows, lRows, cRows, rRows] = await Promise.all([
         dbLoad("members"),
         dbLoad("auctions"),
         dbLoad("attendance_logs"),
         dbLoad("coin_requests"),
+        dbLoad("loot_results"),
       ]);
       if (Array.isArray(mRows) && mRows.length > 0) {
         const safeJson = (v) => {
@@ -1448,6 +1450,15 @@ export default function App() {
         requestedBy: r.requested_by ?? r.requestedBy,
         requestedAt: r.requested_at ?? r.requestedAt,
       })));
+      if (Array.isArray(rRows) && rRows.length > 0) {
+        setLootResults(rRows.map(r => ({
+          id: r.id,
+          timestamp: Number(r.timestamp) || 0,
+          date: r.date || "",
+          eventLabel: r.event_label || "Loot Distribution",
+          results: (() => { try { return typeof r.results === "string" ? JSON.parse(r.results) : (r.results || []); } catch { return []; } })(),
+        })).filter(r => Date.now() - r.timestamp < 7*24*60*60*1000).sort((a,b)=>b.timestamp-a.timestamp));
+      }
       setDbReady(true);
 
       // ── Restore session from localStorage ───────────────────────────────
@@ -1535,6 +1546,31 @@ export default function App() {
   }
 
   useEffect(() => { const iv = setInterval(() => setTick(t=>t+1), 1000); return () => clearInterval(iv); }, []);
+  // Poll loot_results every 10s so all users see new distributions
+  const [latestLootId, setLatestLootId] = useState(null);
+  useEffect(() => {
+    const iv = setInterval(async () => {
+      const rows = await dbLoad("loot_results");
+      if (Array.isArray(rows) && rows.length > 0) {
+        const parsed = rows.map(r => ({
+          id: r.id,
+          timestamp: Number(r.timestamp) || 0,
+          date: r.date || "",
+          eventLabel: r.event_label || "Loot Distribution",
+          results: (() => { try { return typeof r.results === "string" ? JSON.parse(r.results) : (r.results || []); } catch { return []; } })(),
+        })).filter(r => Date.now() - r.timestamp < 7*24*60*60*1000).sort((a,b)=>b.timestamp-a.timestamp);
+        setLootResults(prev => {
+          const prevNewest = prev.length > 0 ? prev[0].id : null;
+          const newNewest = parsed.length > 0 ? parsed[0].id : null;
+          if (newNewest && newNewest !== prevNewest) {
+            setLatestLootId(String(newNewest));
+          }
+          return parsed;
+        });
+      }
+    }, 10000);
+    return () => clearInterval(iv);
+  }, []);
   useEffect(() => {
     setAuctionsRaw(prev => prev
       .filter(a => !deletedAuctionIds.current.has(a.id))
@@ -1644,7 +1680,7 @@ export default function App() {
   const [openUserMenu, setOpenUserMenu] = useState(false);
 
   const ctx = { members, setMembers, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
-    currentUser, setCurrentUser, addToast, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest };
+    currentUser, setCurrentUser, addToast, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId };
 
   const PAGE_TITLES = {dashboard:"Clan HQ",attendance:"Attendance",members:"Members",auctions:"Auction House",leaderboard:"Hall of Fame",export:"Export Data",settings:"Settings"};
 
@@ -2373,6 +2409,25 @@ function Attendance({ ctx }) {
     const ev=EVENTS.find(e=>e.id===selectedEvent);
     const present=Object.entries(selectedMembers).filter(([,v])=>v).map(([id])=>parseInt(id));
     if(present.length===0){addToast("No members selected.","red","Error");return;}
+    const today = new Date().toLocaleDateString();
+    const weekStart = getWeekStart();
+    const EVENT_REQUIRED = { CA: 2, STI: 2, WB: 3 };
+    const totalEvents = EVENTS.length;
+    // Helper: compute which bonus events a member has attended THIS week, given their projected attendLog
+    function getAttendedIds(log) {
+      const weekLog = log.filter(e=>{ const d=new Date(e.date); return !isNaN(d)&&d>=weekStart; });
+      const counts = {};
+      weekLog.filter(e=>e.qualifier!=="afk").forEach(e=>{
+        const evObj=EVENTS.find(ev=>ev.name===e.event); if(evObj?.id){ counts[evObj.id]=(counts[evObj.id]||0)+1; }
+      });
+      const ids = new Set();
+      Object.entries(counts).forEach(([id,count])=>{ if(count>=(EVENT_REQUIRED[id]||1)) ids.add(id); });
+      return ids;
+    }
+    // Helper: has member already received a specific bonus this week?
+    function alreadyReceivedThisWeek(txLog, bonusLabel) {
+      return (txLog||[]).some(tx=>tx.logType===bonusLabel && tx.date && new Date(tx.date)>=weekStart);
+    }
     const presentNames = present.map(id => {
       const m = members.find(x=>x.id===id);
       const q = qualifier[id]||"full";
@@ -2381,16 +2436,49 @@ function Attendance({ ctx }) {
       const earned=Math.floor(ev.coins*mult*rankMult);
       return {name:m?.name, qualifier:q, earned};
     });
+    const bonusToasts = [];
     setMembers(ms=>ms.map(m=>{
       if(!present.includes(m.id)) return m;
       const q=qualifier[m.id]||"full";
       const mult=q==="full"?1:q==="late"?0.5:0;
       const rankMult=getRankMultiplier(ms,m.id);
       const earned=Math.floor(ev.coins*mult*rankMult);
-      return{...m,coins:m.coins+earned,attendance:m.attendance+(q!=="afk"?1:0),
-        attendLog:[...(m.attendLog||[]),{event:ev.name,coins:earned,date:new Date().toLocaleDateString(),qualifier:q}]};
+      // Build the projected attendLog after adding this attendance
+      const newAttendLog=[...(m.attendLog||[]),{event:ev.name,coins:earned,date:today,qualifier:q}];
+      let bonusCoins = 0;
+      const newTxLog = [...(m.txLog||[])];
+      // ── Major Events bonus (+500) ──
+      const prevAttended = getAttendedIds(m.attendLog||[]);
+      const newAttended  = getAttendedIds(newAttendLog);
+      if(newAttended.size>=totalEvents && prevAttended.size<totalEvents && !alreadyReceivedThisWeek(m.txLog,"Major Events Bonus")) {
+        bonusCoins += 500;
+        newTxLog.push({change:500,reason:"Attended all major events this week",date:today,logType:"Major Events Bonus",addedBy:"System"});
+        bonusToasts.push({name:m.name,bonus:"Major Events",coins:500});
+      }
+      // ── ISB Veteran bonus (+1000) ──
+      const isbCountNew = newAttendLog.filter(e=>e.event==="Inter-Server Battle"&&e.qualifier!=="afk").length;
+      const isbCountOld = (m.attendLog||[]).filter(e=>e.event==="Inter-Server Battle"&&e.qualifier!=="afk").length;
+      if(isbCountNew>=10 && isbCountOld<10 && !alreadyReceivedThisWeek(m.txLog,"ISB Veteran Bonus")) {
+        bonusCoins += 1000;
+        newTxLog.push({change:1000,reason:"Reached 10 ISB events (ISB Veteran)",date:today,logType:"ISB Veteran Bonus",addedBy:"System"});
+        bonusToasts.push({name:m.name,bonus:"ISB Veteran",coins:1000});
+      }
+      // ── Streak bonus (+200) — 3+ unique attendance dates all-time ──
+      const datesOld = [...new Set((m.attendLog||[]).filter(e=>e.qualifier!=="afk").map(e=>e.date))];
+      const datesNew = [...new Set(newAttendLog.filter(e=>e.qualifier!=="afk").map(e=>e.date))];
+      if(datesNew.length>=3 && datesOld.length<3 && !alreadyReceivedThisWeek(m.txLog,"Streak Bonus")) {
+        bonusCoins += 200;
+        newTxLog.push({change:200,reason:"3+ week streak achieved",date:today,logType:"Streak Bonus",addedBy:"System"});
+        bonusToasts.push({name:m.name,bonus:"Streak",coins:200});
+      }
+      return{...m,coins:m.coins+earned+bonusCoins,attendance:m.attendance+(q!=="afk"?1:0),
+        attendLog:newAttendLog,txLog:newTxLog};
     }));
-    const logEntry = {id:Date.now(),event:ev.name,date:new Date().toLocaleDateString(),members:present.length,recordedBy:currentUser.name,attendees:presentNames};
+    // Show bonus toasts after state update
+    setTimeout(()=>{
+      bonusToasts.forEach(t=>addToast(`🏆 ${t.name} earned +${t.coins} coins — ${t.bonus} Bonus!`,"gold","Bonus Awarded"));
+    }, 200);
+    const logEntry = {id:Date.now(),event:ev.name,date:today,members:present.length,recordedBy:currentUser.name,attendees:presentNames};
     setAttendanceLogs(p=>[logEntry,...p]);
     addToast(`Attendance recorded! ${present.length} members updated.`,"blue","Attendance Saved");
     setSelectedMembers({});setQualifier({});setSelectedEvent(null);
@@ -2412,9 +2500,22 @@ function Attendance({ ctx }) {
     const weekLog = log.filter(e=>{ const d=new Date(e.date); return !isNaN(d)&&d>=weekStart; });
     const totalEvents = EVENTS.length;
     const recentEvents = weekLog;
-    const attendedIds = new Set(weekLog.filter(e=>e.qualifier!=="afk").map(e=>{
-      const ev=EVENTS.find(ev=>ev.name===e.event); return ev?.id;
-    }).filter(Boolean));
+
+    // Count weekly attendances per event (excluding AFK)
+    const weekEventCounts = {};
+    weekLog.filter(e=>e.qualifier!=="afk").forEach(e=>{
+      const ev=EVENTS.find(ev=>ev.name===e.event);
+      if(ev?.id){ weekEventCounts[ev.id]=(weekEventCounts[ev.id]||0)+1; }
+    });
+
+    // Build the set of "counted" events this week:
+    // CA requires 2x, STI requires 2x, WB requires 3x; all others require 1x.
+    const EVENT_REQUIRED = { CA: 2, STI: 2, WB: 3 };
+    const attendedIds = new Set();
+    Object.entries(weekEventCounts).forEach(([id, count])=>{
+      const required = EVENT_REQUIRED[id] || 1;
+      if(count >= required) attendedIds.add(id);
+    });
     const attendedAll = attendedIds.size>=totalEvents;
     // Streak: all-time consecutive weeks
     const dates = [...new Set(log.filter(e=>e.qualifier!=="afk").map(e=>e.date))];
@@ -2577,7 +2678,7 @@ function Attendance({ ctx }) {
                     <div style={{height:4,background:"rgba(255,255,255,0.07)",borderRadius:2}}>
                       <div style={{height:4,borderRadius:2,background:"linear-gradient(90deg,var(--gold-dim),var(--gold-light))",width:`${Math.min(100,(b.attendedNames.size/b.totalEvents)*100)}%`,transition:"width 0.4s"}} />
                     </div>
-                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Spectral',serif"}}>ISB · STI×2 · Annihilation · Sanctuary</div>
+                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Spectral',serif"}}>ISB · CA×2 · STI×2 · CS · WB×3</div>
                   </div>
                   {/* Streak Bonus */}
                   <div style={{marginBottom:10}}>
@@ -2611,7 +2712,7 @@ function Attendance({ ctx }) {
           <div className="card card-gold" style={{marginBottom:16}}>
             <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:14,color:"var(--gold-light)",marginBottom:6}}>Bonus Rules</div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
-              <div style={{fontSize:12,color:"var(--text-dim)"}}>Major Events — attend all 5 major events this week (ISB, Sindri's Treasure Island ×2, Clan Annihilation, Clan Sanctuary): <strong style={{color:"var(--gold)"}}>+500 Coins</strong></div>
+              <div style={{fontSize:12,color:"var(--text-dim)"}}>Major Events — attend all 5 major event types this week: ISB (×1), Clan Annihilation (×2), Sindri's Treasure Island (×2), Clan Sanctuary (×1), World Boss (×3): <strong style={{color:"var(--gold)"}}>+500 Coins</strong></div>
               <div style={{fontSize:12,color:"var(--text-dim)"}}>Streak Bonus — 3+ consecutive weeks of participation: <strong style={{color:"var(--gold)"}}>+200 / week</strong></div>
               <div style={{fontSize:12,color:"var(--text-dim)"}}>ISB Veteran — participate in 10 Inter-Server Battles: <strong style={{color:"var(--gold)"}}>+1000 Coins</strong></div>
             </div>
@@ -2692,7 +2793,7 @@ function Attendance({ ctx }) {
 
 // ─── AUCTIONS ─────────────────────────────────────────────────────────────────
 function Auctions({ ctx }) {
-  const { auctions, setAuctions, members, setMembers, currentUser, addToast, tick, imageLibrary, addImage, removeAuction, attendanceLogs } = ctx;
+  const { auctions, setAuctions, members, setMembers, currentUser, addToast, tick, imageLibrary, addImage, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId } = ctx;
   const [tab, setTab] = useState("active");
   const [bidAmounts, setBidAmounts] = useState({});
   const [newAuction, setNewAuction] = useState({name:"",image:null,rarity:"epic",desc:"",startBid:100,duration:30});
@@ -2767,14 +2868,20 @@ function Auctions({ ctx }) {
   const [lrEventDate, setLrEventDate] = React.useState(new Date().toISOString().slice(0,10));
   const [lrSelectedLog, setLrSelectedLog] = React.useState("");
   const lrRef = React.useRef();
-  // Weekly history — auto-purge after 1 week
+  // lrLatestId comes from ctx (shared via poll) so all users see new-result banner
+  const lrLatestId = latestLootId;
+  const setLrLatestId = setLatestLootId;
   const ONE_WEEK_MS = 7*24*60*60*1000;
-  const [lrHistory, setLrHistory] = React.useState([]);
+  // Use shared lootResults from ctx (synced via Supabase) instead of local state
+  const lrHistory = (lootResults || []);
+  const setLrHistory = (updater) => {
+    setLootResults(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      return next;
+    });
+  };
   const [lrHistFilter, setLrHistFilter] = React.useState("all");
   const [lrHistSort, setLrHistSort] = React.useState("newest");
-  React.useEffect(()=>{
-    setLrHistory(h=>h.filter(e=>Date.now()-e.timestamp < ONE_WEEK_MS));
-  },[]);
 
   const lrPresentIds = Object.entries(lrPresent).filter(([,v])=>v).map(([id])=>parseInt(id));
   const lrPresentList = members.filter(m=>lrPresentIds.includes(m.id));
@@ -2811,9 +2918,13 @@ function Auctions({ ctx }) {
         pool.forEach((name,idx)=>{result[idx%result.length].items.push(name);});
         result.sort((a,b)=>members.indexOf(a.member)-members.indexOf(b.member));
         setLrDist(result);setTimeout(()=>setLrRevealed(true),200);
-        // Save to history
+        // Save to history + persist to Supabase so all users see it
         const entry={id:Date.now(),timestamp:Date.now(),date:lrEventDate||new Date().toLocaleDateString(),eventLabel:lrEventLabel||"Loot Distribution",results:result.map(r=>({memberName:r.member.name,items:r.items}))};
         setLrHistory(h=>[entry,...h].filter(e=>Date.now()-e.timestamp<ONE_WEEK_MS).slice(0,50));
+        dbUpsert("loot_results",{id:String(entry.id),timestamp:entry.timestamp,date:entry.date,event_label:entry.eventLabel,results:JSON.stringify(entry.results)});
+        setLrLatestId(String(entry.id));
+        // Switch to history tab so admin also sees the results
+        setTimeout(()=>setLrTab("history"),400);
       }
     }
     lrRef.current=requestAnimationFrame(animate);
@@ -2928,6 +3039,59 @@ function Auctions({ ctx }) {
           {/* ── History Tab ── */}
           {lrTab==="history"&&(
             <div>
+              {/* NEW RESULT banner — shown right after a roll */}
+              {lrLatestId && lrHistory.find(e=>String(e.id)===lrLatestId) && (()=>{
+                const latest = lrHistory.find(e=>String(e.id)===lrLatestId);
+                return (
+                  <div style={{marginBottom:16,padding:"14px 18px",borderRadius:6,
+                    background:"linear-gradient(135deg,rgba(200,146,42,0.18),rgba(200,146,42,0.06))",
+                    border:"1px solid var(--gold)",position:"relative",overflow:"hidden"}}>
+                    <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,var(--gold),transparent)"}} />
+                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+                      <div style={{width:8,height:8,borderRadius:"50%",background:"#27ae60",boxShadow:"0 0 8px #27ae60",animation:"pulse 1s infinite",flexShrink:0}} />
+                      <span style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:15,color:"var(--gold-light)",letterSpacing:1}}>⚔ Loot Just Rolled!</span>
+                      <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>{latest.eventLabel} · {latest.date}</span>
+                      <button className="btn btn-ghost btn-sm" style={{marginLeft:"auto",fontSize:10}} onClick={()=>setLrLatestId(null)}>✕ Dismiss</button>
+                    </div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                      {latest.results.map((r,ri)=>{
+                        const grp=r.items.reduce((a,n)=>{a[n]=(a[n]||0)+1;return a;},{});
+                        return(
+                          <div key={ri} style={{background:"rgba(10,8,6,0.7)",border:"1px solid rgba(200,146,42,0.25)",borderRadius:5,padding:"8px 12px",minWidth:130}}>
+                            <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:12,color:r.items.length?"var(--gold-light)":"var(--text-dim)",marginBottom:4,display:"flex",justifyContent:"space-between",gap:6}}>
+                              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.memberName}</span>
+                              <span style={{fontSize:9,color:"rgba(200,146,42,0.5)",flexShrink:0}}>{r.items.length}pc</span>
+                            </div>
+                            {r.items.length===0
+                              ? <div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing</div>
+                              : Object.entries(grp).map(([name,qty],j)=>(
+                                  <div key={j} style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--text-dim)"}}>
+                                    <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</span>
+                                    <span style={{fontFamily:"'Spectral',serif",fontWeight:900,color:qty>1?"var(--gold-light)":"rgba(180,150,100,0.4)",flexShrink:0,marginLeft:4}}>×{qty}</span>
+                                  </div>
+                                ))
+                            }
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+              {/* Refresh button */}
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:7,height:7,borderRadius:"50%",background:"#27ae60",boxShadow:"0 0 6px #27ae60",animation:"pulse 2s infinite"}}/>
+                  <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>Auto-refreshes every 10s</span>
+                </div>
+                <button className="btn btn-ghost btn-sm" onClick={async ()=>{
+                  const rows=await dbLoad("loot_results");
+                  if(Array.isArray(rows)&&rows.length>0){
+                    setLootResults(rows.map(r=>({id:r.id,timestamp:Number(r.timestamp)||0,date:r.date||"",eventLabel:r.event_label||"Loot Distribution",results:(()=>{try{return typeof r.results==="string"?JSON.parse(r.results):(r.results||[]);}catch{return[];}})()})).filter(r=>Date.now()-r.timestamp<7*24*60*60*1000).sort((a,b)=>b.timestamp-a.timestamp));
+                    addToast("Results refreshed!","blue","Refreshed");
+                  }
+                }}>↺ Refresh Now</button>
+              </div>
               {/* Filter + Sort toolbar */}
               {lrHistory.length>0&&(()=>{
                 const allLabels=["all",...[...new Set(lrHistory.map(e=>e.eventLabel||"Loot Distribution"))].sort()];
@@ -3145,7 +3309,7 @@ function Auctions({ ctx }) {
                   {lrItems.length>0&&<div style={{marginTop:8,fontSize:11,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>{lrTotalQty} total items · {lrPresentList.length} members</div>}
                 </div>
                 <div className="card card-red">
-                  <button className="btn btn-red" style={{width:"100%",fontSize:15,padding:"14px 0",letterSpacing:2,justifyContent:"center",display:"flex",alignItems:"center",gap:8}} onClick={()=>{lrDistribute();setLrTab("results");}} disabled={lrSpinning}>
+                  <button className="btn btn-red" style={{width:"100%",fontSize:15,padding:"14px 0",letterSpacing:2,justifyContent:"center",display:"flex",alignItems:"center",gap:8}} onClick={()=>{lrDistribute();}} disabled={lrSpinning}>
                     {lrSpinning?"⚙ Rolling…":"⚔ Roll the Loot!"}
                   </button>
                   {lrDist&&<button className="btn btn-ghost btn-sm" style={{width:"100%",marginTop:8}} onClick={lrReset}>Reset</button>}
