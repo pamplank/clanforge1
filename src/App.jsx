@@ -2308,7 +2308,7 @@ function WorldBossSchedule() {
 // ─── UPDATE NOTES ─────────────────────────────────────────────────────────────
 const UPDATE_NOTES = [
   {
-    version: "v6.5.3",
+    version: "v1.7",
     date: "June 2026",
     title: "Bid Safety & Stability",
     color: "#4fc3f7",
