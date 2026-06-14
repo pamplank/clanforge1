@@ -1372,6 +1372,19 @@ function LootRoulette({ ctx }) {
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
+  // ── Browser tab title + favicon ──────────────────────────────────────────────
+  useEffect(() => {
+    document.title = "PeakyBlinders";
+    // Set favicon to COINS_ICON
+    let link = document.querySelector("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
+    link.href = COINS_ICON;
+  }, []);
+
   const [page, setPage] = useState("dashboard");
   const [members, setMembersRaw] = useState(SEED_MEMBERS);
   const [auctions, setAuctionsRaw] = useState(SEED_AUCTIONS);
@@ -1427,6 +1440,7 @@ export default function App() {
           name:        r.name ?? "",
           desc:        r.description ?? "",
           description: r.description ?? "",
+          rarity:      r.rarity ?? "epic",
           status:      r.status ?? "active",
           endsAt:      Number(r.ends_at)    || 0,
           startedAt:   Number(r.started_at) || 0,
@@ -1517,6 +1531,7 @@ export default function App() {
           id:          String(a.id),
           name:        a.name ?? "",
           description: a.description ?? a.desc ?? "",
+          rarity:      a.rarity ?? "epic",
           status:      a.status ?? "active",
           ends_at:     a.endsAt ?? 0,
           started_at:  a.startedAt ?? Date.now(),
@@ -2975,14 +2990,21 @@ function Auctions({ ctx }) {
   const [bidAmounts, setBidAmounts] = useState({});
   const [newAuction, setNewAuction] = useState({name:"",image:null,rarity:"epic",desc:"",startBid:100,duration:30});
   const [sortBy, setSortBy] = useState("default");
+  const [viewMode, setViewMode] = useState("grid");
+  const [expandedIds, setExpandedIds] = useState({});
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
+
+  function toggleExpand(id) {
+    setExpandedIds(prev => ({...prev, [id]: !prev[id]}));
+  }
 
   const RARITY_ORDER = { kari: 0, epic: 1, rare: 2 };
 
   function sortAuctions(list) {
-    if (sortBy === "bid-desc") return [...list].sort((a,b) => b.currentBid - a.currentBid);
-    if (sortBy === "bid-asc")  return [...list].sort((a,b) => a.currentBid - b.currentBid);
-    if (sortBy === "rarity")   return [...list].sort((a,b) => (RARITY_ORDER[a.rarity]??99) - (RARITY_ORDER[b.rarity]??99));
+    if (sortBy === "bid-desc")   return [...list].sort((a,b) => b.currentBid - a.currentBid);
+    if (sortBy === "bid-asc")    return [...list].sort((a,b) => a.currentBid - b.currentBid);
+    if (sortBy === "rarity")     return [...list].sort((a,b) => (RARITY_ORDER[a.rarity]??99) - (RARITY_ORDER[b.rarity]??99));
+    if (sortBy === "has-bidder") return [...list].sort((a,b) => (b.topBidder?1:0) - (a.topBidder?1:0));
     return list;
   }
 
@@ -3131,40 +3153,139 @@ function Auctions({ ctx }) {
       </div>
 
       {(tab==="active"||tab==="ended") && (
-        <div style={{display:"flex",alignItems:"center",gap:8,margin:"14px 0 4px",flexWrap:"wrap"}}>
-          <span style={{fontSize:11,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700,fontFamily:"'Spectral',serif"}}>Sort:</span>
-          {[
-            {key:"default",  label:"Default"},
-            {key:"bid-desc", label:"Bid: High → Low"},
-            {key:"bid-asc",  label:"Bid: Low → High"},
-            {key:"rarity",   label:"Rarity"},
-          ].map(opt=>(
-            <button key={opt.key}
-              onClick={()=>setSortBy(opt.key)}
+        <div style={{display:"flex",alignItems:"center",gap:10,margin:"14px 0 4px",flexWrap:"wrap",justifyContent:"flex-end"}}>
+          {/* Sort dropdown */}
+          <div style={{position:"relative",display:"inline-block"}}>
+            <span style={{fontSize:11,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700,fontFamily:"'Spectral',serif",marginRight:6}}>Sort:</span>
+            <select
+              value={sortBy}
+              onChange={e=>setSortBy(e.target.value)}
               style={{
-                fontSize:11,fontWeight:700,padding:"4px 12px",border:"1px solid",cursor:"pointer",letterSpacing:.5,
-                fontFamily:"'Spectral',serif",background:sortBy===opt.key?"var(--gold)":"transparent",
-                color:sortBy===opt.key?"#1a1008":"var(--text-mid)",
-                borderColor:sortBy===opt.key?"var(--gold)":"var(--border)",
-                borderRadius:2,transition:"all .15s",
+                fontSize:11,fontWeight:700,padding:"5px 28px 5px 10px",border:"1px solid var(--border)",cursor:"pointer",
+                fontFamily:"'Spectral',serif",background:"var(--bg-card)",color:"var(--text-mid)",
+                borderRadius:2,transition:"all .15s",appearance:"none",WebkitAppearance:"none",
+                backgroundImage:"url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E")",
+                backgroundRepeat:"no-repeat",backgroundPosition:"right 8px center",
               }}
-            >{opt.label}</button>
-          ))}
+            >
+              <option value="default">Default</option>
+              <option value="bid-desc">Bid: High → Low</option>
+              <option value="bid-asc">Bid: Low → High</option>
+              <option value="rarity">Rarity</option>
+              <option value="has-bidder">🏆 Has Bidder</option>
+            </select>
+          </div>
+          {/* View dropdown */}
+          <div style={{position:"relative",display:"inline-block"}}>
+            <span style={{fontSize:11,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700,fontFamily:"'Spectral',serif",marginRight:6}}>View:</span>
+            <select
+              value={viewMode}
+              onChange={e=>setViewMode(e.target.value)}
+              style={{
+                fontSize:11,fontWeight:700,padding:"5px 28px 5px 10px",border:"1px solid var(--border)",cursor:"pointer",
+                fontFamily:"'Spectral',serif",background:"var(--bg-card)",color:"var(--text-mid)",
+                borderRadius:2,transition:"all .15s",appearance:"none",WebkitAppearance:"none",
+                backgroundImage:"url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E")",
+                backgroundRepeat:"no-repeat",backgroundPosition:"right 8px center",
+              }}
+            >
+              <option value="grid">⊞ Grid</option>
+              <option value="compact">≡ Compact</option>
+              <option value="collapsed">⊟ Collapsed</option>
+            </select>
+          </div>
         </div>
       )}
 
       {tab==="active" && (
-        <div className="grid-3">
+        <div className={viewMode==="grid"?"grid-3":""} style={(viewMode==="compact"||viewMode==="collapsed")?{display:"flex",flexDirection:"column",gap:6}:{}}>
           {active.length===0&&<div style={{color:"var(--text-dim)",gridColumn:"1/-1",textAlign:"center",padding:48,fontFamily:"'Spectral',serif"}}>No active auctions right now.</div>}
           {active.map(a=>{
             const isWinning=a.topBidder===currentUser.name;
             const minBid=a.currentBid+5;
+            const rc={epic:{bg:"rgba(122,26,26,0.92)",color:"#ff8080",border:"rgba(192,57,43,0.5)"},rare:{bg:"rgba(26,90,138,0.92)",color:"#60aadd",border:"rgba(46,134,193,0.5)"},kari:{bg:"rgba(0,60,130,0.92)",color:"#a0d8ff",border:"rgba(100,200,255,0.6)"}};
+            const rc2=rc[a.rarity]||rc.epic;
+            if (viewMode==="collapsed") {
+              const isExpanded = expandedIds[a.id];
+              return (
+                <div key={a.id} style={{border:"1px solid var(--border)",borderLeft:`3px solid ${rc2.color}`,background:"var(--bg-card)",borderRadius:2,overflow:"hidden",transition:"all .2s"}}>
+                  {/* Collapsed Header Row */}
+                  <div onClick={()=>toggleExpand(a.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",cursor:"pointer",userSelect:"none"}}>
+                    <span style={{fontSize:12,color:"var(--text-dim)",flexShrink:0,transition:"transform .2s",transform:isExpanded?"rotate(90deg)":"rotate(0deg)"}}>▶</span>
+                    <div style={{width:28,height:28,borderRadius:2,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:a.rarity==="epic"?"rgba(122,26,26,0.3)":a.rarity==="kari"?"rgba(0,60,130,0.4)":"rgba(26,90,138,0.3)"}}>
+                      {a.image?<img src={a.image.dataUrl} alt={a.name} style={{width:"100%",height:"100%",objectFit:"cover"}} />:<StatIcon src={AUCTION_ICON} size={16}/>}
+                    </div>
+                    <span style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",flex:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.name}</span>
+                    <span style={{fontSize:9,fontWeight:700,padding:"2px 6px",background:rc2.bg,border:`1px solid ${rc2.border}`,color:rc2.color,letterSpacing:1,fontFamily:"'Spectral',serif",flexShrink:0}}>{(a.rarity||"epic").toUpperCase()}</span>
+                    {isWinning&&<span style={{fontSize:9,fontWeight:700,padding:"2px 5px",background:"rgba(39,174,96,0.2)",border:"1px solid rgba(39,174,96,0.5)",color:"#6ee89a",letterSpacing:1,flexShrink:0}}>WINNING</span>}
+                    <span style={{fontSize:11,color:"var(--gold-light)",fontWeight:800,fontFamily:"'Spectral',serif",flexShrink:0,display:"inline-flex",alignItems:"center",gap:3}}><StatIcon src={COINS_ICON} size={16}/>{fmt(a.currentBid)}</span>
+                    <span style={{fontSize:11,color:"#f0a0a0",fontFamily:"'Spectral',serif",fontWeight:700,flexShrink:0}}>{timeLeft(a.endsAt)}</span>
+                  </div>
+                  {/* Expanded Details */}
+                  {isExpanded && (
+                    <div style={{borderTop:"1px solid var(--border-dim)",padding:"10px 14px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",background:"rgba(0,0,0,0.15)"}}>
+                      {a.topBidder ? (
+                        <div style={{display:"inline-flex",alignItems:"center",gap:4,background:"rgba(39,174,96,0.12)",border:"1px solid rgba(39,174,96,0.35)",padding:"3px 8px",borderRadius:2}}>
+                          <span style={{fontSize:10}}>🏆</span>
+                          <span style={{fontSize:12,color:"#6ee89a",fontWeight:800,fontFamily:"'Spectral',serif"}}>{a.topBidder}</span>
+                        </div>
+                      ) : (
+                        <span style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Spectral',serif"}}>No bids yet</span>
+                      )}
+                      {a.desc&&<span style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'Spectral',serif",flex:1}}>{a.desc}</span>}
+                      <div style={{display:"flex",gap:6,alignItems:"center",marginLeft:"auto"}}>
+                        <input className="input" type="number" min={minBid} placeholder={`Min ${fmt(minBid)}`} value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p,[a.id]:e.target.value}))} style={{width:90,fontSize:12,padding:"4px 8px"}} />
+                        <button className="btn btn-gold btn-sm" onClick={e=>{e.stopPropagation();placeBid(a.id);}}>Bid</button>
+                        {isAdmin&&<button className="btn btn-red btn-sm" onClick={e=>{e.stopPropagation();removeAuction(a.id);}} title="Remove">✕</button>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            if (viewMode==="compact") return (
+              <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${rc2.color}`,background:"var(--bg-card)",borderRadius:2,minWidth:0}}>
+                <div style={{width:38,height:38,borderRadius:2,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:a.rarity==="epic"?"rgba(122,26,26,0.3)":a.rarity==="kari"?"rgba(0,60,130,0.4)":"rgba(26,90,138,0.3)"}}>
+                  {a.image?<img src={a.image.dataUrl} alt={a.name} style={{width:"100%",height:"100%",objectFit:"cover"}} />:<StatIcon src={AUCTION_ICON} size={22}/>}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                    <span style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.name}</span>
+                    <span style={{fontSize:9,fontWeight:700,padding:"2px 6px",background:rc2.bg,border:`1px solid ${rc2.border}`,color:rc2.color,letterSpacing:1,fontFamily:"'Spectral',serif",flexShrink:0}}>{(a.rarity||"epic").toUpperCase()}</span>
+                    {isWinning&&<span style={{fontSize:9,fontWeight:700,padding:"2px 6px",background:"rgba(39,174,96,0.2)",border:"1px solid rgba(39,174,96,0.5)",color:"#6ee89a",letterSpacing:1,flexShrink:0}}>WINNING</span>}
+                  </div>
+                  {a.topBidder ? (
+                    <div style={{display:"inline-flex",alignItems:"center",gap:4,marginTop:3,background:"rgba(39,174,96,0.12)",border:"1px solid rgba(39,174,96,0.35)",padding:"2px 7px",borderRadius:2}}>
+                      <span style={{fontSize:10}}>🏆</span>
+                      <span style={{fontSize:11,color:"#6ee89a",fontWeight:800,fontFamily:"'Spectral',serif"}}>{a.topBidder}</span>
+                    </div>
+                  ) : (
+                    <div style={{marginTop:3,fontSize:11,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Spectral',serif"}}>No bids yet</div>
+                  )}
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:9,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700}}>Bid</div>
+                    <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:16,color:"var(--gold-light)",display:"inline-flex",alignItems:"center",gap:3}}><StatIcon src={COINS_ICON} size={20}/>{fmt(a.currentBid)}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:9,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700}}>Time</div>
+                    <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:12,color:"#f0a0a0"}}>{timeLeft(a.endsAt)}</div>
+                  </div>
+                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                    <input className="input" type="number" min={minBid} placeholder={`Min ${fmt(minBid)}`} value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p,[a.id]:e.target.value}))} style={{width:90,fontSize:12,padding:"4px 8px"}} />
+                    <button className="btn btn-gold btn-sm" onClick={()=>placeBid(a.id)}>Bid</button>
+                    {isAdmin&&<button className="btn btn-red btn-sm" onClick={()=>removeAuction(a.id)} title="Remove">✕</button>}
+                  </div>
+                </div>
+              </div>
+            );
             return (
               <div key={a.id} className={`auction-card rarity-${a.rarity||"epic"}`}>
                 <div className={`auction-img rarity-${a.rarity||"epic"}`} style={a.rarity==="kari"?{backgroundImage:`url(${KARI_BG})`}:{}}>
                   {a.image?<img src={a.image.dataUrl} alt={a.name} style={{width:"80%",height:"80%",objectFit:"contain",position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",filter:"drop-shadow(0 4px 16px rgba(0,0,0,0.7))"}} />:<StatIcon src={AUCTION_ICON} size={56}/>}
                   <div className="auction-timer pulse">{timeLeft(a.endsAt)}</div>
-                  {(()=>{const rc={epic:{bg:"rgba(122,26,26,0.92)",color:"#ff8080",border:"rgba(192,57,43,0.5)"},rare:{bg:"rgba(26,90,138,0.92)",color:"#60aadd",border:"rgba(46,134,193,0.5)"},kari:{bg:"rgba(0,60,130,0.92)",color:"#a0d8ff",border:"rgba(100,200,255,0.6)"}};const r=rc[a.rarity]||rc.epic;return(<div style={{position:"absolute",top:8,left:8,zIndex:10,background:r.bg,fontFamily:"'Spectral',serif",fontSize:10,fontWeight:700,padding:"3px 8px",border:`1px solid ${r.border}`,letterSpacing:1,color:r.color}}>{(a.rarity||"epic").toUpperCase()}</div>);})()}
+                  {(()=>{const r=rc2;return(<div style={{position:"absolute",top:8,left:8,zIndex:10,background:r.bg,fontFamily:"'Spectral',serif",fontSize:10,fontWeight:700,padding:"3px 8px",border:`1px solid ${r.border}`,letterSpacing:1,color:r.color}}>{(a.rarity||"epic").toUpperCase()}</div>);})()}
                   {isWinning&&<div style={{position:"absolute",bottom:8,right:8,background:"rgba(39,174,96,0.85)",color:"#fff",fontFamily:"'Spectral',serif",fontWeight:700,fontSize:9,padding:"3px 8px",letterSpacing:1.5,textTransform:"uppercase"}}>Winning</div>}
                 </div>
                 <div className="auction-body">
@@ -3210,9 +3331,47 @@ function Auctions({ ctx }) {
       )}
 
       {tab==="ended" && (
-        <div>
+        <div style={viewMode==="collapsed"?{display:"flex",flexDirection:"column",gap:6}:{}}>
           {ended.length===0&&<div style={{color:"var(--text-dim)",textAlign:"center",padding:48,fontFamily:"'Spectral',serif"}}>No ended auctions.</div>}
-          {ended.map(a=>(
+          {ended.map(a=>{
+            const rc={epic:{bg:"rgba(122,26,26,0.92)",color:"#ff8080",border:"rgba(192,57,43,0.5)"},rare:{bg:"rgba(26,90,138,0.92)",color:"#60aadd",border:"rgba(46,134,193,0.5)"},kari:{bg:"rgba(0,60,130,0.92)",color:"#a0d8ff",border:"rgba(100,200,255,0.6)"}};
+            const rc2=rc[a.rarity]||rc.epic;
+            if (viewMode==="collapsed") {
+              const isExpanded = expandedIds[`ended-${a.id}`];
+              return (
+                <div key={a.id} style={{border:"1px solid var(--border)",borderLeft:`3px solid ${a.topBidder?"var(--gold)":"var(--border)"}`,background:"var(--bg-card)",borderRadius:2,overflow:"hidden"}}>
+                  <div onClick={()=>toggleExpand(`ended-${a.id}`)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",cursor:"pointer",userSelect:"none"}}>
+                    <span style={{fontSize:12,color:"var(--text-dim)",flexShrink:0,transition:"transform .2s",transform:isExpanded?"rotate(90deg)":"rotate(0deg)"}}>▶</span>
+                    <div style={{width:28,height:28,borderRadius:2,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:a.rarity==="epic"?"rgba(122,26,26,0.3)":"rgba(26,90,138,0.3)"}}>
+                      {a.image?<img src={a.image.dataUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} />:<StatIcon src={AUCTION_ICON} size={16}/>}
+                    </div>
+                    <span style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",flex:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.name}</span>
+                    <span style={{fontSize:9,fontWeight:700,padding:"2px 6px",background:rc2.bg,border:`1px solid ${rc2.border}`,color:rc2.color,letterSpacing:1,fontFamily:"'Spectral',serif",flexShrink:0}}>{(a.rarity||"epic").toUpperCase()}</span>
+                    {a.topBidder?(
+                      <span style={{fontSize:11,color:"var(--gold-light)",fontWeight:700,fontFamily:"'Spectral',serif",flexShrink:0}}>🏆 {a.topBidder}</span>
+                    ):(
+                      <span style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'Spectral',serif",flexShrink:0}}>No Winner</span>
+                    )}
+                    <span style={{fontSize:11,color:"var(--gold)",fontWeight:800,fontFamily:"'Spectral',serif",flexShrink:0,display:"inline-flex",alignItems:"center",gap:3}}><StatIcon src={COINS_ICON} size={16}/>{fmt(a.currentBid)}</span>
+                  </div>
+                  {isExpanded && (
+                    <div style={{borderTop:"1px solid var(--border-dim)",padding:"10px 14px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",background:"rgba(0,0,0,0.15)"}}>
+                      {a.desc&&<span style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'Spectral',serif",flex:1}}>{a.desc}</span>}
+                      {a.topBidder?(
+                        <div className="winner-banner" style={{padding:"8px 14px"}}>
+                          <div style={{fontSize:9,color:"var(--gold-dim)",letterSpacing:3,fontWeight:700,textTransform:"uppercase"}}>Winner</div>
+                          <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:14,color:"var(--gold-light)"}}>{a.topBidder}</div>
+                          <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:12,color:"var(--gold)"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={22}/>{fmt(a.currentBid)}</span></div>
+                        </div>
+                      ):(
+                        <span className="badge badge-silver">No Winner</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            return (
             <div key={a.id} className="card" style={{marginBottom:12,display:"flex",alignItems:"center",gap:16}}>
               <div style={{width:56,height:56,borderRadius:2,overflow:"hidden",background:a.rarity==="epic"?"rgba(122,26,26,0.2)":"rgba(26,90,138,0.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
                 {a.image?<img src={a.image.dataUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} />:<StatIcon src={AUCTION_ICON} size={32}/>}
@@ -3234,7 +3393,8 @@ function Auctions({ ctx }) {
                 <span className="badge badge-silver">No Winner</span>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
