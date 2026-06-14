@@ -4,6 +4,18 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 const SUPA_URL = "https://vewslugeacpiewjreoqh.supabase.co";
 const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZld3NsdWdlYWNwaWV3anJlb3FoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5MTczMDcsImV4cCI6MjA5NjQ5MzMwN30.YVKcm1mpa3UbixjLBbG2ijsP46vQiq51xc61QSMT6og";
 
+// Wrap fetch with a timeout so a slow/hanging response (e.g. under high
+// concurrent load) can never leave the app stuck on the loading screen.
+async function fetchWithTimeout(url, opts = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...opts, signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 const supa = {
   async from(table) {
     const base = `${SUPA_URL}/rest/v1/${table}`;
@@ -15,11 +27,11 @@ const supa = {
     };
     return {
       async select(query="*") {
-        const res = await fetch(`${base}?select=${query}`, { headers });
+        const res = await fetchWithTimeout(`${base}?select=${query}`, { headers });
         return res.json();
       },
       async upsert(data) {
-        const res = await fetch(base, {
+        const res = await fetchWithTimeout(base, {
           method: "POST",
           headers: { ...headers, "Prefer": "resolution=merge-duplicates,return=representation" },
           body: JSON.stringify(Array.isArray(data) ? data : [data]),
@@ -28,7 +40,7 @@ const supa = {
       },
       async delete(match) {
         const params = Object.entries(match).map(([k,v])=>`${k}=eq.${encodeURIComponent(v)}`).join("&");
-        const res = await fetch(`${base}?${params}`, {
+        const res = await fetchWithTimeout(`${base}?${params}`, {
           method: "DELETE",
           headers: { "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}`, "Prefer": "return=minimal" }
         });
@@ -1401,6 +1413,7 @@ export default function App() {
   // ── Load all data from Supabase on mount ──────────────────────────────────
   useEffect(() => {
     async function loadAll() {
+    try {
       const [mRows, aRows, lRows, cRows, rRows] = await Promise.all([
         dbLoad("members"),
         dbLoad("auctions"),
@@ -1426,13 +1439,20 @@ export default function App() {
           attendLog:   safeJson(r.attend_log),
         })));
       } else {
-        // Seed the DB with default members on first run
-        await Promise.all(SEED_MEMBERS.map(m => dbUpsert("members", {
-          id: m.id, name: m.name, username: m.username, password: m.password,
-          role: m.role, cls: m.cls, power: m.power, coins: m.coins,
-          attendance: m.attendance, join_date: m.joinDate, auction_wins: m.auctionWins,
-          decay_log: "[]", tx_log: "[]", attend_log: "[]", discord: m.discord || "",
-        })));
+        // Seed the DB with default members on first run.
+        // Guard against many concurrent users all seeding at once: only
+        // one tab seeds (localStorage flag), others just proceed with
+        // SEED_MEMBERS in memory and pick it up on next poll/refresh.
+        const seedFlag = "cf_seed_in_progress";
+        if (!localStorage.getItem(seedFlag)) {
+          localStorage.setItem(seedFlag, "1");
+          await Promise.all(SEED_MEMBERS.map(m => dbUpsert("members", {
+            id: m.id, name: m.name, username: m.username, password: m.password,
+            role: m.role, cls: m.cls, power: m.power, coins: m.coins,
+            attendance: m.attendance, join_date: m.joinDate, auction_wins: m.auctionWins,
+            decay_log: "[]", tx_log: "[]", attend_log: "[]", discord: m.discord || "",
+          })));
+        }
       }
       if (Array.isArray(aRows) && aRows.length > 0) {
         setAuctionsRaw(aRows.map(r => ({
@@ -1477,8 +1497,6 @@ export default function App() {
           results: (() => { try { return typeof r.results === "string" ? JSON.parse(r.results) : (r.results || []); } catch { return []; } })(),
         })).filter(r => Date.now() - r.timestamp < 7*24*60*60*1000).sort((a,b)=>b.timestamp-a.timestamp));
       }
-      setDbReady(true);
-
       // ── Restore session from localStorage ───────────────────────────────
       const savedId = localStorage.getItem("cf_user_id");
       if (savedId) {
@@ -1499,6 +1517,13 @@ export default function App() {
           setLoggedIn(true);
         }
       }
+    } catch (e) {
+      // Even if something unexpected blew up, never leave the user
+      // stuck on the loading screen.
+      console.error("loadAll failed:", e);
+    } finally {
+      setDbReady(true);
+    }
     }
     loadAll();
   }, []);
@@ -2427,7 +2452,7 @@ function Dashboard({ ctx, setPage }) {
         <div className="card" style={{flex:"1 1 280px",minWidth:0}}>
           <SectionTitle><span style={{display:"inline-flex",alignItems:"center",gap:6}}><StatIcon src={AUCTION_ICON} size={32}/>Live Auctions</span></SectionTitle>
           {activeAuctions.length===0&&<div style={{color:"var(--text-dim)",fontSize:13,fontFamily:"'Spectral',serif"}}>No active auctions.</div>}
-          {activeAuctions.slice(0,3).map(a=>(
+          {[...activeAuctions].sort((a,b)=>b.currentBid-a.currentBid).slice(0,3).map(a=>(
             <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid var(--border-dim)"}}>
               <div style={{width:42,height:42,borderRadius:2,overflow:"hidden",background:a.rarity==="epic"?"rgba(122,26,26,0.3)":"rgba(26,90,138,0.3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
                 {a.image?<img src={a.image.dataUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<span style={{fontSize:22}}>{a.emoji}</span>}
