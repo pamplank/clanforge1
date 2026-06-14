@@ -2308,6 +2308,17 @@ function WorldBossSchedule() {
 // ─── UPDATE NOTES ─────────────────────────────────────────────────────────────
 const UPDATE_NOTES = [
   {
+    version: "v6.5.3",
+    date: "June 2026",
+    title: "Bid Safety & Stability",
+    color: "#4fc3f7",
+    changes: [
+      { icon: "🔒", text: "Live bid check — before submitting, app now fetches the real-time bid from the database to catch last-second outbids. Rejected with a clear message if someone just bid higher or the auction ended." },
+      { icon: "⏱", text: "Jittered polling — auction and member data no longer all refresh at the exact same millisecond. Random stagger (±1s auctions, ±1.5s members) prevents DB request spikes under heavy load." },
+      { icon: "⏳", text: "Fetch timeout guard — all database requests now auto-cancel after 8 seconds so the app never gets stuck loading during a slow or unresponsive connection." },
+    ],
+  },
+  {
     version: "v1.6",
     date: "June 2026",
     title: "Auction House Overhaul",
