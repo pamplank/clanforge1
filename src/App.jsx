@@ -2427,7 +2427,7 @@ function Dashboard({ ctx, setPage }) {
         <div className="card" style={{flex:"1 1 280px",minWidth:0}}>
           <SectionTitle><span style={{display:"inline-flex",alignItems:"center",gap:6}}><StatIcon src={AUCTION_ICON} size={32}/>Live Auctions</span></SectionTitle>
           {activeAuctions.length===0&&<div style={{color:"var(--text-dim)",fontSize:13,fontFamily:"'Spectral',serif"}}>No active auctions.</div>}
-          {[...activeAuctions].sort((a,b)=>b.currentBid-a.currentBid).slice(0,3).map(a=>(
+          {activeAuctions.slice(0,3).map(a=>(
             <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid var(--border-dim)"}}>
               <div style={{width:42,height:42,borderRadius:2,overflow:"hidden",background:a.rarity==="epic"?"rgba(122,26,26,0.3)":"rgba(26,90,138,0.3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
                 {a.image?<img src={a.image.dataUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<span style={{fontSize:22}}>{a.emoji}</span>}
