@@ -1991,7 +1991,7 @@ function WorldBossSchedule() {
             flexShrink:0,
           }}><StatIcon src={WARRIORS_ICON} size={28}/></div>
           <div>
-            <div style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:17,color:"#e6b048",letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 20px rgba(200,146,42,0.5)"}}>Event Schedule</div>
+            <div style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:17,color:"#e6b048",letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 20px rgba(200,146,42,0.5)",textAlign:"left"}}>Event Schedule</div>
             <div style={{fontSize:9,color:"rgba(110,88,64,0.9)",letterSpacing:3,fontWeight:700,textTransform:"uppercase",marginTop:1}}>Peaky Blinders · Server Time</div>
           </div>
         </div>
@@ -2119,11 +2119,6 @@ const UPDATE_NOTES = [
 
 function UpdateNotes() {
   const [expanded, setExpanded] = React.useState(null);
-  const [dismissed, setDismissed] = React.useState(() => {
-    try { return localStorage.getItem("update_notes_dismissed") === "true"; } catch { return false; }
-  });
-
-  if (dismissed) return null;
 
   return (
     <div style={{
@@ -2144,7 +2139,7 @@ function UpdateNotes() {
             border:"1px solid rgba(200,146,42,0.35)",
             display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,
           }}>📋</div>
-          <div>
+          <div style={{textAlign:"left"}}>
             <div style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:14,color:"var(--gold-light)",letterSpacing:1}}>Update Notes</div>
             <div style={{fontSize:10,color:"var(--text-dim)",fontWeight:600,letterSpacing:2,textTransform:"uppercase"}}>What's new in Ymir</div>
           </div>
@@ -2155,11 +2150,6 @@ function UpdateNotes() {
             color:"var(--gold-light)",
           }}>{UPDATE_NOTES[0].version} · LATEST</span>
         </div>
-        <button
-          className="btn btn-ghost btn-sm"
-          style={{fontSize:10,color:"var(--text-dim)",opacity:0.7}}
-          onClick={()=>{ setDismissed(true); try{localStorage.setItem("update_notes_dismissed","true");}catch{} }}
-        >✕ Dismiss</button>
       </div>
       {/* Patches list */}
       <div style={{padding:"12px 20px",display:"flex",flexDirection:"column",gap:4}}>
