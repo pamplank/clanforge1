@@ -28,7 +28,10 @@ const supa = {
     return {
       async select(query="*") {
         const res = await fetchWithTimeout(`${base}?select=${query}`, { headers });
-        return res.json();
+        if (!res.ok) throw new Error(`select ${table} failed: ${res.status}`);
+        const json = await res.json();
+        if (!Array.isArray(json)) throw new Error(`select ${table} returned non-array (likely an error response)`);
+        return json;
       },
       async upsert(data) {
         const res = await fetchWithTimeout(base, {
@@ -1408,6 +1411,8 @@ export default function App() {
   const [tick, setTick] = useState(0);
   const [imageLibrary, addImage] = useImageLibrary();
   const [dbReady, setDbReady] = useState(false);
+  const [dbError, setDbError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const [lootResults, setLootResults] = useState([]);
 
   // ── Load all data from Supabase on mount ──────────────────────────────────
@@ -1438,8 +1443,8 @@ export default function App() {
           txLog:       safeJson(r.tx_log),
           attendLog:   safeJson(r.attend_log),
         })));
-      } else {
-        // Seed the DB with default members on first run.
+      } else if (Array.isArray(mRows) && mRows.length === 0) {
+        // Table genuinely empty (confirmed by a successful query) — safe to seed.
         // Guard against many concurrent users all seeding at once: only
         // one tab seeds (localStorage flag), others just proceed with
         // SEED_MEMBERS in memory and pick it up on next poll/refresh.
@@ -1453,6 +1458,13 @@ export default function App() {
             decay_log: "[]", tx_log: "[]", attend_log: "[]", discord: m.discord || "",
           })));
         }
+      } else {
+        // mRows is null: the request failed/errored (e.g. Supabase project
+        // paused or unreachable). Do NOT seed — that would risk overwriting
+        // real data once the connection comes back. Surface a connection
+        // error instead of silently showing empty/default state.
+        setDbError(true);
+        return;
       }
       if (Array.isArray(aRows) && aRows.length > 0) {
         setAuctionsRaw(aRows.map(r => ({
@@ -1526,7 +1538,7 @@ export default function App() {
     }
     }
     loadAll();
-  }, []);
+  }, [retryCount]);
 
   // ── Wrapped setters that also sync to Supabase ────────────────────────────
   function setMembers(updater) {
@@ -1787,6 +1799,21 @@ export default function App() {
     currentUser, setCurrentUser, addToast, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId };
 
   const PAGE_TITLES = {dashboard:"Clan HQ",attendance:"Attendance",members:"Members",auctions:"Auction House",leaderboard:"Hall of Fame",export:"Export Data",settings:"Settings"};
+
+  // ── Connection error screen (DB unreachable — do NOT show empty/seed state) ─
+  if (dbError) return (
+    <>
+      <style>{GLOBAL_CSS}</style>
+      <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--bg-dark)",flexDirection:"column",gap:16,padding:24,textAlign:"center"}}>
+        <div style={{fontSize:40}}>⚠</div>
+        <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:18,color:"var(--gold-light)",letterSpacing:2}}>Connection Problem</div>
+        <div style={{fontSize:13,color:"var(--text-dim)",maxWidth:360}}>
+          Couldn't reach the database. Your data is safe — please check your connection and try again.
+        </div>
+        <button className="btn btn-gold" onClick={()=>{ setDbError(false); setDbReady(false); setRetryCount(c=>c+1); }}>Retry</button>
+      </div>
+    </>
+  );
 
   // ── Loading screen while DB data loads ────────────────────────────────────
   if (!dbReady) return (
