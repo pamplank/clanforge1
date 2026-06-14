@@ -1991,7 +1991,7 @@ function WorldBossSchedule() {
             flexShrink:0,
           }}><StatIcon src={WARRIORS_ICON} size={28}/></div>
           <div>
-            <div style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:17,color:"#e6b048",letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 20px rgba(200,146,42,0.5)",textAlign:"left"}}>Event Schedule</div>
+            <div style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:17,color:"#e6b048",letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 20px rgba(200,146,42,0.5)"}}>Event Schedule</div>
             <div style={{fontSize:9,color:"rgba(110,88,64,0.9)",letterSpacing:3,fontWeight:700,textTransform:"uppercase",marginTop:1}}>Peaky Blinders · Server Time</div>
           </div>
         </div>
@@ -2111,7 +2111,7 @@ const UPDATE_NOTES = [
     color: "#27ae60",
     changes: [
       { icon: "📊", text: "Power rank multiplier applied to all attendance coin rewards (top ranked members earn more)" },
-      { icon: "💰", text: "Coin decay of -10% applies every Sunday to encourage spending" },
+      { icon: "💰", text: "Coin decay of -5% applies every Tuesday to encourage spending" },
       { icon: "🏅", text: "Auction wins now tracked on member profiles and leaderboard" },
     ],
   },
@@ -2119,6 +2119,11 @@ const UPDATE_NOTES = [
 
 function UpdateNotes() {
   const [expanded, setExpanded] = React.useState(null);
+  const [dismissed, setDismissed] = React.useState(() => {
+    try { return localStorage.getItem("update_notes_dismissed") === "true"; } catch { return false; }
+  });
+
+  if (dismissed) return null;
 
   return (
     <div style={{
@@ -2139,7 +2144,7 @@ function UpdateNotes() {
             border:"1px solid rgba(200,146,42,0.35)",
             display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,
           }}>📋</div>
-          <div style={{textAlign:"left"}}>
+          <div>
             <div style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:14,color:"var(--gold-light)",letterSpacing:1}}>Update Notes</div>
             <div style={{fontSize:10,color:"var(--text-dim)",fontWeight:600,letterSpacing:2,textTransform:"uppercase"}}>What's new in Ymir</div>
           </div>
@@ -2150,6 +2155,11 @@ function UpdateNotes() {
             color:"var(--gold-light)",
           }}>{UPDATE_NOTES[0].version} · LATEST</span>
         </div>
+        <button
+          className="btn btn-ghost btn-sm"
+          style={{fontSize:10,color:"var(--text-dim)",opacity:0.7}}
+          onClick={()=>{ setDismissed(true); try{localStorage.setItem("update_notes_dismissed","true");}catch{} }}
+        >✕ Dismiss</button>
       </div>
       {/* Patches list */}
       <div style={{padding:"12px 20px",display:"flex",flexDirection:"column",gap:4}}>
@@ -3681,9 +3691,35 @@ function Export({ ctx }) {
 function Settings({ ctx }) {
   const { currentUser, members, setMembers, addToast } = ctx;
   const isMaster = currentUser.role==="Master";
+  // ── Auto-decay: every Tuesday at 7:00 AM ─────────────────────────────────
+  function getLastTuesday7am() {
+    const now = new Date();
+    const day = now.getDay(); // 0=Sun,1=Mon,2=Tue,...
+    const diffToTuesday = (day >= 2) ? day - 2 : day + 5;
+    const tuesday = new Date(now);
+    tuesday.setDate(now.getDate() - diffToTuesday);
+    tuesday.setHours(7, 0, 0, 0);
+    // If today is Tuesday but before 7am, go back 7 days
+    if (tuesday > now) tuesday.setDate(tuesday.getDate() - 7);
+    return tuesday.getTime();
+  }
+  useEffect(() => {
+    if (!dbReady) return;
+    const lastTuesday7am = getLastTuesday7am();
+    let lastDecay = 0;
+    try { lastDecay = parseInt(localStorage.getItem("last_decay") || "0"); } catch {}
+    if (lastDecay < lastTuesday7am) {
+      // Auto-trigger decay silently
+      setMembers(ms=>ms.map(m=>{const d=Math.floor(m.coins*0.05);return{...m,coins:m.coins-d,decayLog:[...(m.decayLog||[]),{amount:-d,date:new Date().toLocaleDateString()}]};}));
+      try { localStorage.setItem("last_decay", lastTuesday7am.toString()); } catch {}
+      addToast("Weekly 5% coin decay has been applied automatically.","red","Auto Decay");
+    }
+  }, [dbReady]);
+
   function triggerDecay() {
-    setMembers(ms=>ms.map(m=>{const d=Math.floor(m.coins*0.1);return{...m,coins:m.coins-d,decayLog:[...(m.decayLog||[]),{amount:-d,date:new Date().toLocaleDateString()}]};}));
-    addToast("Weekly coin decay applied: 10% removed.","red","Decay Triggered");
+    setMembers(ms=>ms.map(m=>{const d=Math.floor(m.coins*0.05);return{...m,coins:m.coins-d,decayLog:[...(m.decayLog||[]),{amount:-d,date:new Date().toLocaleDateString()}]};}));
+    addToast("Weekly coin decay applied: 5% removed.","red","Decay Triggered");
+    try { localStorage.setItem("last_decay", getLastTuesday7am().toString()); } catch {}
   }
   function resetAttendance() {
     setMembers(ms=>ms.map(m=>({...m,attendance:0})));
@@ -3701,7 +3737,7 @@ function Settings({ ctx }) {
       <div className="grid-2">
         <div className="card card-red">
           <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:15,color:"#e07070",marginBottom:8}}>Coin Decay</div>
-          <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12,lineHeight:1.7}}>Manually trigger the weekly 10% coin decay for all members.</div>
+          <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12,lineHeight:1.7}}>Auto-triggers every Tuesday at 7:00 AM. Removes 5% of each member's coins. You can also trigger it manually below.</div>
           <div style={{fontSize:13,color:"var(--text)",marginBottom:16}}>Avg coins: <strong style={{color:"var(--gold)"}}>{fmt(Math.floor(members.reduce((s,m)=>s+m.coins,0)/members.length))}</strong></div>
           <button className="btn btn-red" onClick={triggerDecay}>Trigger Weekly Decay</button>
         </div>
