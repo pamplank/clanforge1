@@ -2469,7 +2469,7 @@ function UpdateNotes() {
               <div style={{padding:"6px 14px 12px 14px",borderTop:`1px solid ${patch.color}18`,textAlign:"left"}}>
                 {patch.changes.map((c,ci)=>(
                   <div key={ci} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"5px 0",borderBottom:ci<patch.changes.length-1?`1px solid rgba(255,255,255,0.04)`:"none"}}>
-                    <span style={{fontSize:13,flexShrink:0,marginTop:1}}>{c.icon}</span>
+                    <span style={{width:5,height:5,borderRadius:"50%",background:"var(--text-dim)",flexShrink:0,marginTop:6,opacity:0.6}}></span>
                     <span style={{fontSize:12,color:"var(--text-dim)",fontFamily:"'Spectral',serif",lineHeight:1.6,textAlign:"left"}}>{c.text}</span>
                   </div>
                 ))}
