@@ -1565,6 +1565,66 @@ export default function App() {
   }
 
   useEffect(() => { const iv = setInterval(() => setTick(t=>t+1), 1000); return () => clearInterval(iv); }, []);
+  // Poll members every 5s so coin balances stay in sync across users
+  useEffect(() => {
+    const iv = setInterval(async () => {
+      const mRows = await dbLoad("members");
+      if (!Array.isArray(mRows) || mRows.length === 0) return;
+      const safeJson = (v) => {
+        if (Array.isArray(v)) return v;
+        if (typeof v === "string") { try { return JSON.parse(v); } catch { return []; } }
+        return [];
+      };
+      setMembersRaw(prev => {
+        const incoming = mRows.map(r => ({
+          ...r,
+          coins:       Number(r.coins)       || 0,
+          power:       Number(r.power)       || 0,
+          attendance:  Number(r.attendance)  || 0,
+          auctionWins: Number(r.auction_wins ?? r.auctionWins) || 0,
+          joinDate:    r.join_date || r.joinDate || "",
+          decayLog:    safeJson(r.decay_log),
+          txLog:       safeJson(r.tx_log),
+          attendLog:   safeJson(r.attend_log),
+        }));
+        // Merge: keep local state for fields not in DB, update coins/auctionWins from DB
+        return incoming.map(dbM => {
+          const local = prev.find(m => m.id === dbM.id);
+          return local ? { ...local, coins: dbM.coins, auctionWins: dbM.auctionWins, power: dbM.power } : dbM;
+        });
+      });
+    }, 5000);
+    return () => clearInterval(iv);
+  }, []);
+
+  // Poll auctions every 3s so all users see live bid updates
+  useEffect(() => {
+    const iv = setInterval(async () => {
+      const aRows = await dbLoad("auctions");
+      if (!Array.isArray(aRows)) return;
+      setAuctionsRaw(prev => {
+        const updated = aRows.map(r => ({
+          id:          String(r.id),
+          name:        r.name ?? "",
+          desc:        r.description ?? "",
+          description: r.description ?? "",
+          rarity:      r.rarity ?? "epic",
+          status:      r.status ?? "active",
+          endsAt:      Number(r.ends_at)    || 0,
+          startedAt:   Number(r.started_at) || 0,
+          currentBid:  Number(r.current_bid) || 0,
+          minBid:      Number(r.min_bid)    || 0,
+          startBid:    Number(r.min_bid)    || 0,
+          topBidder:   r.top_bidder ?? null,
+          bids:        prev.find(a => String(a.id) === String(r.id))?.bids || [],
+          image:       r.image_data ? { dataUrl: r.image_data, name: r.image_name || "image" } : null,
+        })).filter(a => !deletedAuctionIds.current.has(a.id));
+        return updated;
+      });
+    }, 3000);
+    return () => clearInterval(iv);
+  }, []);
+
   // Poll loot_results every 10s so all users see new distributions
   const [latestLootId, setLatestLootId] = useState(null);
   useEffect(() => {
@@ -2088,6 +2148,22 @@ function WorldBossSchedule() {
 // ─── UPDATE NOTES ─────────────────────────────────────────────────────────────
 const UPDATE_NOTES = [
   {
+    version: "v1.6",
+    date: "June 2026",
+    title: "Auction House Overhaul",
+    color: "#c8922a",
+    changes: [
+      { icon: "📋", text: "Collapsed view removed — Compact view now handles dense listings cleanly" },
+      { icon: "⊞", text: "Sort and View controls converted to dropdowns — cleaner toolbar, less clutter" },
+      { icon: "📐", text: "Compact view: bidder name now sits directly below item name, left-aligned" },
+      { icon: "🏷", text: "Compact view: rarity badge and WINNING tag stay on the name row for quick scanning" },
+      { icon: "📡", text: "Live bid sync — all users see updated bids and coin balances within 3–5 seconds" },
+      { icon: "💰", text: "Coin balances sync across all sessions so refunds and deductions show instantly" },
+      { icon: "🪙", text: "Browser tab now shows PeakyBlinders with the gold coins icon" },
+      { icon: "↩", text: "Bidders can now retract their own bid — coins are refunded instantly and the auction resets to the previous bid" },
+    ],
+  },
+  {
     version: "v1.5",
     date: "June 2026",
     title: "Auction House Improvements",
@@ -2149,11 +2225,16 @@ const UPDATE_NOTES = [
 
 function UpdateNotes() {
   const [expanded, setExpanded] = React.useState(null);
+  const [showAll, setShowAll] = React.useState(false);
   const [dismissed, setDismissed] = React.useState(() => {
     try { return localStorage.getItem("update_notes_dismissed") === "true"; } catch { return false; }
   });
 
   if (dismissed) return null;
+
+  const VISIBLE = 5;
+  const visibleNotes = showAll ? UPDATE_NOTES : UPDATE_NOTES.slice(0, VISIBLE);
+  const hasMore = UPDATE_NOTES.length > VISIBLE;
 
   return (
     <div style={{
@@ -2193,7 +2274,7 @@ function UpdateNotes() {
       </div>
       {/* Patches list */}
       <div style={{padding:"12px 20px",display:"flex",flexDirection:"column",gap:4}}>
-        {UPDATE_NOTES.map((patch,pi)=>(
+        {visibleNotes.map((patch,pi)=>(
           <div key={pi} style={{borderRadius:5,overflow:"hidden",border:`1px solid ${patch.color}22`,background:"rgba(0,0,0,0.25)"}}>
             {/* Patch row */}
             <div
@@ -2225,6 +2306,23 @@ function UpdateNotes() {
             )}
           </div>
         ))}
+        {/* Show all / collapse button */}
+        {hasMore && (
+          <button
+            onClick={()=>{ setShowAll(s=>!s); if(showAll) setExpanded(null); }}
+            style={{
+              marginTop:6,width:"100%",padding:"8px 0",cursor:"pointer",
+              background:"transparent",border:"1px solid rgba(200,146,42,0.2)",borderRadius:4,
+              fontFamily:"'Spectral',serif",fontWeight:700,fontSize:11,
+              color:"var(--gold-dim)",letterSpacing:1,textTransform:"uppercase",
+              transition:"all .15s",
+            }}
+            onMouseEnter={e=>{e.currentTarget.style.background="rgba(200,146,42,0.08)";e.currentTarget.style.borderColor="rgba(200,146,42,0.4)";}}
+            onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.borderColor="rgba(200,146,42,0.2)";}}
+          >
+            {showAll ? `▲ Show less` : `▼ See all ${UPDATE_NOTES.length} updates (${UPDATE_NOTES.length - VISIBLE} older)`}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -2991,12 +3089,8 @@ function Auctions({ ctx }) {
   const [newAuction, setNewAuction] = useState({name:"",image:null,rarity:"epic",desc:"",startBid:100,duration:30});
   const [sortBy, setSortBy] = useState("default");
   const [viewMode, setViewMode] = useState("grid");
-  const [expandedIds, setExpandedIds] = useState({});
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
 
-  function toggleExpand(id) {
-    setExpandedIds(prev => ({...prev, [id]: !prev[id]}));
-  }
 
   const RARITY_ORDER = { kari: 0, epic: 1, rare: 2 };
 
@@ -3030,6 +3124,25 @@ function Auctions({ ctx }) {
     setAuctions(prev=>prev.map(x=>x.id===auctionId?{...x,currentBid:amount,topBidder:currentUser.name,bids:[...(x.bids||[]),{bidder:currentUser.name,amount,time:Date.now()}]}:x));
     addToast(`Bid of ${fmt(amount)} placed on ${a.name}!`,"gold","Bid Placed");
     setBidAmounts(prev=>({...prev,[auctionId]:""}));
+  }
+
+  function retractBid(auctionId) {
+    const a=auctions.find(x=>x.id===auctionId);
+    if(!a||a.status!=="active") return;
+    if(a.topBidder!==currentUser.name){addToast("You are not the current top bidder.","red","Cannot Retract");return;}
+    // Refund the bid amount back to the user
+    const refundAmount=a.currentBid;
+    const prevBid=(a.bids||[]).slice(0,-1).reverse().find(b=>b.bidder!==currentUser.name);
+    const newBid=prevBid?prevBid.amount:a.startBid;
+    const newTopBidder=prevBid?prevBid.bidder:null;
+    setMembers(ms=>ms.map(m=>m.name===currentUser.name?{...m,coins:m.coins+refundAmount}:m));
+    setAuctions(prev=>prev.map(x=>x.id===auctionId?{
+      ...x,
+      currentBid:newBid,
+      topBidder:newTopBidder,
+      bids:(x.bids||[]).filter(b=>!(b.bidder===currentUser.name&&b.amount===refundAmount)),
+    }:x));
+    addToast(`Bid retracted. ${fmt(refundAmount)} coins refunded.`,"gold","Bid Retracted");
   }
 
   function createAuction() {
@@ -3169,90 +3282,55 @@ function Auctions({ ctx }) {
             <select className="select" style={{width:"auto",fontSize:11,padding:"4px 10px",cursor:"pointer"}} value={viewMode} onChange={e=>setViewMode(e.target.value)}>
               <option value="grid">⊞ Grid</option>
               <option value="compact">≡ Compact</option>
-              <option value="collapsed">⊟ Collapsed</option>
             </select>
           </div>
         </div>
       )}
 
       {tab==="active" && (
-        <div className={viewMode==="grid"?"grid-3":""} style={(viewMode==="compact"||viewMode==="collapsed")?{display:"flex",flexDirection:"column",gap:6}:{}}>
+        <div className={viewMode==="grid"?"grid-3":""} style={viewMode==="compact"?{display:"flex",flexDirection:"column",gap:6}:{}}>
           {active.length===0&&<div style={{color:"var(--text-dim)",gridColumn:"1/-1",textAlign:"center",padding:48,fontFamily:"'Spectral',serif"}}>No active auctions right now.</div>}
           {active.map(a=>{
             const isWinning=a.topBidder===currentUser.name;
             const minBid=a.currentBid+5;
             const rc={epic:{bg:"rgba(122,26,26,0.92)",color:"#ff8080",border:"rgba(192,57,43,0.5)"},rare:{bg:"rgba(26,90,138,0.92)",color:"#60aadd",border:"rgba(46,134,193,0.5)"},kari:{bg:"rgba(0,60,130,0.92)",color:"#a0d8ff",border:"rgba(100,200,255,0.6)"}};
             const rc2=rc[a.rarity]||rc.epic;
-            if (viewMode==="collapsed") {
-              const isExpanded = expandedIds[a.id];
-              return (
-                <div key={a.id} style={{border:"1px solid var(--border)",borderLeft:`3px solid ${rc2.color}`,background:"var(--bg-card)",borderRadius:2,overflow:"hidden",transition:"all .2s"}}>
-                  {/* Collapsed Header Row */}
-                  <div onClick={()=>toggleExpand(a.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",cursor:"pointer",userSelect:"none"}}>
-                    <span style={{fontSize:12,color:"var(--text-dim)",flexShrink:0,transition:"transform .2s",transform:isExpanded?"rotate(90deg)":"rotate(0deg)"}}>▶</span>
-                    <div style={{width:28,height:28,borderRadius:2,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:a.rarity==="epic"?"rgba(122,26,26,0.3)":a.rarity==="kari"?"rgba(0,60,130,0.4)":"rgba(26,90,138,0.3)"}}>
-                      {a.image?<img src={a.image.dataUrl} alt={a.name} style={{width:"100%",height:"100%",objectFit:"cover"}} />:<StatIcon src={AUCTION_ICON} size={16}/>}
-                    </div>
-                    <span style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",flex:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.name}</span>
-                    <span style={{fontSize:9,fontWeight:700,padding:"2px 6px",background:rc2.bg,border:`1px solid ${rc2.border}`,color:rc2.color,letterSpacing:1,fontFamily:"'Spectral',serif",flexShrink:0}}>{(a.rarity||"epic").toUpperCase()}</span>
-                    {isWinning&&<span style={{fontSize:9,fontWeight:700,padding:"2px 5px",background:"rgba(39,174,96,0.2)",border:"1px solid rgba(39,174,96,0.5)",color:"#6ee89a",letterSpacing:1,flexShrink:0}}>WINNING</span>}
-                    <span style={{fontSize:11,color:"var(--gold-light)",fontWeight:800,fontFamily:"'Spectral',serif",flexShrink:0,display:"inline-flex",alignItems:"center",gap:3}}><StatIcon src={COINS_ICON} size={16}/>{fmt(a.currentBid)}</span>
-                    <span style={{fontSize:11,color:"#f0a0a0",fontFamily:"'Spectral',serif",fontWeight:700,flexShrink:0}}>{timeLeft(a.endsAt)}</span>
-                  </div>
-                  {/* Expanded Details */}
-                  {isExpanded && (
-                    <div style={{borderTop:"1px solid var(--border-dim)",padding:"10px 14px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",background:"rgba(0,0,0,0.15)"}}>
-                      {a.topBidder ? (
-                        <div style={{display:"inline-flex",alignItems:"center",gap:4,background:"rgba(39,174,96,0.12)",border:"1px solid rgba(39,174,96,0.35)",padding:"3px 8px",borderRadius:2}}>
-                          <span style={{fontSize:10}}>🏆</span>
-                          <span style={{fontSize:12,color:"#6ee89a",fontWeight:800,fontFamily:"'Spectral',serif"}}>{a.topBidder}</span>
-                        </div>
-                      ) : (
-                        <span style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Spectral',serif"}}>No bids yet</span>
-                      )}
-                      {a.desc&&<span style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'Spectral',serif",flex:1}}>{a.desc}</span>}
-                      <div style={{display:"flex",gap:6,alignItems:"center",marginLeft:"auto"}}>
-                        <input className="input" type="number" min={minBid} placeholder={`Min ${fmt(minBid)}`} value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p,[a.id]:e.target.value}))} style={{width:90,fontSize:12,padding:"4px 8px"}} />
-                        <button className="btn btn-gold btn-sm" onClick={e=>{e.stopPropagation();placeBid(a.id);}}>Bid</button>
-                        {isAdmin&&<button className="btn btn-red btn-sm" onClick={e=>{e.stopPropagation();removeAuction(a.id);}} title="Remove">✕</button>}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            }
             if (viewMode==="compact") return (
               <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${rc2.color}`,background:"var(--bg-card)",borderRadius:2,minWidth:0}}>
-                <div style={{width:38,height:38,borderRadius:2,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:a.rarity==="epic"?"rgba(122,26,26,0.3)":a.rarity==="kari"?"rgba(0,60,130,0.4)":"rgba(26,90,138,0.3)"}}>
+                {/* Thumbnail */}
+                <div style={{width:42,height:42,borderRadius:2,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:a.rarity==="epic"?"rgba(122,26,26,0.3)":a.rarity==="kari"?"rgba(0,60,130,0.4)":"rgba(26,90,138,0.3)"}}>
                   {a.image?<img src={a.image.dataUrl} alt={a.name} style={{width:"100%",height:"100%",objectFit:"cover"}} />:<StatIcon src={AUCTION_ICON} size={22}/>}
                 </div>
-                <div style={{flex:1,minWidth:0}}>
+                {/* Name + rarity + bidder stacked left */}
+                <div style={{flex:1,minWidth:0,textAlign:"left"}}>
                   <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                     <span style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.name}</span>
                     <span style={{fontSize:9,fontWeight:700,padding:"2px 6px",background:rc2.bg,border:`1px solid ${rc2.border}`,color:rc2.color,letterSpacing:1,fontFamily:"'Spectral',serif",flexShrink:0}}>{(a.rarity||"epic").toUpperCase()}</span>
                     {isWinning&&<span style={{fontSize:9,fontWeight:700,padding:"2px 6px",background:"rgba(39,174,96,0.2)",border:"1px solid rgba(39,174,96,0.5)",color:"#6ee89a",letterSpacing:1,flexShrink:0}}>WINNING</span>}
                   </div>
                   {a.topBidder ? (
-                    <div style={{display:"inline-flex",alignItems:"center",gap:4,marginTop:3,background:"rgba(39,174,96,0.12)",border:"1px solid rgba(39,174,96,0.35)",padding:"2px 7px",borderRadius:2}}>
+                    <div style={{display:"inline-flex",alignItems:"center",gap:4,marginTop:3}}>
                       <span style={{fontSize:10}}>🏆</span>
-                      <span style={{fontSize:11,color:"#6ee89a",fontWeight:800,fontFamily:"'Spectral',serif"}}>{a.topBidder}</span>
+                      <span style={{fontSize:11,color:"#6ee89a",fontWeight:700,fontFamily:"'Spectral',serif"}}>{a.topBidder}</span>
                     </div>
                   ) : (
                     <div style={{marginTop:3,fontSize:11,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Spectral',serif"}}>No bids yet</div>
                   )}
                 </div>
-                <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                {/* Right: bid amount + time + input */}
+                <div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
                   <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:9,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700}}>Bid</div>
-                    <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:16,color:"var(--gold-light)",display:"inline-flex",alignItems:"center",gap:3}}><StatIcon src={COINS_ICON} size={20}/>{fmt(a.currentBid)}</div>
+                    <div style={{fontSize:9,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,fontFamily:"'Spectral',serif"}}>Bid</div>
+                    <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:15,color:"var(--gold-light)",display:"inline-flex",alignItems:"center",gap:3}}><StatIcon src={COINS_ICON} size={18}/>{fmt(a.currentBid)}</div>
                   </div>
                   <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:9,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700}}>Time</div>
+                    <div style={{fontSize:9,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,fontFamily:"'Spectral',serif"}}>Time</div>
                     <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:12,color:"#f0a0a0"}}>{timeLeft(a.endsAt)}</div>
                   </div>
                   <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                    <input className="input" type="number" min={minBid} placeholder={`Min ${fmt(minBid)}`} value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p,[a.id]:e.target.value}))} style={{width:90,fontSize:12,padding:"4px 8px"}} />
+                    <input className="input" type="number" min={minBid} placeholder={`Min ${fmt(minBid)}`} value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p,[a.id]:e.target.value}))} style={{width:88,fontSize:12,padding:"4px 8px"}} />
                     <button className="btn btn-gold btn-sm" onClick={()=>placeBid(a.id)}>Bid</button>
+                    {isWinning&&<button className="btn btn-outline btn-sm" onClick={()=>retractBid(a.id)} title="Retract your bid" style={{borderColor:"rgba(231,76,60,0.5)",color:"#e07070",fontSize:10}}>↩ Retract</button>}
                     {isAdmin&&<button className="btn btn-red btn-sm" onClick={()=>removeAuction(a.id)} title="Remove">✕</button>}
                   </div>
                 </div>
@@ -3291,6 +3369,7 @@ function Auctions({ ctx }) {
                     <input className="input" type="number" min={minBid} placeholder={`Min ${fmt(minBid)}`} value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p,[a.id]:e.target.value}))} style={{flex:1}} />
                     <button className="btn btn-gold" onClick={()=>placeBid(a.id)}>Bid</button>
                   </div>
+                  {isWinning&&<button className="btn btn-outline btn-sm" style={{width:"100%",marginTop:6,borderColor:"rgba(231,76,60,0.5)",color:"#e07070"}} onClick={()=>retractBid(a.id)}>↩ Retract Bid</button>}
                   {isAdmin&&<button className="btn btn-red btn-sm" style={{width:"100%",marginTop:6}} onClick={()=>removeAuction(a.id)}>Remove Auction</button>}
                   {(a.bids||[]).length>0&&(
                     <div style={{marginTop:10,fontSize:11,color:"var(--text-dim)",borderTop:"1px solid var(--border-dim)",paddingTop:8}}>
@@ -3309,46 +3388,11 @@ function Auctions({ ctx }) {
       )}
 
       {tab==="ended" && (
-        <div style={viewMode==="collapsed"?{display:"flex",flexDirection:"column",gap:6}:{}}>
+        <div>
           {ended.length===0&&<div style={{color:"var(--text-dim)",textAlign:"center",padding:48,fontFamily:"'Spectral',serif"}}>No ended auctions.</div>}
           {ended.map(a=>{
             const rc={epic:{bg:"rgba(122,26,26,0.92)",color:"#ff8080",border:"rgba(192,57,43,0.5)"},rare:{bg:"rgba(26,90,138,0.92)",color:"#60aadd",border:"rgba(46,134,193,0.5)"},kari:{bg:"rgba(0,60,130,0.92)",color:"#a0d8ff",border:"rgba(100,200,255,0.6)"}};
             const rc2=rc[a.rarity]||rc.epic;
-            if (viewMode==="collapsed") {
-              const isExpanded = expandedIds[`ended-${a.id}`];
-              return (
-                <div key={a.id} style={{border:"1px solid var(--border)",borderLeft:`3px solid ${a.topBidder?"var(--gold)":"var(--border)"}`,background:"var(--bg-card)",borderRadius:2,overflow:"hidden"}}>
-                  <div onClick={()=>toggleExpand(`ended-${a.id}`)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",cursor:"pointer",userSelect:"none"}}>
-                    <span style={{fontSize:12,color:"var(--text-dim)",flexShrink:0,transition:"transform .2s",transform:isExpanded?"rotate(90deg)":"rotate(0deg)"}}>▶</span>
-                    <div style={{width:28,height:28,borderRadius:2,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:a.rarity==="epic"?"rgba(122,26,26,0.3)":"rgba(26,90,138,0.3)"}}>
-                      {a.image?<img src={a.image.dataUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} />:<StatIcon src={AUCTION_ICON} size={16}/>}
-                    </div>
-                    <span style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",flex:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.name}</span>
-                    <span style={{fontSize:9,fontWeight:700,padding:"2px 6px",background:rc2.bg,border:`1px solid ${rc2.border}`,color:rc2.color,letterSpacing:1,fontFamily:"'Spectral',serif",flexShrink:0}}>{(a.rarity||"epic").toUpperCase()}</span>
-                    {a.topBidder?(
-                      <span style={{fontSize:11,color:"var(--gold-light)",fontWeight:700,fontFamily:"'Spectral',serif",flexShrink:0}}>🏆 {a.topBidder}</span>
-                    ):(
-                      <span style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'Spectral',serif",flexShrink:0}}>No Winner</span>
-                    )}
-                    <span style={{fontSize:11,color:"var(--gold)",fontWeight:800,fontFamily:"'Spectral',serif",flexShrink:0,display:"inline-flex",alignItems:"center",gap:3}}><StatIcon src={COINS_ICON} size={16}/>{fmt(a.currentBid)}</span>
-                  </div>
-                  {isExpanded && (
-                    <div style={{borderTop:"1px solid var(--border-dim)",padding:"10px 14px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",background:"rgba(0,0,0,0.15)"}}>
-                      {a.desc&&<span style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'Spectral',serif",flex:1}}>{a.desc}</span>}
-                      {a.topBidder?(
-                        <div className="winner-banner" style={{padding:"8px 14px"}}>
-                          <div style={{fontSize:9,color:"var(--gold-dim)",letterSpacing:3,fontWeight:700,textTransform:"uppercase"}}>Winner</div>
-                          <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:14,color:"var(--gold-light)"}}>{a.topBidder}</div>
-                          <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:12,color:"var(--gold)"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={22}/>{fmt(a.currentBid)}</span></div>
-                        </div>
-                      ):(
-                        <span className="badge badge-silver">No Winner</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            }
             return (
             <div key={a.id} className="card" style={{marginBottom:12,display:"flex",alignItems:"center",gap:16}}>
               <div style={{width:56,height:56,borderRadius:2,overflow:"hidden",background:a.rarity==="epic"?"rgba(122,26,26,0.2)":"rgba(26,90,138,0.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
