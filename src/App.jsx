@@ -2073,8 +2073,19 @@ function WorldBossSchedule() {
 // ─── UPDATE NOTES ─────────────────────────────────────────────────────────────
 const UPDATE_NOTES = [
   {
+    version: "v1.5",
+    date: "June 2026",
+    title: "Auction House Improvements",
+    color: "#d4a017",
+    changes: [
+      { icon: "🔃", text: "Auction House can now be sorted by Bid (High → Low), Bid (Low → High), or Rarity" },
+      { icon: "🏆", text: "Top bidder name now shown as a prominent green badge — easy to see at a glance who's leading" },
+      { icon: "💡", text: "Sorting applies to both Live Auctions and History tabs" },
+    ],
+  },
+  {
     version: "v1.4",
-    date: "June 2025",
+    date: "June 2026",
     title: "Bonus System Revamp",
     color: "#9b59b6",
     changes: [
@@ -2086,7 +2097,7 @@ const UPDATE_NOTES = [
   },
   {
     version: "v1.3",
-    date: "June 2025",
+    date: "June 2026",
     title: "Event Attendance Requirements",
     color: "#e67e22",
     changes: [
@@ -2098,7 +2109,7 @@ const UPDATE_NOTES = [
   },
   {
     version: "v1.2",
-    date: "June 2025",
+    date: "June 2026",
     title: "Loot Roulette Fix",
     color: "#e74c3c",
     changes: [
@@ -2110,7 +2121,7 @@ const UPDATE_NOTES = [
   },
   {
     version: "v1.1",
-    date: "June 2025",
+    date: "June 2026",
     title: "Rank Multiplier & Coin System",
     color: "#27ae60",
     changes: [
@@ -2963,9 +2974,20 @@ function Auctions({ ctx }) {
   const [tab, setTab] = useState("active");
   const [bidAmounts, setBidAmounts] = useState({});
   const [newAuction, setNewAuction] = useState({name:"",image:null,rarity:"epic",desc:"",startBid:100,duration:30});
+  const [sortBy, setSortBy] = useState("default");
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
-  const active = auctions.filter(a=>a.status==="active");
-  const ended = auctions.filter(a=>a.status==="ended");
+
+  const RARITY_ORDER = { kari: 0, epic: 1, rare: 2 };
+
+  function sortAuctions(list) {
+    if (sortBy === "bid-desc") return [...list].sort((a,b) => b.currentBid - a.currentBid);
+    if (sortBy === "bid-asc")  return [...list].sort((a,b) => a.currentBid - b.currentBid);
+    if (sortBy === "rarity")   return [...list].sort((a,b) => (RARITY_ORDER[a.rarity]??99) - (RARITY_ORDER[b.rarity]??99));
+    return list;
+  }
+
+  const active = sortAuctions(auctions.filter(a=>a.status==="active"));
+  const ended  = sortAuctions(auctions.filter(a=>a.status==="ended"));
 
   function placeBid(auctionId) {
     const a=auctions.find(x=>x.id===auctionId);
@@ -3108,6 +3130,29 @@ function Auctions({ ctx }) {
         {isAdmin&&<div className={`tab${tab==="create"?" active":""}`} onClick={()=>setTab("create")}>Create Auction</div>}
       </div>
 
+      {(tab==="active"||tab==="ended") && (
+        <div style={{display:"flex",alignItems:"center",gap:8,margin:"14px 0 4px",flexWrap:"wrap"}}>
+          <span style={{fontSize:11,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700,fontFamily:"'Spectral',serif"}}>Sort:</span>
+          {[
+            {key:"default",  label:"Default"},
+            {key:"bid-desc", label:"Bid: High → Low"},
+            {key:"bid-asc",  label:"Bid: Low → High"},
+            {key:"rarity",   label:"Rarity"},
+          ].map(opt=>(
+            <button key={opt.key}
+              onClick={()=>setSortBy(opt.key)}
+              style={{
+                fontSize:11,fontWeight:700,padding:"4px 12px",border:"1px solid",cursor:"pointer",letterSpacing:.5,
+                fontFamily:"'Spectral',serif",background:sortBy===opt.key?"var(--gold)":"transparent",
+                color:sortBy===opt.key?"#1a1008":"var(--text-mid)",
+                borderColor:sortBy===opt.key?"var(--gold)":"var(--border)",
+                borderRadius:2,transition:"all .15s",
+              }}
+            >{opt.label}</button>
+          ))}
+        </div>
+      )}
+
       {tab==="active" && (
         <div className="grid-3">
           {active.length===0&&<div style={{color:"var(--text-dim)",gridColumn:"1/-1",textAlign:"center",padding:48,fontFamily:"'Spectral',serif"}}>No active auctions right now.</div>}
@@ -3129,7 +3174,14 @@ function Auctions({ ctx }) {
                     <div style={{textAlign:"left"}}>
                       <div className="bid-label">Current Bid</div>
                       <div className="current-bid"><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={28}/>{fmt(a.currentBid)}</span></div>
-                      <div className="top-bidder">{a.topBidder||"No bids yet"}</div>
+                      {a.topBidder ? (
+                        <div style={{display:"inline-flex",alignItems:"center",gap:5,marginTop:5,background:"rgba(39,174,96,0.15)",border:"1px solid rgba(39,174,96,0.45)",padding:"3px 8px",borderRadius:2}}>
+                          <span style={{fontSize:10,color:"rgba(39,174,96,0.85)",fontWeight:700,letterSpacing:1,textTransform:"uppercase",fontFamily:"'Spectral',serif"}}>🏆</span>
+                          <span style={{fontSize:12,color:"#6ee89a",fontWeight:800,fontFamily:"'Spectral',serif",letterSpacing:0.5}}>{a.topBidder}</span>
+                        </div>
+                      ) : (
+                        <div style={{marginTop:5,fontSize:11,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Spectral',serif"}}>No bids yet</div>
+                      )}
                     </div>
                     <div style={{textAlign:"right"}}>
                       <div className="bid-label">Bids</div>
