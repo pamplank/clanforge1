@@ -3668,7 +3668,7 @@ function Auctions({ ctx }) {
                     </div>
                     <div style={{textAlign:"right"}}>
                       <div className="bid-label">Bids</div>
-                      <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:20,color:"#a8b8c8"}}>{(a.bids||[]).length}</div>
+                      <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:20,color:"#a8b8c8"}}>{(a.bids||[]).length || (a.topBidder ? 1 : 0)}</div>
                     </div>
                   </div>
                   <div style={{marginTop:12,display:"flex",gap:8}}>
@@ -3677,13 +3677,20 @@ function Auctions({ ctx }) {
                   </div>
                   {isWinning&&<button className="btn btn-outline btn-sm" style={{width:"100%",marginTop:6,borderColor:"rgba(231,76,60,0.5)",color:"#e07070"}} onClick={()=>retractBid(a.id)}>↩ Retract Bid</button>}
                   {isMaster&&<button className="btn btn-red btn-sm" style={{width:"100%",marginTop:6}} onClick={()=>removeAuction(a.id)}>Remove Auction</button>}
-                  {(a.bids||[]).length>0&&(
+                  {((a.bids||[]).length>0 || a.topBidder)&&(
                     <div style={{marginTop:10,fontSize:11,color:"var(--text-dim)",borderTop:"1px solid var(--border-dim)",paddingTop:8}}>
-                      {[...(a.bids||[])].reverse().slice(0,2).map((b,i)=>(
-                        <div key={i} style={{display:"flex",justifyContent:"space-between",fontFamily:"'Spectral',serif"}}>
-                          <span>{b.bidder}</span><span style={{color:"var(--gold)",fontWeight:700}}>{fmt(b.amount)}</span>
-                        </div>
-                      ))}
+                      {(a.bids||[]).length>0
+                        ? [...(a.bids||[])].reverse().slice(0,2).map((b,i)=>(
+                            <div key={i} style={{display:"flex",justifyContent:"space-between",fontFamily:"'Spectral',serif"}}>
+                              <span>{b.bidder}</span><span style={{color:"var(--gold)",fontWeight:700}}>{fmt(b.amount)}</span>
+                            </div>
+                          ))
+                        : a.topBidder && (
+                            <div style={{display:"flex",justifyContent:"space-between",fontFamily:"'Spectral',serif"}}>
+                              <span>{a.topBidder}</span><span style={{color:"var(--gold)",fontWeight:700}}>{fmt(a.currentBid)}</span>
+                            </div>
+                          )
+                      }
                     </div>
                   )}
                 </div>
