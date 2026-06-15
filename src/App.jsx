@@ -2346,6 +2346,20 @@ function WorldBossSchedule() {
 // ─── UPDATE NOTES ─────────────────────────────────────────────────────────────
 const UPDATE_NOTES = [
   {
+    version: "v1.8",
+    date: "June 2026",
+    title: "Auction House Fixes & Live Ticker",
+    color: "#4fc3f7",
+    changes: [
+      { icon: "📢", text: "New live bid ticker — a scrolling marquee at the top of the Auction House shows the last 5 bids in real time for everyone to see" },
+      { icon: "🏆", text: "Auctions you're currently winning always float to the top of the list so you can instantly tell if you've been outbid" },
+      { icon: "↩", text: "Retracting a bid now correctly restores the previous highest bidder instead of resetting to the starting price" },
+      { icon: "🖼", text: "Fixed auction item images disappearing when switching pages or after bids are placed" },
+      { icon: "📋", text: "Bid history is now saved to the database — bid counts are accurate and history persists across refreshes" },
+      { icon: "🔒", text: "Only the Master rank can now remove auctions" },
+    ],
+  },
+  {
     version: "v1.7",
     date: "June 2026",
     title: "Bid Safety & Stability",
