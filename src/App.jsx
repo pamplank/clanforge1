@@ -1752,7 +1752,19 @@ export default function App() {
         // Merge: keep local state for fields not in DB, update coins/auctionWins from DB
         return incoming.map(dbM => {
           const local = prev.find(m => m.id === dbM.id);
-          return local ? { ...local, coins: dbM.coins, auctionWins: dbM.auctionWins, power: dbM.power, attendance: dbM.attendance, attendLog: dbM.attendLog.length > 0 ? dbM.attendLog : local.attendLog, decayLog: dbM.decayLog.length > 0 ? dbM.decayLog : local.decayLog, txLog: dbM.txLog.length > 0 ? dbM.txLog : local.txLog } : dbM;
+          // For logs: prefer whichever copy has MORE entries — handles the race where
+          // a DB write hasn't settled yet when the next poll fires. "Longer wins" means
+          // a freshly-written local log is never overwritten by a stale empty DB response.
+          return local ? {
+            ...local,
+            coins:       dbM.coins,
+            auctionWins: dbM.auctionWins,
+            power:       dbM.power,
+            attendance:  dbM.attendance,
+            attendLog:   dbM.attendLog.length >= local.attendLog.length ? dbM.attendLog : local.attendLog,
+            decayLog:    dbM.decayLog.length  >= local.decayLog.length  ? dbM.decayLog  : local.decayLog,
+            txLog:       dbM.txLog.length     >= local.txLog.length     ? dbM.txLog     : local.txLog,
+          } : dbM;
         });
       });
   }, 5000, 1500, []);
@@ -1844,7 +1856,7 @@ export default function App() {
     );
   }, [tick]);
   useEffect(() => {
-    if (currentUser) { const u = members.find(m=>m.id===currentUser.id); if (u) setCurrentUser(u); }
+    if (currentUser) { const u = members.find(m=>String(m.id)===String(currentUser.id)); if (u) setCurrentUser(u); }
   }, [members]);
 
   // Poll bid_events every 3s and show a global toast to all users when someone bids
@@ -3277,15 +3289,16 @@ function Attendance({ ctx }) {
             <table className="table-stack">
               <thead><tr><th>Date</th><th>Member</th><th>Type</th><th>Amount</th><th>Added By</th><th>Reason</th></tr></thead>
               <tbody>
-                {members.flatMap(m=>[
-                  ...(m.txLog||[]).map(t=>({date:t.date,member:m.name,type:t.logType||"Admin Manual Add",amount:t.change,addedBy:t.addedBy||"—",reason:t.reason||"—",cls:m.cls})),
-                  ...(m.attendLog||[]).filter(a=>false) // attendance is private; skip
-                ]).sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,50).length===0 ? (
-                  <tr><td colSpan={5} style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>No global point adjustments yet.</td></tr>
-                ) : (
-                  members.flatMap(m=>[
-                    ...(m.txLog||[]).map(t=>({date:t.date,member:m.name,type:t.logType||"Admin Manual Add",amount:t.change,addedBy:t.addedBy||"—",reason:t.reason||"—",cls:m.cls}))
-                  ]).sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,50).map((entry,i)=>(
+                {(()=>{
+                  // Combined log: txLog (bonuses + manual adjustments) + attendLog (attendance coins)
+                  const allEntries = members.flatMap(m=>[
+                    ...(m.txLog||[]).map(t=>({date:t.date,member:m.name,type:t.logType||"Admin Manual Add",amount:t.change,addedBy:t.addedBy||"—",reason:t.reason||"—",cls:m.cls})),
+                    ...(m.attendLog||[]).map(a=>({date:a.date,member:m.name,type:"Attendance",amount:a.coins,addedBy:"System",reason:`${a.event} (${a.qualifier})`,cls:m.cls})),
+                  ]).sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,100);
+                  if(allEntries.length===0) return(
+                    <tr><td colSpan={5} style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>No global point adjustments yet.</td></tr>
+                  );
+                  return allEntries.map((entry,i)=>(
                     <tr key={i}>
                       <td data-label="Date" style={{fontWeight:500}}>{entry.date}</td>
                       <td data-label="Member" style={{fontFamily:"'Spectral',serif",fontWeight:700,color:"var(--text-bright)"}}>{entry.member}</td>
@@ -3294,8 +3307,8 @@ function Attendance({ ctx }) {
                       <td data-label="Added By" style={{fontFamily:"'Spectral',serif",fontWeight:600,color:"var(--gold)",fontSize:12}}>{entry.addedBy}</td>
                       <td data-label="Reason" style={{fontSize:11,color:"var(--text-dim)"}}>{entry.reason}</td>
                     </tr>
-                  ))
-                )}
+                  ));
+                })()}
               </tbody>
             </table>
           </div>
