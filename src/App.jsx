@@ -1851,9 +1851,7 @@ export default function App() {
       }
       fresh.push({ id: r.id, bidder: r.bidder, auction_name: r.auction_name, amount: Number(r.amount), ts: Number(r.ts) });
     });
-    if (fresh.length > 0) {
-      setBidFeed(fresh.sort((a,b) => b.ts - a.ts).slice(0, 5));
-    }
+    setBidFeed(fresh.sort((a,b) => b.ts - a.ts).slice(0, 5));
   }, 3000, 800, [currentUser]);
 
   function addToast(msg, type="gold", title="") {
@@ -3357,6 +3355,8 @@ function Auctions({ ctx }) {
     const bidEventId = `${auctionId}_${Date.now()}`;
     const bidTs = Date.now();
     dbUpsert("bid_events", { id: bidEventId, bidder: currentUser.name, auction_name: a.name, amount, ts: bidTs });
+    // Immediately show in local feed without waiting for poll
+    seenBidEvents.current.add(bidEventId);
   }
 
   function retractBid(auctionId) {
@@ -3498,31 +3498,43 @@ function Auctions({ ctx }) {
         {isAdmin&&<div className={`tab${tab==="create"?" active":""}`} onClick={()=>setTab("create")}>Create Auction</div>}
       </div>
 
-      {bidFeed.length > 0 && (
-        <div style={{
-          overflow:"hidden", whiteSpace:"nowrap", background:"rgba(0,0,0,0.35)",
-          border:"1px solid rgba(255,185,40,0.25)", borderRadius:8, margin:"10px 0 4px",
-          padding:"7px 0", position:"relative",
-        }}>
+      {(() => {
+        // Build feed: prefer bidFeed from DB, fallback to bids embedded in auctions
+        let feed = bidFeed.length > 0 ? bidFeed : [];
+        if (feed.length === 0) {
+          const local = [];
+          auctions.forEach(a => {
+            (a.bids || []).forEach(b => local.push({ bidder: b.bidder, auction_name: a.name, amount: b.amount, ts: b.time || 0 }));
+          });
+          feed = local.sort((a,b) => b.ts - a.ts).slice(0, 5);
+        }
+        if (feed.length === 0) return null;
+        return (
           <div style={{
-            display:"inline-block",
-            animation:"bidMarquee 28s linear infinite",
-            paddingLeft:"100%",
+            overflow:"hidden", whiteSpace:"nowrap", background:"rgba(0,0,0,0.35)",
+            border:"1px solid rgba(255,185,40,0.25)", borderRadius:8, margin:"10px 0 4px",
+            padding:"7px 0", position:"relative",
           }}>
-            {[...bidFeed, ...bidFeed].map((b, i) => (
-              <span key={i} style={{
-                marginRight:60, fontSize:13, fontFamily:"'Spectral',serif",
-                color:"var(--gold)", letterSpacing:0.5,
-              }}>
-                🔨 <strong style={{color:"#fff"}}>{b.bidder}</strong> bid{" "}
-                <strong style={{color:"var(--gold)"}}>{fmt(b.amount)}</strong> coins on{" "}
-                <strong style={{color:"#c8e6ff"}}>{b.auction_name}</strong>
-              </span>
-            ))}
+            <div style={{
+              display:"inline-block",
+              animation:"bidMarquee 28s linear infinite",
+              paddingLeft:"100%",
+            }}>
+              {[...feed, ...feed].map((b, i) => (
+                <span key={i} style={{
+                  marginRight:60, fontSize:13, fontFamily:"'Spectral',serif",
+                  color:"var(--gold)", letterSpacing:0.5,
+                }}>
+                  🔨 <strong style={{color:"#fff"}}>{b.bidder}</strong> bid{" "}
+                  <strong style={{color:"var(--gold)"}}>{fmt(b.amount)}</strong> coins on{" "}
+                  <strong style={{color:"#c8e6ff"}}>{b.auction_name}</strong>
+                </span>
+              ))}
+            </div>
+            <style>{`@keyframes bidMarquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }`}</style>
           </div>
-          <style>{`@keyframes bidMarquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }`}</style>
-        </div>
-      )}
+        );
+      })()}
 
       {(tab==="active"||tab==="ended") && (
         <div style={{display:"flex",alignItems:"center",gap:10,margin:"14px 0 4px",flexWrap:"wrap",justifyContent:"flex-end"}}>
