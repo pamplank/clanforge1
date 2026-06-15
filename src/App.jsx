@@ -901,32 +901,34 @@ const _auctionImageCache = new Map();
 // component lazily fetches image_data on demand the first time an
 // auction with image_name is rendered, then caches it.
 function AuctionImage({ auction, alt="", style, fallback }) {
+  const cacheKey = auction?.id ? String(auction.id) : null;
+
   const [dataUrl, setDataUrl] = useState(() => {
     if (auction?.image?.dataUrl) return auction.image.dataUrl;
-    if (auction?.id && _auctionImageCache.has(auction.id)) return _auctionImageCache.get(auction.id);
+    if (cacheKey && _auctionImageCache.has(cacheKey)) return _auctionImageCache.get(cacheKey);
     return null;
   });
 
   // Sync: if local state is null but the cache or parent now has the URL, apply it immediately
   useEffect(() => {
     if (!dataUrl && auction?.image?.dataUrl) { setDataUrl(auction.image.dataUrl); return; }
-    if (!dataUrl && auction?.id && _auctionImageCache.has(auction.id)) { setDataUrl(_auctionImageCache.get(auction.id)); return; }
-  }, [auction?.image?.dataUrl, auction?.id, dataUrl]);
+    if (!dataUrl && cacheKey && _auctionImageCache.has(cacheKey)) { setDataUrl(_auctionImageCache.get(cacheKey)); return; }
+  }, [auction?.image?.dataUrl, cacheKey, dataUrl]);
 
   useEffect(() => {
     if (dataUrl) return;
-    if (!auction?.image?.name) return; // no image for this auction
-    if (!auction?.id) return;
+    if (!auction?.image?.name) return;
+    if (!cacheKey) return;
     let cancelled = false;
-    dbLoadAuctionImage(auction.id).then(row => {
+    dbLoadAuctionImage(cacheKey).then(row => {
       if (cancelled) return;
       if (row?.image_data) {
-        _auctionImageCache.set(auction.id, row.image_data);
+        _auctionImageCache.set(cacheKey, row.image_data);
         setDataUrl(row.image_data);
       }
     });
     return () => { cancelled = true; };
-  }, [auction?.id, auction?.image?.name, dataUrl]);
+  }, [cacheKey, auction?.image?.name, dataUrl]);
 
   if (dataUrl) return <img src={dataUrl} alt={alt} style={style} />;
   return fallback || null;
@@ -1531,7 +1533,7 @@ export default function App() {
     try {
       const [mRows, aRows, lRows, cRows, rRows] = await Promise.all([
         dbLoad("members"),
-        dbLoad("auctions", AUCTION_LIST_COLS),
+        dbLoad("auctions", AUCTION_LIST_COLS + ",image_data"),
         dbLoad("attendance_logs"),
         dbLoad("coin_requests"),
         dbLoad("loot_results"),
@@ -1577,6 +1579,8 @@ export default function App() {
         return;
       }
       if (Array.isArray(aRows) && aRows.length > 0) {
+        // Seed the image cache from initial load so the poll never loses image URLs
+        aRows.forEach(r => { if (r.image_data) _auctionImageCache.set(String(r.id), r.image_data); });
         setAuctionsRaw(aRows.map(r => ({
           id:          String(r.id),
           name:        r.name ?? "",
@@ -1591,7 +1595,7 @@ export default function App() {
           startBid:    Number(r.min_bid)    || 0,
           topBidder:   r.top_bidder ?? null,
           bids:        (() => { try { const b = typeof r.bids === "string" ? JSON.parse(r.bids) : (Array.isArray(r.bids) ? r.bids : []); return b || []; } catch { return []; } })(),
-          image:       r.image_name ? { dataUrl: r.image_data || null, name: r.image_name } : null,
+          image:       r.image_name ? { dataUrl: r.image_data || _auctionImageCache.get(String(r.id)) || null, name: r.image_name } : null,
         })));
       } else if (aRows === null) {
         // Auctions fetch failed/errored (e.g. statement timeout from large
