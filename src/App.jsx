@@ -3370,11 +3370,18 @@ function Auctions({ ctx }) {
   const RARITY_ORDER = { kari: 0, epic: 1, rare: 2 };
 
   function sortAuctions(list) {
-    if (sortBy === "bid-desc")   return [...list].sort((a,b) => b.currentBid - a.currentBid);
-    if (sortBy === "bid-asc")    return [...list].sort((a,b) => a.currentBid - b.currentBid);
-    if (sortBy === "rarity")     return [...list].sort((a,b) => (RARITY_ORDER[a.rarity]??99) - (RARITY_ORDER[b.rarity]??99));
-    if (sortBy === "has-bidder") return [...list].sort((a,b) => (b.topBidder?1:0) - (a.topBidder?1:0));
-    return list;
+    let sorted;
+    if (sortBy === "bid-desc")        sorted = [...list].sort((a,b) => b.currentBid - a.currentBid);
+    else if (sortBy === "bid-asc")    sorted = [...list].sort((a,b) => a.currentBid - b.currentBid);
+    else if (sortBy === "rarity")     sorted = [...list].sort((a,b) => (RARITY_ORDER[a.rarity]??99) - (RARITY_ORDER[b.rarity]??99));
+    else if (sortBy === "has-bidder") sorted = [...list].sort((a,b) => (b.topBidder?1:0) - (a.topBidder?1:0));
+    else sorted = [...list];
+    // Always float items the current user is winning to the very top
+    return sorted.sort((a,b) => {
+      const aWin = a.topBidder === currentUser?.name ? 1 : 0;
+      const bWin = b.topBidder === currentUser?.name ? 1 : 0;
+      return bWin - aWin;
+    });
   }
 
   const active = sortAuctions(auctions.filter(a=>a.status==="active"));
