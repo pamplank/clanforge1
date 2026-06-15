@@ -1679,7 +1679,9 @@ export default function App() {
     setAuctionsRaw(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       const safe = next.filter(a => !deletedAuctionIds.current.has(a.id));
-      safe.forEach(a => dbUpsert("auctions", {
+      safe.forEach(a => {
+        const imageData = a.image?.dataUrl || _auctionImageCache.get(String(a.id)) || undefined;
+        const row = {
           id:          String(a.id),
           name:        a.name ?? "",
           description: a.description ?? a.desc ?? "",
@@ -1690,10 +1692,13 @@ export default function App() {
           current_bid: a.currentBid ?? a.startBid ?? 0,
           top_bidder:  a.topBidder ?? null,
           min_bid:     a.minBid ?? a.startBid ?? 0,
-          image_data:  a.image?.dataUrl ?? null,
           image_name:  a.image?.name ?? null,
           bids:        JSON.stringify(a.bids ?? []),
-        }));
+        };
+        // Only write image_data if we actually have it — never overwrite DB with null
+        if (imageData) row.image_data = imageData;
+        dbUpsert("auctions", row);
+      });
       return safe;
     });
   }
@@ -1811,7 +1816,8 @@ export default function App() {
             addToast(`${a.topBidder} won ${a.name} for ${fmt(a.currentBid)} coins!`, "gold", "Auction Ended");
             setMembers(ms => ms.map(m => m.name===a.topBidder ? {...m,auctionWins:m.auctionWins+1} : m));
           }
-          dbUpsert("auctions", {
+          const endImageData = a.image?.dataUrl || _auctionImageCache.get(String(a.id)) || undefined;
+          const endRow = {
             id:          String(a.id),
             name:        a.name ?? "",
             description: a.description ?? a.desc ?? "",
@@ -1821,10 +1827,11 @@ export default function App() {
             current_bid: a.currentBid ?? 0,
             top_bidder:  a.topBidder ?? null,
             min_bid:     a.minBid ?? a.startBid ?? 0,
-            image_data:  a.image?.dataUrl ?? null,
             image_name:  a.image?.name ?? null,
             bids:        JSON.stringify(a.bids ?? []),
-          });
+          };
+          if (endImageData) endRow.image_data = endImageData;
+          dbUpsert("auctions", endRow);
           return {...a, status:"ended"};
         }
         return a;
