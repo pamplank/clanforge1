@@ -1836,18 +1836,24 @@ export default function App() {
   }, [members]);
 
   // Poll bid_events every 3s and show a global toast to all users when someone bids
+  const [bidFeed, setBidFeed] = useState([]);
   const seenBidEvents = useRef(new Set());
   useJitteredInterval(async () => {
     const rows = await dbLoad("bid_events", "id,bidder,auction_name,amount,ts");
     if (!Array.isArray(rows)) return;
-    const cutoff = Date.now() - 30000; // only show events from last 30s
+    const fresh = [];
     rows.forEach(r => {
-      if (seenBidEvents.current.has(r.id)) return;
-      if (Number(r.ts) < cutoff) { seenBidEvents.current.add(r.id); return; }
-      seenBidEvents.current.add(r.id);
-      if (currentUser && r.bidder === currentUser.name) return;
-      addToast(`${r.bidder} bid ${fmt(Number(r.amount))} coins on ${r.auction_name}!`, "blue", "🔨 New Bid");
+      if (!seenBidEvents.current.has(r.id)) {
+        seenBidEvents.current.add(r.id);
+        if (currentUser && r.bidder !== currentUser.name) {
+          addToast(`${r.bidder} bid ${fmt(Number(r.amount))} coins on ${r.auction_name}!`, "blue", "🔨 New Bid");
+        }
+      }
+      fresh.push({ id: r.id, bidder: r.bidder, auction_name: r.auction_name, amount: Number(r.amount), ts: Number(r.ts) });
     });
+    if (fresh.length > 0) {
+      setBidFeed(fresh.sort((a,b) => b.ts - a.ts).slice(0, 5));
+    }
   }, 3000, 800, [currentUser]);
 
   function addToast(msg, type="gold", title="") {
@@ -1927,7 +1933,7 @@ export default function App() {
   const [openUserMenu, setOpenUserMenu] = useState(false);
 
   const ctx = { members, setMembers, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
-    currentUser, setCurrentUser, addToast, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId };
+    currentUser, setCurrentUser, addToast, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed };
 
   const PAGE_TITLES = {dashboard:"Clan HQ",attendance:"Attendance",members:"Members",auctions:"Auction House",leaderboard:"Hall of Fame",export:"Export Data",settings:"Settings"};
 
@@ -3277,7 +3283,7 @@ function Attendance({ ctx }) {
 
 // ─── AUCTIONS ─────────────────────────────────────────────────────────────────
 function Auctions({ ctx }) {
-  const { auctions, setAuctions, members, setMembers, currentUser, addToast, tick, imageLibrary, addImage, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId } = ctx;
+  const { auctions, setAuctions, members, setMembers, currentUser, addToast, tick, imageLibrary, addImage, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed } = ctx;
   const [tab, setTab] = useState("active");
   const [bidAmounts, setBidAmounts] = useState({});
   const [bidSubmitting, setBidSubmitting] = useState({});
@@ -3347,9 +3353,10 @@ function Auctions({ ctx }) {
     setAuctions(prev=>prev.map(x=>x.id===auctionId?{...x,currentBid:amount,topBidder:currentUser.name,bids:[...(x.bids||[]),{bidder:currentUser.name,amount,time:Date.now()}]}:x));
     addToast(`Bid of ${fmt(amount)} placed on ${a.name}!`,"gold","Bid Placed");
     setBidAmounts(prev=>({...prev,[auctionId]:""}));
-    // Write to bid_events so all other users get a global announcement toast
+    // Write to bid_events so all other users get a global announcement
     const bidEventId = `${auctionId}_${Date.now()}`;
-    dbUpsert("bid_events", { id: bidEventId, bidder: currentUser.name, auction_name: a.name, amount, ts: Date.now() });
+    const bidTs = Date.now();
+    dbUpsert("bid_events", { id: bidEventId, bidder: currentUser.name, auction_name: a.name, amount, ts: bidTs });
   }
 
   function retractBid(auctionId) {
@@ -3490,6 +3497,32 @@ function Auctions({ ctx }) {
         <div className={`tab${tab==="roulette"?" active":""}`} onClick={()=>setTab("roulette")}>Loot Roulette</div>
         {isAdmin&&<div className={`tab${tab==="create"?" active":""}`} onClick={()=>setTab("create")}>Create Auction</div>}
       </div>
+
+      {bidFeed.length > 0 && (
+        <div style={{
+          overflow:"hidden", whiteSpace:"nowrap", background:"rgba(0,0,0,0.35)",
+          border:"1px solid rgba(255,185,40,0.25)", borderRadius:8, margin:"10px 0 4px",
+          padding:"7px 0", position:"relative",
+        }}>
+          <div style={{
+            display:"inline-block",
+            animation:"bidMarquee 28s linear infinite",
+            paddingLeft:"100%",
+          }}>
+            {[...bidFeed, ...bidFeed].map((b, i) => (
+              <span key={i} style={{
+                marginRight:60, fontSize:13, fontFamily:"'Spectral',serif",
+                color:"var(--gold)", letterSpacing:0.5,
+              }}>
+                🔨 <strong style={{color:"#fff"}}>{b.bidder}</strong> bid{" "}
+                <strong style={{color:"var(--gold)"}}>{fmt(b.amount)}</strong> coins on{" "}
+                <strong style={{color:"#c8e6ff"}}>{b.auction_name}</strong>
+              </span>
+            ))}
+          </div>
+          <style>{`@keyframes bidMarquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }`}</style>
+        </div>
+      )}
 
       {(tab==="active"||tab==="ended") && (
         <div style={{display:"flex",alignItems:"center",gap:10,margin:"14px 0 4px",flexWrap:"wrap",justifyContent:"flex-end"}}>
