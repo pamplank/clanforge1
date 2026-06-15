@@ -3436,16 +3436,13 @@ function Auctions({ ctx }) {
     // local-state check only — better to allow the bid than block users
     // entirely during a transient connection issue.
 
-    // Refund previous top bidder — use their actual bid from bids history, not current_bid
+    // Refund previous top bidder — use the live DB current_bid as the refund amount.
+    // The DB current_bid IS exactly what the previous top bidder paid (by definition),
+    // so this is always correct. Do NOT look up a.bids (local/stale state) — that
+    // array is an append-only log that may contain old bid records from earlier rounds,
+    // which caused the bug where outbid users received more coins than they paid.
     const prevBidder = freshRow?.top_bidder ?? a.topBidder;
-    // Look up what the previous top bidder actually paid from the bids array
-    const prevBidRecord = prevBidder
-      ? [...(a.bids||[])].reverse().find(b => b.bidder === prevBidder)
-      : null;
-    // Fallback to freshRow current_bid only if no bids history exists yet
-    const prevBidAmt = prevBidRecord
-      ? prevBidRecord.amount
-      : (freshRow ? (Number(freshRow.current_bid)||0) : 0);
+    const prevBidAmt = freshRow ? (Number(freshRow.current_bid) || 0) : (a.currentBid || 0);
     // Only refund if there actually was a previous bidder and they paid something
     const prevRefund = (prevBidder && prevBidAmt > 0) ? prevBidAmt : 0;
     setMembers(ms=>ms.map(m=>{
