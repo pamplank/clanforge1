@@ -1634,6 +1634,7 @@ export default function App() {
         const allMembers = Array.isArray(mRows) && mRows.length > 0 ? mRows : SEED_MEMBERS;
         const found = allMembers.find(m => String(m.id) === String(savedId));
         if (found) {
+          const parseLog = (v) => { if (Array.isArray(v)) return v; if (typeof v === "string") { try { return JSON.parse(v); } catch {} } return []; };
           setCurrentUser({
             ...found,
             coins: Number(found.coins) || 0,
@@ -1641,9 +1642,9 @@ export default function App() {
             attendance: Number(found.attendance) || 0,
             auctionWins: Number(found.auction_wins ?? found.auctionWins) || 0,
             joinDate: found.join_date || found.joinDate || "",
-            decayLog: found.decay_log || [],
-            txLog: found.tx_log || [],
-            attendLog: found.attend_log || [],
+            decayLog: parseLog(found.decay_log),
+            txLog: parseLog(found.tx_log),
+            attendLog: parseLog(found.attend_log),
           });
           setLoggedIn(true);
         }
@@ -1751,7 +1752,7 @@ export default function App() {
         // Merge: keep local state for fields not in DB, update coins/auctionWins from DB
         return incoming.map(dbM => {
           const local = prev.find(m => m.id === dbM.id);
-          return local ? { ...local, coins: dbM.coins, auctionWins: dbM.auctionWins, power: dbM.power } : dbM;
+          return local ? { ...local, coins: dbM.coins, auctionWins: dbM.auctionWins, power: dbM.power, attendance: dbM.attendance, attendLog: dbM.attendLog.length > 0 ? dbM.attendLog : local.attendLog, decayLog: dbM.decayLog.length > 0 ? dbM.decayLog : local.decayLog, txLog: dbM.txLog.length > 0 ? dbM.txLog : local.txLog } : dbM;
         });
       });
   }, 5000, 1500, []);
