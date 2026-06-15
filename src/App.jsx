@@ -3438,17 +3438,23 @@ function Auctions({ ctx }) {
     const a=auctions.find(x=>x.id===auctionId);
     if(!a||a.status!=="active") return;
     if(a.topBidder!==currentUser.name){addToast("You are not the current top bidder.","red","Cannot Retract");return;}
-    // Refund the bid amount back to the user
-    const refundAmount=a.currentBid;
-    const prevBid=(a.bids||[]).slice(0,-1).reverse().find(b=>b.bidder!==currentUser.name);
-    const newBid=prevBid?prevBid.amount:a.startBid;
-    const newTopBidder=prevBid?prevBid.bidder:null;
+
+    const refundAmount = a.currentBid;
+
+    // Remove ALL bids from the retracting user so their history is clean
+    const remainingBids = (a.bids||[]).filter(b => b.bidder !== currentUser.name);
+
+    // The new top bidder is whoever has the highest bid among remaining bids
+    const prevTopBid = remainingBids.reduce((best, b) => (!best || b.amount > best.amount) ? b : best, null);
+    const newBid = prevTopBid ? prevTopBid.amount : a.startBid;
+    const newTopBidder = prevTopBid ? prevTopBid.bidder : null;
+
     setMembers(ms=>ms.map(m=>m.name===currentUser.name?{...m,coins:m.coins+refundAmount}:m));
     setAuctions(prev=>prev.map(x=>x.id===auctionId?{
       ...x,
-      currentBid:newBid,
-      topBidder:newTopBidder,
-      bids:(x.bids||[]).filter(b=>!(b.bidder===currentUser.name&&b.amount===refundAmount)),
+      currentBid: newBid,
+      topBidder:  newTopBidder,
+      bids:       remainingBids,
     }:x));
     addToast(`Bid retracted. ${fmt(refundAmount)} coins refunded.`,"gold","Bid Retracted");
   }
