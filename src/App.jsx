@@ -3633,43 +3633,51 @@ function Auctions({ ctx }) {
             const rc={epic:{bg:"rgba(122,26,26,0.92)",color:"#ff8080",border:"rgba(192,57,43,0.5)"},rare:{bg:"rgba(26,90,138,0.92)",color:"#60aadd",border:"rgba(46,134,193,0.5)"},kari:{bg:"rgba(0,60,130,0.92)",color:"#a0d8ff",border:"rgba(100,200,255,0.6)"}};
             const rc2=rc[a.rarity]||rc.epic;
             if (viewMode==="compact") return (
-              <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${rc2.color}`,background:"var(--bg-card)",borderRadius:2,minWidth:0}}>
-                {/* Thumbnail */}
-                <div style={{width:42,height:42,borderRadius:2,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:a.rarity==="epic"?"rgba(122,26,26,0.3)":a.rarity==="kari"?"rgba(0,60,130,0.4)":"rgba(26,90,138,0.3)"}}>
-                  {a.image?<AuctionImage auction={a} alt={a.name} style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={<StatIcon src={AUCTION_ICON} size={22}/>}/>:<StatIcon src={AUCTION_ICON} size={22}/>}
-                </div>
-                {/* Name + rarity + bidder stacked left */}
-                <div style={{flex:1,minWidth:0,textAlign:"left"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                    <span style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.name}</span>
-                    <span style={{fontSize:9,fontWeight:700,padding:"2px 6px",background:rc2.bg,border:`1px solid ${rc2.border}`,color:rc2.color,letterSpacing:1,fontFamily:"'Spectral',serif",flexShrink:0}}>{(a.rarity||"epic").toUpperCase()}</span>
-                    {isWinning&&<span style={{fontSize:9,fontWeight:700,padding:"2px 6px",background:"rgba(39,174,96,0.2)",border:"1px solid rgba(39,174,96,0.5)",color:"#6ee89a",letterSpacing:1,flexShrink:0}}>WINNING</span>}
+              <div key={a.id} style={{
+                border:"1px solid var(--border)",
+                borderLeft:`3px solid ${rc2.color}`,
+                background: isWinning ? "rgba(39,174,96,0.06)" : "var(--bg-card)",
+                borderRadius:6,
+                overflow:"hidden",
+                marginBottom:2,
+              }}>
+                {/* ROW 1: thumbnail + info + bid stats */}
+                <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px"}}>
+                  {/* Thumbnail */}
+                  <div style={{width:48,height:48,borderRadius:4,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:a.rarity==="epic"?"rgba(122,26,26,0.3)":a.rarity==="kari"?"rgba(0,60,130,0.4)":"rgba(26,90,138,0.3)",border:`1px solid ${rc2.border}`}}>
+                    {a.image?<AuctionImage auction={a} alt={a.name} style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={<StatIcon src={AUCTION_ICON} size={24}/>}/>:<StatIcon src={AUCTION_ICON} size={24}/>}
                   </div>
-                  {a.topBidder ? (
-                    <div style={{display:"inline-flex",alignItems:"center",gap:4,marginTop:3}}>
-                      <span style={{fontSize:10}}>🏆</span>
-                      <span style={{fontSize:11,color:"#6ee89a",fontWeight:700,fontFamily:"'Spectral',serif"}}>{a.topBidder}</span>
+                  {/* Name + bidder */}
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginBottom:3}}>
+                      <span style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:130}}>{a.name}</span>
+                      <span style={{fontSize:8,fontWeight:700,padding:"2px 5px",background:rc2.bg,border:`1px solid ${rc2.border}`,color:rc2.color,letterSpacing:1,borderRadius:2,flexShrink:0}}>{(a.rarity||"epic").toUpperCase()}</span>
+                      {isWinning&&<span style={{fontSize:8,fontWeight:700,padding:"2px 5px",background:"rgba(39,174,96,0.2)",border:"1px solid rgba(39,174,96,0.5)",color:"#6ee89a",borderRadius:2,flexShrink:0}}>✓ WINNING</span>}
                     </div>
-                  ) : (
-                    <div style={{marginTop:3,fontSize:11,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Spectral',serif"}}>No bids yet</div>
-                  )}
+                    {a.topBidder
+                      ? <div style={{display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:10}}>🏆</span><span style={{fontSize:11,color:"#6ee89a",fontWeight:700,fontFamily:"'Spectral',serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:110}}>{a.topBidder}</span></div>
+                      : <div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic"}}>No bids yet</div>
+                    }
+                  </div>
+                  {/* Stats: bid + timer */}
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
+                    <div style={{display:"flex",alignItems:"center",gap:3}}>
+                      <StatIcon src={COINS_ICON} size={14}/>
+                      <span style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:14,color:"var(--gold-light)"}}>{fmt(a.currentBid)}</span>
+                    </div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#f0a0a0",fontFamily:"'Spectral',serif"}}>{timeLeft(a.endsAt)}</div>
+                  </div>
                 </div>
-                {/* Right: bid amount + time + input */}
-                <div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
-                  <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:9,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,fontFamily:"'Spectral',serif"}}>Bid</div>
-                    <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:15,color:"var(--gold-light)",display:"inline-flex",alignItems:"center",gap:3}}><StatIcon src={COINS_ICON} size={18}/>{fmt(a.currentBid)}</div>
-                  </div>
-                  <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:9,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,fontFamily:"'Spectral',serif"}}>Time</div>
-                    <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:12,color:"#f0a0a0"}}>{timeLeft(a.endsAt)}</div>
-                  </div>
-                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                    <input className="input" type="number" min={minBid} placeholder={`Min ${fmt(minBid)}`} value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p,[a.id]:e.target.value}))} style={{width:88,fontSize:12,padding:"4px 8px"}} />
-                    <button className="btn btn-gold btn-sm" onClick={()=>placeBid(a.id)} disabled={!!bidSubmitting[a.id]}>{bidSubmitting[a.id]?"…":"Bid"}</button>
-                    {isWinning&&<button className="btn btn-outline btn-sm" onClick={()=>retractBid(a.id)} title="Retract your bid" style={{borderColor:"rgba(231,76,60,0.5)",color:"#e07070",fontSize:10}}>↩ Retract</button>}
-                    {isMaster&&<button className="btn btn-red btn-sm" onClick={()=>removeAuction(a.id)} title="Remove">✕</button>}
-                  </div>
+                {/* ROW 2: bid input + buttons */}
+                <div style={{display:"flex",gap:6,padding:"0 12px 10px",alignItems:"center"}}>
+                  <input className="input" type="number" min={minBid} placeholder={`Min ${fmt(minBid)}`}
+                    value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p,[a.id]:e.target.value}))}
+                    style={{flex:1,minWidth:0,fontSize:12,padding:"5px 8px"}} />
+                  <button className="btn btn-gold btn-sm" onClick={()=>placeBid(a.id)} disabled={!!bidSubmitting[a.id]} style={{flexShrink:0,padding:"5px 14px"}}>
+                    {bidSubmitting[a.id]?"…":"Bid"}
+                  </button>
+                  {isWinning&&<button className="btn btn-outline btn-sm" onClick={()=>retractBid(a.id)} title="Retract" style={{flexShrink:0,borderColor:"rgba(231,76,60,0.5)",color:"#e07070",padding:"5px 10px"}}>↩</button>}
+                  {isMaster&&<button className="btn btn-red btn-sm" onClick={()=>removeAuction(a.id)} title="Remove" style={{flexShrink:0,padding:"5px 10px"}}>✕</button>}
                 </div>
               </div>
             );
