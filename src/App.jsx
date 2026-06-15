@@ -3484,12 +3484,28 @@ function Auctions({ ctx }) {
     // Remove ALL bids from the retracting user so their history is clean
     const remainingBids = (a.bids||[]).filter(b => b.bidder !== currentUser.name);
 
-    // The new top bidder is whoever has the highest bid among remaining bids
-    const prevTopBid = remainingBids.reduce((best, b) => (!best || b.amount > best.amount) ? b : best, null);
+    // The new top bidder is whoever has the highest bid among remaining bids,
+    // BUT only if they still have enough coins to cover that bid.
+    // When a player was outbid their coins were already refunded, so they may
+    // have spent those coins elsewhere. Check current balance >= bid amount.
+    const eligibleBids = remainingBids.filter(b => {
+      const bidderMember = members.find(m => m.name === b.bidder);
+      if (!bidderMember) return false;
+      // Their coins were refunded when they were outbid, so their current
+      // balance must be >= the bid they'd be restored to.
+      return bidderMember.coins >= b.amount;
+    });
+    const prevTopBid = eligibleBids.reduce((best, b) => (!best || b.amount > best.amount) ? b : best, null);
     const newBid = prevTopBid ? prevTopBid.amount : a.startBid;
     const newTopBidder = prevTopBid ? prevTopBid.bidder : null;
 
-    setMembers(ms=>ms.map(m=>m.name===currentUser.name?{...m,coins:m.coins+refundAmount}:m));
+    setMembers(ms=>ms.map(m=>{
+      if(m.name===currentUser.name) return {...m,coins:m.coins+refundAmount};
+      // The restored top bidder had their coins refunded when they were outbid,
+      // so now that they're top bidder again, deduct their bid amount.
+      if(newTopBidder&&m.name===newTopBidder&&prevTopBid) return {...m,coins:m.coins-prevTopBid.amount};
+      return m;
+    }));
     setAuctions(prev=>prev.map(x=>x.id===auctionId?{
       ...x,
       currentBid: newBid,
