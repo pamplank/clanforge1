@@ -3279,6 +3279,70 @@ function Attendance({ ctx }) {
   );
 }
 
+// ─── BID MARQUEE ──────────────────────────────────────────────────────────────
+function BidMarquee({ feed, auctions }) {
+  const trackRef = useRef(null);
+  const posRef   = useRef(null); // current translateX in px (negative = scrolled left)
+  const rafRef   = useRef(null);
+  const SPEED    = 0.7; // px per frame — increase for faster scroll
+
+  // Build the display list from DB feed or fallback to local auction bids
+  const items = useMemo(() => {
+    if (feed && feed.length > 0) return feed;
+    const local = [];
+    (auctions || []).forEach(a => {
+      (a.bids || []).forEach(b => local.push({ bidder: b.bidder, auction_name: a.name, amount: b.amount, ts: b.time || 0 }));
+    });
+    return local.sort((a, b) => b.ts - a.ts).slice(0, 5);
+  }, [feed, auctions]);
+
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track || items.length === 0) return;
+
+    // On first mount initialise position; on re-renders (new bid) keep it
+    if (posRef.current === null) posRef.current = 0;
+
+    function tick() {
+      if (!trackRef.current) return;
+      posRef.current -= SPEED;
+      // The track contains the list duplicated twice; half-width = one full copy
+      const halfW = trackRef.current.scrollWidth / 2;
+      if (halfW > 0 && Math.abs(posRef.current) >= halfW) {
+        posRef.current += halfW; // seamless jump back without visual reset
+      }
+      trackRef.current.style.transform = `translateX(${posRef.current}px)`;
+      rafRef.current = requestAnimationFrame(tick);
+    }
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [items]); // restart RAF when items change, but posRef keeps the position
+
+  if (items.length === 0) return null;
+
+  return (
+    <div style={{
+      overflow:"hidden", whiteSpace:"nowrap", background:"rgba(0,0,0,0.35)",
+      border:"1px solid rgba(255,185,40,0.25)", borderRadius:8, margin:"10px 0 4px",
+      padding:"7px 0",
+    }}>
+      <div ref={trackRef} style={{ display:"inline-block", willChange:"transform" }}>
+        {[...items, ...items].map((b, i) => (
+          <span key={i} style={{
+            marginRight:60, fontSize:13, fontFamily:"'Spectral',serif",
+            color:"var(--gold)", letterSpacing:0.5,
+          }}>
+            🔨 <strong style={{color:"#fff"}}>{b.bidder}</strong> bid{" "}
+            <strong style={{color:"var(--gold)"}}>{fmt(b.amount)}</strong> coins on{" "}
+            <strong style={{color:"#c8e6ff"}}>{b.auction_name}</strong>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── AUCTIONS ─────────────────────────────────────────────────────────────────
 function Auctions({ ctx }) {
   const { auctions, setAuctions, members, setMembers, currentUser, addToast, tick, imageLibrary, addImage, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed } = ctx;
@@ -3498,43 +3562,7 @@ function Auctions({ ctx }) {
         {isAdmin&&<div className={`tab${tab==="create"?" active":""}`} onClick={()=>setTab("create")}>Create Auction</div>}
       </div>
 
-      {(() => {
-        // Build feed: prefer bidFeed from DB, fallback to bids embedded in auctions
-        let feed = bidFeed.length > 0 ? bidFeed : [];
-        if (feed.length === 0) {
-          const local = [];
-          auctions.forEach(a => {
-            (a.bids || []).forEach(b => local.push({ bidder: b.bidder, auction_name: a.name, amount: b.amount, ts: b.time || 0 }));
-          });
-          feed = local.sort((a,b) => b.ts - a.ts).slice(0, 5);
-        }
-        if (feed.length === 0) return null;
-        return (
-          <div style={{
-            overflow:"hidden", whiteSpace:"nowrap", background:"rgba(0,0,0,0.35)",
-            border:"1px solid rgba(255,185,40,0.25)", borderRadius:8, margin:"10px 0 4px",
-            padding:"7px 0", position:"relative",
-          }}>
-            <div style={{
-              display:"inline-block",
-              animation:"bidMarquee 28s linear infinite",
-              paddingLeft:"100%",
-            }}>
-              {[...feed, ...feed].map((b, i) => (
-                <span key={i} style={{
-                  marginRight:60, fontSize:13, fontFamily:"'Spectral',serif",
-                  color:"var(--gold)", letterSpacing:0.5,
-                }}>
-                  🔨 <strong style={{color:"#fff"}}>{b.bidder}</strong> bid{" "}
-                  <strong style={{color:"var(--gold)"}}>{fmt(b.amount)}</strong> coins on{" "}
-                  <strong style={{color:"#c8e6ff"}}>{b.auction_name}</strong>
-                </span>
-              ))}
-            </div>
-            <style>{`@keyframes bidMarquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }`}</style>
-          </div>
-        );
-      })()}
+      <BidMarquee feed={bidFeed} auctions={auctions} />
 
       {(tab==="active"||tab==="ended") && (
         <div style={{display:"flex",alignItems:"center",gap:10,margin:"14px 0 4px",flexWrap:"wrap",justifyContent:"flex-end"}}>
