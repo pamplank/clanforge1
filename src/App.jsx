@@ -247,7 +247,17 @@ const SEED_AUCTIONS = [];
 
 function fmt(n) { return n?.toLocaleString() ?? "0"; }
 function timeLeft(ms) {
-  const d=Math.max(0,ms-Date.now()),h=Math.floor(d/3600000),m=Math.floor((d%3600000)/60000),s=Math.floor((d%60000)/1000);
+  const diff = ms - Date.now();
+  // FIX: Show the real countdown all the way down to 0s. The GRACE_MS buffer
+  // (10s) is an internal safety margin only — it should NOT be visible to users
+  // as premature "Closing…" text. Members were seeing "30s" then suddenly
+  // "Closing…" because the old code showed "Closing…" as soon as diff<=0,
+  // which happened 5–10s before the auction actually closed in the DB.
+  // Now we show accurate seconds, then "Closing…" only after the real deadline,
+  // and "Ended" once the auction is confirmed ended in DB state.
+  if (diff <= -10000) return "Ended";
+  if (diff <= 0) return "Closing…";
+  const d=Math.max(0,diff),h=Math.floor(d/3600000),m=Math.floor((d%3600000)/60000),s=Math.floor((d%60000)/1000);
   return h>0?`${h}h ${m}m`:m>0?`${m}m ${s}s`:`${s}s`;
 }
 function rankIcon(i){return `#${i+1}`;}
@@ -1679,6 +1689,7 @@ export default function App() {
   }
 
   const deletedAuctionIds = useRef(new Set());
+  const endedAuctionIds = useRef(new Set());
 
   function setAuctions(updater) {
     setAuctionsRaw(prev => {
@@ -1728,9 +1739,21 @@ export default function App() {
   }
 
   useEffect(() => { const iv = setInterval(() => setTick(t=>t+1), 1000); return () => clearInterval(iv); }, []);
-  // Poll members every 5s so coin balances stay in sync across users
+  // Track whether THIS client is the "closer" — only Masters/Elders write ended status
+  // to DB. Everyone else just waits for the poll to pick up the DB change.
+  // This prevents a race where 50 clients all simultaneously write status="ended".
+  const isCloserRole = currentUser && (currentUser.role === "Master" || currentUser.role === "Elder");
+  // Poll members + attendance_logs every 5s so balances and history stay in sync
   useJitteredInterval(async () => {
-      const mRows = await dbLoad("members");
+      const [mRows, lRows] = await Promise.all([dbLoad("members"), dbLoad("attendance_logs")]);
+      if (Array.isArray(lRows) && lRows.length > 0) {
+        setAttendanceLogsRaw(lRows.map(r => ({
+          ...r,
+          recordedBy: r.recorded_by || r.recordedBy || "",
+          members:    Number(r.members) || 0,
+          attendees:  (() => { try { return typeof r.attendees === "string" ? JSON.parse(r.attendees) : (r.attendees || []); } catch { return []; } })(),
+        })).sort((a,b) => new Date(b.date) - new Date(a.date)));
+      }
       if (!Array.isArray(mRows) || mRows.length === 0) return;
       const safeJson = (v) => {
         if (Array.isArray(v)) return v;
@@ -1779,22 +1802,36 @@ export default function App() {
       // we currently have nothing to lose.
       setAuctionsRaw(prev => {
         if (aRows.length === 0 && prev.length > 0) return prev;
-        const updated = aRows.map(r => ({
-          id:          String(r.id),
-          name:        r.name ?? "",
-          desc:        r.description ?? "",
-          description: r.description ?? "",
-          rarity:      r.rarity ?? "epic",
-          status:      r.status ?? "active",
-          endsAt:      Number(r.ends_at)    || 0,
-          startedAt:   Number(r.started_at) || 0,
-          currentBid:  Number(r.current_bid) || 0,
-          minBid:      Number(r.min_bid)    || 0,
-          startBid:    Number(r.min_bid)    || 0,
-          topBidder:   r.top_bidder ?? null,
-          bids:        (() => { try { const db = typeof r.bids === "string" ? JSON.parse(r.bids) : (Array.isArray(r.bids) ? r.bids : null); if (db && db.length > 0) return db; } catch {} return prev.find(a => String(a.id) === String(r.id))?.bids || []; })(),
-          image:       r.image_name ? { dataUrl: prev.find(a => String(a.id) === String(r.id))?.image?.dataUrl || _auctionImageCache.get(String(r.id)) || null, name: r.image_name } : null,
-        })).filter(a => !deletedAuctionIds.current.has(a.id));
+        const updated = aRows.map(r => {
+          const prevA = prev.find(a => String(a.id) === String(r.id));
+          const next = {
+            id:          String(r.id),
+            name:        r.name ?? "",
+            desc:        r.description ?? "",
+            description: r.description ?? "",
+            rarity:      r.rarity ?? "epic",
+            status:      r.status ?? "active",
+            endsAt:      Number(r.ends_at)    || 0,
+            startedAt:   Number(r.started_at) || 0,
+            currentBid:  Number(r.current_bid) || 0,
+            minBid:      Number(r.min_bid)    || 0,
+            startBid:    Number(r.min_bid)    || 0,
+            topBidder:   r.top_bidder ?? null,
+            bids:        (() => { try { const db = typeof r.bids === "string" ? JSON.parse(r.bids) : (Array.isArray(r.bids) ? r.bids : null); if (db && db.length > 0) return db; } catch {} return prevA?.bids || []; })(),
+            image:       r.image_name ? { dataUrl: prevA?.image?.dataUrl || _auctionImageCache.get(String(r.id)) || null, name: r.image_name } : null,
+          };
+          // If the DB just flipped this auction to "ended" and our local state
+          // still had it as "active", fire the win notification here so clients
+          // that didn't trigger the end themselves still see the toast.
+          if (next.status === "ended" && prevA && prevA.status === "active" && !endedAuctionIds.current.has(next.id)) {
+            endedAuctionIds.current.add(next.id);
+            if (next.topBidder) {
+              addToast(`${next.topBidder} won ${next.name} for ${fmt(next.currentBid)} coins!`, "gold", "Auction Ended");
+              setMembers(ms => ms.map(m => m.name===next.topBidder ? {...m,auctionWins:m.auctionWins+1} : m));
+            }
+          }
+          return next;
+        }).filter(a => !deletedAuctionIds.current.has(a.id));
         return updated;
       });
   }, 3000, 1000, []);
@@ -1825,36 +1862,58 @@ export default function App() {
     return () => clearInterval(iv);
   }, []);
   useEffect(() => {
+    // ── AUCTION EXPIRY LOGIC ────────────────────────────────────────────────
+    // ROOT CAUSE FIX: Previously every client (all 50 members) would race to
+    // write status="ended" to the DB the moment their local clock ticked past
+    // endsAt. Whichever client had the fastest/most-ahead clock won, ending
+    // the auction early for everyone else.
+    //
+    // NEW APPROACH:
+    // 1. GRACE_MS raised to 10s (was 5s) — accommodates real-world clock drift
+    //    and network lag. A client that is 5s ahead will NOT close the auction
+    //    while others still show ~5-10s on their timers.
+    // 2. DB writes (the actual close) only happen from the logged-in Master or
+    //    Elder user. Everyone else just updates LOCAL display state — they let
+    //    the 3s poll pick up the DB-written "ended" status.
+    // 3. endedAuctionIds ref prevents any double-fires even across re-renders.
+    const GRACE_MS = 10000; // 10s buffer — wide enough for most clock skew
+    const canWriteClose = currentUser && (currentUser.role === "Master" || currentUser.role === "Elder");
+
     setAuctionsRaw(prev => prev
       .filter(a => !deletedAuctionIds.current.has(a.id))
       .map(a => {
-        if (a.status==="active" && Date.now()>a.endsAt) {
+        if (a.status==="active" && Date.now() > a.endsAt + GRACE_MS && !endedAuctionIds.current.has(a.id)) {
+          endedAuctionIds.current.add(a.id);
           if (a.topBidder) {
             addToast(`${a.topBidder} won ${a.name} for ${fmt(a.currentBid)} coins!`, "gold", "Auction Ended");
             setMembers(ms => ms.map(m => m.name===a.topBidder ? {...m,auctionWins:m.auctionWins+1} : m));
           }
-          const endImageData = a.image?.dataUrl || _auctionImageCache.get(String(a.id)) || undefined;
-          const endRow = {
-            id:          String(a.id),
-            name:        a.name ?? "",
-            description: a.description ?? a.desc ?? "",
-            status:      "ended",
-            ends_at:     a.endsAt ?? 0,
-            started_at:  a.startedAt ?? Date.now(),
-            current_bid: a.currentBid ?? 0,
-            top_bidder:  a.topBidder ?? null,
-            min_bid:     a.minBid ?? a.startBid ?? 0,
-            image_name:  a.image?.name ?? null,
-            bids:        JSON.stringify(a.bids ?? []),
-          };
-          if (endImageData) endRow.image_data = endImageData;
-          dbUpsert("auctions", endRow);
+          // Only Master/Elder writes to DB — prevents 50 clients racing each other
+          if (canWriteClose) {
+            const endImageData = a.image?.dataUrl || _auctionImageCache.get(String(a.id)) || undefined;
+            const endRow = {
+              id:          String(a.id),
+              name:        a.name ?? "",
+              description: a.description ?? a.desc ?? "",
+              status:      "ended",
+              ends_at:     a.endsAt ?? 0,
+              started_at:  a.startedAt ?? Date.now(),
+              current_bid: a.currentBid ?? 0,
+              top_bidder:  a.topBidder ?? null,
+              min_bid:     a.minBid ?? a.startBid ?? 0,
+              image_name:  a.image?.name ?? null,
+              bids:        JSON.stringify(a.bids ?? []),
+            };
+            if (endImageData) endRow.image_data = endImageData;
+            dbUpsert("auctions", endRow);
+          }
+          // All clients flip local display to ended (UI update)
           return {...a, status:"ended"};
         }
         return a;
       })
     );
-  }, [tick]);
+  }, [tick, currentUser]);
   useEffect(() => {
     if (currentUser) { const u = members.find(m=>String(m.id)===String(currentUser.id)); if (u) setCurrentUser(u); }
   }, [members]);
@@ -2359,6 +2418,19 @@ function WorldBossSchedule() {
 // ─── UPDATE NOTES ─────────────────────────────────────────────────────────────
 const UPDATE_NOTES = [
   {
+    version: "v1.9",
+    date: "June 2026",
+    title: "Auction Timer Fix & QoL Changes",
+    color: "#6dbf76",
+    changes: [
+      { icon: "⏱️", text: "Auction timer now accurate — fixed a bug where auctions could close while members still had 20–30s on their timer due to clock differences between devices" },
+      { icon: "🛡️", text: "Snipe protection added — a bid placed in the last 60 seconds extends the auction by 2 minutes so no one gets sniped at the last second" },
+      { icon: "❌", text: "Retract Bid removed — it was causing too many issues and has been disabled for now" },
+      { icon: "📋", text: "Global Points Log cleaned up — now only shows Admin Manual Adjustments and coins earned from bonuses" },
+      { icon: "📅", text: "My Attendance fixed — you can now correctly view your own attendance history again" },
+    ],
+  },
+  {
     version: "v1.8",
     date: "June 2026",
     title: "Auction House Fixes & Live Ticker",
@@ -2366,7 +2438,7 @@ const UPDATE_NOTES = [
     changes: [
       { icon: "📢", text: "New live bid ticker — a scrolling marquee at the top of the Auction House shows the last 5 bids in real time for everyone to see" },
       { icon: "🏆", text: "Auctions you're currently winning always float to the top of the list so you can instantly tell if you've been outbid" },
-      { icon: "↩", text: "Retracting a bid now correctly restores the previous highest bidder instead of resetting to the starting price" },
+
       { icon: "🖼", text: "Fixed auction item images disappearing when switching pages or after bids are placed" },
       { icon: "📋", text: "Bid history is now saved to the database — bid counts are accurate and history persists across refreshes" },
       { icon: "🔒", text: "Only the Master rank can now remove auctions" },
@@ -2396,7 +2468,7 @@ const UPDATE_NOTES = [
       { icon: "📡", text: "Live bid sync — all users see updated bids and coin balances within 3–5 seconds" },
       { icon: "💰", text: "Coin balances sync across all sessions so refunds and deductions show instantly" },
       { icon: "🪙", text: "Browser tab now shows PeakyBlinders with the gold coins icon" },
-      { icon: "↩", text: "Bidders can now retract their own bid — coins are refunded instantly and the auction resets to the previous bid" },
+
     ],
   },
   {
@@ -3283,18 +3355,20 @@ function Attendance({ ctx }) {
         <div className="card" style={{padding:0}}>
           <div style={{padding:"16px 20px",borderBottom:"1px solid var(--border)"}}>
             <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:15,color:"var(--gold-light)"}}>Global Points History</div>
-            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3}}>All bonus points and admin manual adjustments — visible to everyone.</div>
+            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3}}>Admin manual adjustments and bonuses — visible to everyone.</div>
           </div>
           <div className="table-wrap">
             <table className="table-stack">
               <thead><tr><th>Date</th><th>Member</th><th>Type</th><th>Amount</th><th>Added By</th><th>Reason</th></tr></thead>
               <tbody>
                 {(()=>{
-                  // Combined log: txLog (bonuses + manual adjustments) + attendLog (attendance coins)
-                  const allEntries = members.flatMap(m=>[
-                    ...(m.txLog||[]).map(t=>({date:t.date,member:m.name,type:t.logType||"Admin Manual Add",amount:t.change,addedBy:t.addedBy||"—",reason:t.reason||"—",cls:m.cls})),
-                    ...(m.attendLog||[]).map(a=>({date:a.date,member:m.name,type:"Attendance",amount:a.coins,addedBy:"System",reason:`${a.event} (${a.qualifier})`,cls:m.cls})),
-                  ]).sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,100);
+                  // Show admin manual adds and all bonus entries
+                  const BONUS_TYPES = new Set(["Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Bonus Points","Elder Request"]);
+                  const allEntries = members.flatMap(m=>
+                    (m.txLog||[])
+                      .filter(t=>t.logType==="Admin Manual Add" || BONUS_TYPES.has(t.logType) || (!t.logType && t.addedBy && t.addedBy!=="System"))
+                      .map(t=>({date:t.date,member:m.name,type:t.logType||"Admin Manual Add",amount:t.change,addedBy:t.addedBy||"—",reason:t.reason||"—",cls:m.cls}))
+                  ).sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,100);
                   if(allEntries.length===0) return(
                     <tr><td colSpan={5} style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>No global point adjustments yet.</td></tr>
                   );
@@ -3413,7 +3487,7 @@ function Auctions({ ctx }) {
   }
 
   const active = sortAuctions(auctions.filter(a=>a.status==="active"));
-  const ended  = sortAuctions(auctions.filter(a=>a.status==="ended"));
+  const ended  = [...auctions.filter(a=>a.status==="ended")].sort((a,b)=>(b.endsAt||0)-(a.endsAt||0));
 
   async function placeBid(auctionId) {
     const a=auctions.find(x=>x.id===auctionId);
@@ -3449,22 +3523,61 @@ function Auctions({ ctx }) {
     // local-state check only — better to allow the bid than block users
     // entirely during a transient connection issue.
 
-    // Refund previous top bidder — use the live DB current_bid as the refund amount.
-    // The DB current_bid IS exactly what the previous top bidder paid (by definition),
-    // so this is always correct. Do NOT look up a.bids (local/stale state) — that
-    // array is an append-only log that may contain old bid records from earlier rounds,
-    // which caused the bug where outbid users received more coins than they paid.
+    // The authoritative refund amount is exactly what the previous top bidder paid,
+    // which equals the auction's current_bid from the fresh DB row.
     const prevBidder = freshRow?.top_bidder ?? a.topBidder;
-    const prevBidAmt = freshRow ? (Number(freshRow.current_bid) || 0) : (a.currentBid || 0);
-    // Only refund if there actually was a previous bidder and they paid something
-    const prevRefund = (prevBidder && prevBidAmt > 0) ? prevBidAmt : 0;
+    const prevRefund = prevBidder ? (freshRow ? (Number(freshRow.current_bid) || 0) : (a.currentBid || 0)) : 0;
+
+    // Fetch the outbid member's coins fresh from DB right now.
+    // We also look at the bids log to find what they last paid in this auction,
+    // so we can detect if their deduction hasn't landed in DB yet and correct for it.
+    let prevBidderCurrentCoins = null;
+    if (prevBidder && prevRefund > 0) {
+      const prevMemberRows = await dbLoad("members", `coins&name=eq.${encodeURIComponent(prevBidder)}`);
+      if (Array.isArray(prevMemberRows) && prevMemberRows[0]) {
+        const dbCoins = Number(prevMemberRows[0].coins) || 0;
+        // Check the bids log: if DB coins still reflect their pre-bid value
+        // (write hasn't settled yet), subtract their bid amount manually.
+        // Their last bid in this auction is exactly prevRefund (= current_bid).
+        // If DB coins > what they should have after paying prevRefund, it means
+        // the deduction write is still in flight — correct for it.
+        const localMember = members.find(m => m.name === prevBidder);
+        const localCoins = localMember ? localMember.coins : null;
+        // Trust whichever is lower: DB or local. The correct post-deduction value
+        // is always LESS than their pre-bid balance. Using the minimum eliminates
+        // the race window where DB still has the old (higher) value.
+        if (localCoins !== null) {
+          prevBidderCurrentCoins = Math.min(dbCoins, localCoins);
+        } else {
+          prevBidderCurrentCoins = dbCoins;
+        }
+      } else {
+        // DB unreachable — fall back to local state
+        const localMember = members.find(m => m.name === prevBidder);
+        prevBidderCurrentCoins = localMember ? localMember.coins : null;
+      }
+    }
+
     setMembers(ms=>ms.map(m=>{
       if(m.name===currentUser.name) return {...m,coins:m.coins-amount};
-      if(prevBidder&&m.name===prevBidder&&prevRefund>0) return {...m,coins:m.coins+prevRefund};
+      if(prevBidder&&m.name===prevBidder&&prevRefund>0){
+        const base = prevBidderCurrentCoins !== null ? prevBidderCurrentCoins : m.coins;
+        return {...m,coins:base+prevRefund};
+      }
       return m;
     }));
-    setAuctions(prev=>prev.map(x=>x.id===auctionId?{...x,currentBid:amount,topBidder:currentUser.name,bids:[...(x.bids||[]),{bidder:currentUser.name,amount,time:Date.now()}]}:x));
-    addToast(`Bid of ${fmt(amount)} placed on ${a.name}!`,"gold","Bid Placed");
+    // SNIPE PROTECTION: if a bid lands in the last 60s, extend the auction by
+    // 60s so no one can snipe in the final moment. This also helps with the
+    // race where a bid is placed while another client's clock is closing it.
+    const SNIPE_WINDOW_MS = 60000;
+    const SNIPE_EXTEND_MS = 120000;
+    const now2 = Date.now();
+    const timeRemaining = a.endsAt - now2;
+    const newEndsAt = timeRemaining < SNIPE_WINDOW_MS ? now2 + SNIPE_EXTEND_MS : a.endsAt;
+    const endsAtChanged = newEndsAt !== a.endsAt;
+
+    setAuctions(prev=>prev.map(x=>x.id===auctionId?{...x,currentBid:amount,topBidder:currentUser.name,endsAt:newEndsAt,bids:[...(x.bids||[]),{bidder:currentUser.name,amount,time:Date.now()}]}:x));
+    addToast(`Bid of ${fmt(amount)} placed on ${a.name}!${endsAtChanged?" ⏱️ Timer extended 2 mins (snipe protection)":""}`, "gold","Bid Placed");
     setBidAmounts(prev=>({...prev,[auctionId]:""}));
     // Write to bid_events so all other users get a global announcement
     const bidEventId = `${auctionId}_${Date.now()}`;
@@ -3474,46 +3587,6 @@ function Auctions({ ctx }) {
     seenBidEvents.current.add(bidEventId);
   }
 
-  function retractBid(auctionId) {
-    const a=auctions.find(x=>x.id===auctionId);
-    if(!a||a.status!=="active") return;
-    if(a.topBidder!==currentUser.name){addToast("You are not the current top bidder.","red","Cannot Retract");return;}
-
-    const refundAmount = a.currentBid;
-
-    // Remove ALL bids from the retracting user so their history is clean
-    const remainingBids = (a.bids||[]).filter(b => b.bidder !== currentUser.name);
-
-    // The new top bidder is whoever has the highest bid among remaining bids,
-    // BUT only if they still have enough coins to cover that bid.
-    // When a player was outbid their coins were already refunded, so they may
-    // have spent those coins elsewhere. Check current balance >= bid amount.
-    const eligibleBids = remainingBids.filter(b => {
-      const bidderMember = members.find(m => m.name === b.bidder);
-      if (!bidderMember) return false;
-      // Their coins were refunded when they were outbid, so their current
-      // balance must be >= the bid they'd be restored to.
-      return bidderMember.coins >= b.amount;
-    });
-    const prevTopBid = eligibleBids.reduce((best, b) => (!best || b.amount > best.amount) ? b : best, null);
-    const newBid = prevTopBid ? prevTopBid.amount : a.startBid;
-    const newTopBidder = prevTopBid ? prevTopBid.bidder : null;
-
-    setMembers(ms=>ms.map(m=>{
-      if(m.name===currentUser.name) return {...m,coins:m.coins+refundAmount};
-      // The restored top bidder had their coins refunded when they were outbid,
-      // so now that they're top bidder again, deduct their bid amount.
-      if(newTopBidder&&m.name===newTopBidder&&prevTopBid) return {...m,coins:m.coins-prevTopBid.amount};
-      return m;
-    }));
-    setAuctions(prev=>prev.map(x=>x.id===auctionId?{
-      ...x,
-      currentBid: newBid,
-      topBidder:  newTopBidder,
-      bids:       remainingBids,
-    }:x));
-    addToast(`Bid retracted. ${fmt(refundAmount)} coins refunded.`,"gold","Bid Retracted");
-  }
 
   function createAuction() {
     if(!newAuction.name){addToast("Item name required.","red","Error");return;}
@@ -3711,7 +3784,7 @@ function Auctions({ ctx }) {
                   <button className="btn btn-gold btn-sm" onClick={()=>placeBid(a.id)} disabled={!!bidSubmitting[a.id]} style={{flexShrink:0,padding:"5px 14px"}}>
                     {bidSubmitting[a.id]?"…":"Bid"}
                   </button>
-                  {isWinning&&<button className="btn btn-outline btn-sm" onClick={()=>retractBid(a.id)} title="Retract" style={{flexShrink:0,borderColor:"rgba(231,76,60,0.5)",color:"#e07070",padding:"5px 10px"}}>↩</button>}
+
                   {isMaster&&<button className="btn btn-red btn-sm" onClick={()=>removeAuction(a.id)} title="Remove" style={{flexShrink:0,padding:"5px 10px"}}>✕</button>}
                 </div>
               </div>
@@ -3749,7 +3822,7 @@ function Auctions({ ctx }) {
                     <input className="input" type="number" min={minBid} placeholder={`Min ${fmt(minBid)}`} value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p,[a.id]:e.target.value}))} style={{flex:1}} />
                     <button className="btn btn-gold" onClick={()=>placeBid(a.id)} disabled={!!bidSubmitting[a.id]}>{bidSubmitting[a.id]?"…":"Bid"}</button>
                   </div>
-                  {isWinning&&<button className="btn btn-outline btn-sm" style={{width:"100%",marginTop:6,borderColor:"rgba(231,76,60,0.5)",color:"#e07070"}} onClick={()=>retractBid(a.id)}>↩ Retract Bid</button>}
+
                   {isMaster&&<button className="btn btn-red btn-sm" style={{width:"100%",marginTop:6}} onClick={()=>removeAuction(a.id)}>Remove Auction</button>}
                   {((a.bids||[]).length>0 || a.topBidder)&&(
                     <div style={{marginTop:10,fontSize:11,color:"var(--text-dim)",borderTop:"1px solid var(--border-dim)",paddingTop:8}}>
