@@ -568,7 +568,7 @@ tbody tr:last-child td{border-bottom:none;}
 .table-stack tbody tr{display:table-row;background:transparent;border:none;border-radius:0;margin-bottom:0;padding:0;}
 .table-stack tbody tr:hover{border-color:transparent;}
 .table-stack tbody tr:last-child td{border-bottom:none;}
-.table-stack td{display:table-cell;align-items:unset;justify-content:unset;padding:12px 14px;border-bottom:1px solid var(--border-dim);font-size:13px;gap:0;}
+.table-stack td{display:table-cell;align-items:unset;justify-content:unset;padding:12px 14px;border-bottom:1px solid var(--border-dim);font-size:13px;gap:0;text-align:left;}
 .table-stack td::before{display:none;}
 
 /* ── RESPONSIVE ── */
@@ -601,7 +601,7 @@ tbody tr:last-child td{border-bottom:none;}
   .table-wrap{overflow-x:visible;}
   .table-stack thead{display:none;}
   .table-stack tbody tr{display:block;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;margin-bottom:10px;padding:4px 0;}
-  .table-stack td{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid var(--border-dim);font-size:12px;gap:10px;}
+  .table-stack td{display:flex;align-items:center;justify-content:flex-start;padding:9px 14px;border-bottom:1px solid var(--border-dim);font-size:12px;gap:10px;}
   .table-stack td:last-child{border-bottom:none;}
   .table-stack td::before{content:attr(data-label);font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold-dim);font-family:'Spectral',serif;flex-shrink:0;min-width:72px;display:block;}
   .modal{max-width:calc(100vw - 24px);}
@@ -1641,6 +1641,7 @@ export default function App() {
           ...r,
           recordedBy: r.recorded_by || r.recordedBy || "",
           members:    Number(r.members) || 0,
+          ts:         Number(r.ts) || (typeof r.id === "number" && r.id > 1e11 ? r.id : null) || null,
           attendees:  (() => { try { return typeof r.attendees === "string" ? JSON.parse(r.attendees) : (r.attendees || []); } catch { return []; } })(),
         })));
       }
@@ -1751,6 +1752,7 @@ export default function App() {
           id:          l.id,
           event:       l.event,
           date:        l.date,
+          ts:          l.ts || (typeof l.id === "number" && l.id > 1e11 ? l.id : null) || null,
           members:     l.members || 0,
           recorded_by: l.recordedBy || "",
           attendees:   JSON.stringify(l.attendees || []),
@@ -1773,6 +1775,7 @@ export default function App() {
           ...r,
           recordedBy: r.recorded_by || r.recordedBy || "",
           members:    Number(r.members) || 0,
+          ts:         Number(r.ts) || (typeof r.id === "number" && r.id > 1e11 ? r.id : null) || null,
           attendees:  (() => { try { return typeof r.attendees === "string" ? JSON.parse(r.attendees) : (r.attendees || []); } catch { return []; } })(),
         })).sort((a,b) => new Date(b.date) - new Date(a.date)));
       }
