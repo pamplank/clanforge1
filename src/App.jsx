@@ -246,6 +246,28 @@ const MUSPEL_AXE_IMG = "data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSU
 const SEED_AUCTIONS = [];
 
 function fmt(n) { return n?.toLocaleString() ?? "0"; }
+// Formats a log entry's date for display — uses a precise millisecond
+// timestamp when available (either an explicit `ts` field, or an `id` that
+// was generated with Date.now()) so users see time-of-day, not just the day.
+// Falls back to the plain date string for older entries recorded before
+// timestamps existed.
+function formatLogDateTime(entry) {
+  const ms = entry?.ts || (typeof entry?.id === "number" && entry.id > 1e11 ? entry.id : null);
+  if (ms) {
+    const d = new Date(ms);
+    if (!isNaN(d)) return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}`;
+  }
+  return entry?.date || "";
+}
+// Best-effort chronological sort key for a log entry: prefers a precise
+// timestamp (ts, or a Date.now()-based id), falls back to parsing the
+// date-only string for older entries.
+function logSortKey(entry) {
+  if (entry?.ts) return entry.ts;
+  if (typeof entry?.id === "number" && entry.id > 1e11) return entry.id;
+  const d = new Date(entry?.date);
+  return isNaN(d) ? 0 : d.getTime();
+}
 function timeLeft(ms) {
   const diff = ms - Date.now();
   // FIX: Show the real countdown all the way down to 0s. The GRACE_MS buffer
@@ -1827,7 +1849,8 @@ export default function App() {
             endedAuctionIds.current.add(next.id);
             if (next.topBidder) {
               addToast(`${next.topBidder} won ${next.name} for ${fmt(next.currentBid)} coins!`, "gold", "Auction Ended");
-              setMembers(ms => ms.map(m => m.name===next.topBidder ? {...m,auctionWins:m.auctionWins+1} : m));
+              setMembers(ms => ms.map(m => m.name===next.topBidder ? {...m,auctionWins:m.auctionWins+1,
+                txLog:[...(m.txLog||[]),{change:-next.currentBid,reason:`Won auction: ${next.name}`,date:new Date().toLocaleDateString(),ts:Date.now(),logType:"Auction Win",addedBy:"System"}]} : m));
             }
           }
           return next;
@@ -1886,7 +1909,8 @@ export default function App() {
           endedAuctionIds.current.add(a.id);
           if (a.topBidder) {
             addToast(`${a.topBidder} won ${a.name} for ${fmt(a.currentBid)} coins!`, "gold", "Auction Ended");
-            setMembers(ms => ms.map(m => m.name===a.topBidder ? {...m,auctionWins:m.auctionWins+1} : m));
+            setMembers(ms => ms.map(m => m.name===a.topBidder ? {...m,auctionWins:m.auctionWins+1,
+              txLog:[...(m.txLog||[]),{change:-a.currentBid,reason:`Won auction: ${a.name}`,date:new Date().toLocaleDateString(),ts:Date.now(),logType:"Auction Win",addedBy:"System"}]} : m));
           }
           // Only Master/Elder writes to DB — prevents 50 clients racing each other
           if (canWriteClose) {
@@ -1989,7 +2013,7 @@ export default function App() {
     const req = pendingCoinRequests.find(r=>r.id===reqId);
     if (!req) return;
     const change = req.type==="add" ? req.amount : -req.amount;
-    setMembers(ms=>ms.map(m=>m.id===req.memberId?{...m,coins:Math.max(0,m.coins+change),txLog:[...(m.txLog||[]),{change,reason:req.reason,date:new Date().toLocaleDateString(),logType:"Elder Request",addedBy:req.requestedBy}]}:m));
+    setMembers(ms=>ms.map(m=>m.id===req.memberId?{...m,coins:Math.max(0,m.coins+change),txLog:[...(m.txLog||[]),{change,reason:req.reason,date:new Date().toLocaleDateString(),logType:"Elder Request",addedBy:req.requestedBy,ts:Date.now()}]}:m));
     setPendingCoinRequests(prev=>prev.filter(r=>r.id!==reqId));
     dbDelete("coin_requests", { id: reqId });
     addToast("Approved: "+req.amount+" coins for "+req.memberName+".", "gold", "Approved");
@@ -2990,6 +3014,7 @@ function Attendance({ ctx }) {
   const [qualifier, setQualifier] = useState({});
   const [tab, setTab] = useState("record");
   const [bonusSearch, setBonusSearch] = useState("");
+  const [historyFilter, setHistoryFilter] = useState("All");
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
   // History pagination & dropdown state
   const [logPage, setLogPage] = useState(0);
@@ -3007,6 +3032,7 @@ function Attendance({ ctx }) {
     const present=Object.entries(selectedMembers).filter(([,v])=>v).map(([id])=>parseInt(id));
     if(present.length===0){addToast("No members selected.","red","Error");return;}
     const today = new Date().toLocaleDateString();
+    const nowTs = Date.now();
     const weekStart = getWeekStart();
     const EVENT_REQUIRED = { CA: 2, STI: 2, WB: 3 };
     const totalEvents = EVENTS.length;
@@ -3041,7 +3067,7 @@ function Attendance({ ctx }) {
       const rankMult=getRankMultiplier(ms,m.id);
       const earned=Math.floor(ev.coins*mult*rankMult);
       // Build the projected attendLog after adding this attendance
-      const newAttendLog=[...(m.attendLog||[]),{event:ev.name,coins:earned,date:today,qualifier:q}];
+      const newAttendLog=[...(m.attendLog||[]),{event:ev.name,coins:earned,date:today,qualifier:q,ts:nowTs}];
       let bonusCoins = 0;
       const newTxLog = [...(m.txLog||[])];
       // ── Major Events bonus (+500) ──
@@ -3049,7 +3075,7 @@ function Attendance({ ctx }) {
       const newAttended  = getAttendedIds(newAttendLog);
       if(newAttended.size>=totalEvents && prevAttended.size<totalEvents && !alreadyReceivedThisWeek(m.txLog,"Major Events Bonus")) {
         bonusCoins += 300;
-        newTxLog.push({change:300,reason:"Attended all major events this week",date:today,logType:"Major Events Bonus",addedBy:"System"});
+        newTxLog.push({change:300,reason:"Attended all major events this week",date:today,logType:"Major Events Bonus",addedBy:"System",ts:nowTs});
         bonusToasts.push({name:m.name,bonus:"Major Events",coins:300});
       }
       // ── ISB Veteran bonus (+1000) ──
@@ -3057,7 +3083,7 @@ function Attendance({ ctx }) {
       const isbCountOld = (m.attendLog||[]).filter(e=>e.event==="Inter-Server Battle"&&e.qualifier!=="afk").length;
       if(isbCountNew>=10 && isbCountOld<10 && !alreadyReceivedThisWeek(m.txLog,"ISB Veteran Bonus")) {
         bonusCoins += 500;
-        newTxLog.push({change:500,reason:"Reached 10 ISB events (ISB Veteran)",date:today,logType:"ISB Veteran Bonus",addedBy:"System"});
+        newTxLog.push({change:500,reason:"Reached 10 ISB events (ISB Veteran)",date:today,logType:"ISB Veteran Bonus",addedBy:"System",ts:nowTs});
         bonusToasts.push({name:m.name,bonus:"ISB Veteran",coins:500});
       }
       // ── Sindri Veteran bonus (+400) — 2 STI/week for 5 weeks ──
@@ -3078,7 +3104,7 @@ function Attendance({ ctx }) {
       const stiWeeksNew = countStiQualWeeks(newAttendLog);
       if(stiWeeksNew>=5 && stiWeeksOld<5 && !(m.txLog||[]).some(tx=>tx.logType==="Sindri Veteran Bonus")) {
         bonusCoins += 400;
-        newTxLog.push({change:400,reason:"Attended 2 Sindri's per week for 5 weeks",date:today,logType:"Sindri Veteran Bonus",addedBy:"System"});
+        newTxLog.push({change:400,reason:"Attended 2 Sindri's per week for 5 weeks",date:today,logType:"Sindri Veteran Bonus",addedBy:"System",ts:nowTs});
         bonusToasts.push({name:m.name,bonus:"Sindri Veteran",coins:400});
       }
       return{...m,coins:m.coins+earned+bonusCoins,attendance:m.attendance+(q!=="afk"?1:0),
@@ -3088,7 +3114,7 @@ function Attendance({ ctx }) {
     setTimeout(()=>{
       bonusToasts.forEach(t=>addToast(`🏆 ${t.name} earned +${t.coins} coins — ${t.bonus} Bonus!`,"gold","Bonus Awarded"));
     }, 200);
-    const logEntry = {id:Date.now(),event:ev.name,date:today,members:present.length,recordedBy:currentUser.name,attendees:presentNames};
+    const logEntry = {id:Date.now(),event:ev.name,date:today,ts:nowTs,members:present.length,recordedBy:currentUser.name,attendees:presentNames};
     setAttendanceLogs(p=>[logEntry,...p]);
     addToast(`Attendance recorded! ${present.length} members updated.`,"blue","Attendance Saved");
     setSelectedMembers({});setQualifier({});setSelectedEvent(null);
@@ -3156,7 +3182,7 @@ function Attendance({ ctx }) {
         <div className={`tab${tab==="record"?" active":""}`} onClick={()=>setTab("record")}>Record Attendance</div>
         <div className={`tab${tab==="logs"?" active":""}`} onClick={()=>setTab("logs")}>History</div>
         <div className={`tab${tab==="bonuses"?" active":""}`} onClick={()=>setTab("bonuses")}>Bonuses</div>
-        <div className={`tab${tab==="mylog"?" active":""}`} onClick={()=>setTab("mylog")}>My Attendance</div>
+        <div className={`tab${tab==="mylog"?" active":""}`} onClick={()=>setTab("mylog")}>My Points History</div>
         <div className={`tab${tab==="globallog"?" active":""}`} onClick={()=>setTab("globallog")}>Global Points Log</div>
       </div>
 
@@ -3226,13 +3252,13 @@ function Attendance({ ctx }) {
         <div className="card" style={{padding:0}}>
           <div className="table-wrap">
             <table className="table-stack">
-              <thead><tr><th>Date</th><th>Event</th><th>Members</th><th>Recorded By</th><th>Attendees</th></tr></thead>
+              <thead><tr><th>Date &amp; Time</th><th>Event</th><th>Members</th><th>Recorded By</th><th>Attendees</th></tr></thead>
               <tbody>
                 {attendanceLogs.length===0 && <tr><td colSpan={5} style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>No attendance recorded yet.</td></tr>}
                 {pagedLogs.map(l=>(
                   <>
                     <tr key={l.id}>
-                      <td data-label="Date" style={{fontWeight:500}}>{l.date}</td>
+                      <td data-label="Date & Time" style={{fontWeight:500,whiteSpace:"nowrap"}}>{formatLogDateTime(l)}</td>
                       <td data-label="Event" style={{fontFamily:"'Spectral',serif",fontWeight:700}}>{l.event}</td>
                       <td data-label="Members"><span className="badge badge-blue">{l.members} members</span></td>
                       <td data-label="Rec. By" style={{color:"var(--gold-light)",fontWeight:700}}>{l.recordedBy}</td>
@@ -3349,28 +3375,74 @@ function Attendance({ ctx }) {
       {tab==="mylog" && (
         <div className="card" style={{padding:0}}>
           <div style={{padding:"16px 20px",borderBottom:"1px solid var(--border)"}}>
-            <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:15,color:"var(--gold-light)"}}>My Attendance Coins — Private</div>
-            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3}}>Only you can see this record.</div>
+            <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:15,color:"var(--gold-light)"}}>My Points History — Private</div>
+            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3}}>Attendance, bonuses, admin coin adjustments, auction wins, and weekly decay. Only you can see this record.</div>
           </div>
-          {(currentUser.attendLog||[]).length===0 ? (
-            <div style={{padding:32,textAlign:"center",color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>No attendance recorded yet.</div>
-          ) : (
-            <div className="table-wrap">
-              <table className="table-stack">
-                <thead><tr><th>Date</th><th>Event</th><th>Qualifier</th><th>Coins Earned</th></tr></thead>
-                <tbody>
-                  {[...(currentUser.attendLog||[])].reverse().slice(0,20).map((l,i)=>(
-                    <tr key={i}>
-                      <td data-label="Date" style={{fontWeight:500}}>{l.date}</td>
-                      <td data-label="Event" style={{fontFamily:"'Spectral',serif",fontWeight:700}}>{l.event}</td>
-                      <td data-label="Qualifier"><span className={`badge ${l.qualifier==="full"?"badge-gold":l.qualifier==="late"?"badge-blue":"badge-red"}`}>{l.qualifier}</span></td>
-                      <td data-label="Coins" style={{fontFamily:"'Spectral',serif",fontWeight:800,color:"var(--gold-light)"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={22}/>{l.coins>0?`+${l.coins}`:l.coins}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {(()=>{
+            // Attendance entries
+            const attendEntries = (currentUser.attendLog||[]).map(l=>({
+              date:l.date, ts:l.ts, type:"Attendance",
+              details:`${l.event}${l.qualifier&&l.qualifier!=="full"?` — ${l.qualifier}`:""}`,
+              coins:l.coins,
+            }));
+            // This member's own weekly decay deductions (kept separate from
+            // the single combined "All Members" announcement in the Global
+            // Points Log, so each person sees their own actual amount here)
+            const decayEntries = (currentUser.decayLog||[]).map(d=>({
+              date:d.date, ts:d.ts, type:"Weekly Decay",
+              details:"5% weekly coin decay",
+              coins:d.amount,
+            }));
+            // Bonuses, admin manual adds/removes, Elder requests, auction wins —
+            // everything in txLog except the combined "All Members" decay
+            // announcement, which isn't this member's personal figure.
+            const adjustmentEntries = (currentUser.txLog||[]).filter(t=>t.logType!=="Weekly Decay").map(t=>({
+              date:t.date, ts:t.ts, type:t.logType||"Admin Manual Add",
+              details:t.reason||"—",
+              coins:t.change,
+            }));
+            const rawEntries = [...attendEntries, ...decayEntries, ...adjustmentEntries]
+              .sort((a,b)=>logSortKey(b)-logSortKey(a));
+            // Build the filter options from whichever types actually appear,
+            // preferring a sensible fixed order with anything unexpected tacked on.
+            const PREFERRED_ORDER = ["Attendance","Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Bonus Points","Elder Request","Admin Manual Add","Auction Win","Weekly Decay"];
+            const presentTypes = PREFERRED_ORDER.filter(t=>rawEntries.some(e=>e.type===t));
+            rawEntries.forEach(e=>{ if(!presentTypes.includes(e.type)) presentTypes.push(e.type); });
+            const filteredEntries = (historyFilter==="All" ? rawEntries : rawEntries.filter(e=>e.type===historyFilter)).slice(0,40);
+            const badgeClass = (e) => e.type==="Attendance"?"badge-blue":e.type==="Weekly Decay"?"badge-red":e.type==="Auction Win"?"badge-silver":e.coins>=0?"badge-gold":"badge-red";
+            return (
+              <>
+                {presentTypes.length>0 && (
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",padding:"12px 20px",borderBottom:"1px solid var(--border)"}}>
+                    {["All",...presentTypes].map(t=>(
+                      <button key={t} className={`btn btn-sm ${historyFilter===t?"btn-gold":"btn-outline"}`} onClick={()=>setHistoryFilter(t)}>{t}</button>
+                    ))}
+                  </div>
+                )}
+                {rawEntries.length===0 ? (
+                  <div style={{padding:32,textAlign:"center",color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>No points history recorded yet.</div>
+                ) : filteredEntries.length===0 ? (
+                  <div style={{padding:32,textAlign:"center",color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>No entries match this filter.</div>
+                ) : (
+                  <div className="table-wrap">
+                    <table className="table-stack">
+                      <thead><tr><th>Date &amp; Time</th><th>Type</th><th>Details</th><th>Coins</th></tr></thead>
+                      <tbody>
+                        {filteredEntries.map((e,i)=>(
+                          <tr key={i}>
+                            <td data-label="Date & Time" style={{fontWeight:500,whiteSpace:"nowrap"}}>{formatLogDateTime(e)}</td>
+                            <td data-label="Type"><span className={`badge ${badgeClass(e)}`}>{e.type}</span></td>
+                            <td data-label="Details" style={{fontFamily:"'Spectral',serif",fontWeight:600}}>{e.details}</td>
+                            <td data-label="Coins" style={{fontFamily:"'Spectral',serif",fontWeight:800,color:e.coins>=0?"var(--gold-light)":"#e07070"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={22}/>{e.coins>0?`+${e.coins}`:e.coins}</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
 
@@ -3378,26 +3450,26 @@ function Attendance({ ctx }) {
         <div className="card" style={{padding:0}}>
           <div style={{padding:"16px 20px",borderBottom:"1px solid var(--border)"}}>
             <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:15,color:"var(--gold-light)"}}>Global Points History</div>
-            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3}}>Admin manual adjustments and bonuses — visible to everyone.</div>
+            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3}}>Admin manual adjustments, bonuses, and weekly decay — visible to everyone.</div>
           </div>
           <div className="table-wrap">
             <table className="table-stack">
-              <thead><tr><th>Date</th><th>Member</th><th>Type</th><th>Amount</th><th>Added By</th><th>Reason</th></tr></thead>
+              <thead><tr><th>Date &amp; Time</th><th>Member</th><th>Type</th><th>Amount</th><th>Added By</th><th>Reason</th></tr></thead>
               <tbody>
                 {(()=>{
                   // Show admin manual adds and all bonus entries
-                  const BONUS_TYPES = new Set(["Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Bonus Points","Elder Request"]);
+                  const BONUS_TYPES = new Set(["Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Bonus Points","Elder Request","Weekly Decay"]);
                   const allEntries = members.flatMap(m=>
                     (m.txLog||[])
                       .filter(t=>t.logType==="Admin Manual Add" || BONUS_TYPES.has(t.logType) || (!t.logType && t.addedBy && t.addedBy!=="System"))
-                      .map(t=>({date:t.date,member:m.name,type:t.logType||"Admin Manual Add",amount:t.change,addedBy:t.addedBy||"—",reason:t.reason||"—",cls:m.cls}))
-                  ).sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,100);
+                      .map(t=>({date:t.date,ts:t.ts,member:t.logType==="Weekly Decay"?"All Members":m.name,type:t.logType||"Admin Manual Add",amount:t.change,addedBy:t.addedBy||"—",reason:t.reason||"—",cls:m.cls}))
+                  ).sort((a,b)=>logSortKey(b)-logSortKey(a)).slice(0,100);
                   if(allEntries.length===0) return(
                     <tr><td colSpan={5} style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>No global point adjustments yet.</td></tr>
                   );
                   return allEntries.map((entry,i)=>(
                     <tr key={i}>
-                      <td data-label="Date" style={{fontWeight:500}}>{entry.date}</td>
+                      <td data-label="Date & Time" style={{fontWeight:500,whiteSpace:"nowrap"}}>{formatLogDateTime(entry)}</td>
                       <td data-label="Member" style={{fontFamily:"'Spectral',serif",fontWeight:700,color:"var(--text-bright)"}}>{entry.member}</td>
                       <td data-label="Type"><span className={`badge ${entry.amount>0?"badge-gold":"badge-red"}`}>{entry.type}</span></td>
                       <td data-label="Amount" style={{fontFamily:"'Spectral',serif",fontWeight:800,color:entry.amount>=0?"var(--gold-light)":"#e07070"}}>{entry.amount>=0?`+${entry.amount}`:entry.amount}</td>
@@ -4455,14 +4527,44 @@ function Settings({ ctx }) {
     try { lastDecay = parseInt(localStorage.getItem("last_decay") || "0"); } catch {}
     if (lastDecay < lastTuesday7am) {
       // Auto-trigger decay silently
-      setMembers(ms=>ms.map(m=>{const d=Math.floor(m.coins*0.05);return{...m,coins:m.coins-d,decayLog:[...(m.decayLog||[]),{amount:-d,date:new Date().toLocaleDateString()}]};}));
+      const decayDate = new Date().toLocaleDateString();
+      const decayTs = Date.now();
+      setMembers(ms=>{
+        let totalDecayed = 0;
+        const updated = ms.map(m=>{
+          const d=Math.floor(m.coins*0.05);
+          totalDecayed += d;
+          return{...m,coins:m.coins-d,decayLog:[...(m.decayLog||[]),{amount:-d,date:decayDate,ts:decayTs}]};
+        });
+        // Attach one consolidated announcement (not one per member) so the
+        // Global Points Log shows a single "All Members" row, not a flood.
+        if (updated.length>0) {
+          updated[0] = {...updated[0], txLog:[...(updated[0].txLog||[]),
+            {change:-totalDecayed,reason:`5% weekly coin decay applied to all ${updated.length} members`,date:decayDate,logType:"Weekly Decay",addedBy:"System",ts:decayTs}]};
+        }
+        return updated;
+      });
       try { localStorage.setItem("last_decay", lastTuesday7am.toString()); } catch {}
       addToast("Weekly 5% coin decay has been applied automatically.","red","Auto Decay");
     }
   }, []);
 
   function triggerDecay() {
-    setMembers(ms=>ms.map(m=>{const d=Math.floor(m.coins*0.05);return{...m,coins:m.coins-d,decayLog:[...(m.decayLog||[]),{amount:-d,date:new Date().toLocaleDateString()}]};}));
+    const decayDate = new Date().toLocaleDateString();
+    const decayTs = Date.now();
+    setMembers(ms=>{
+      let totalDecayed = 0;
+      const updated = ms.map(m=>{
+        const d=Math.floor(m.coins*0.05);
+        totalDecayed += d;
+        return{...m,coins:m.coins-d,decayLog:[...(m.decayLog||[]),{amount:-d,date:decayDate,ts:decayTs}]};
+      });
+      if (updated.length>0) {
+        updated[0] = {...updated[0], txLog:[...(updated[0].txLog||[]),
+          {change:-totalDecayed,reason:`5% weekly coin decay applied to all ${updated.length} members`,date:decayDate,logType:"Weekly Decay",addedBy:currentUser.name,ts:decayTs}]};
+      }
+      return updated;
+    });
     addToast("Weekly coin decay applied: 5% removed.","red","Decay Triggered");
     try { localStorage.setItem("last_decay", getLastTuesday7am().toString()); } catch {}
   }
@@ -4576,7 +4678,7 @@ function AdjustCoinsModal({ ctx }) {
     }
     const change=type==="add"?val:-val;
     const logType=reason.toLowerCase().includes("bonus")?"Bonus Points":"Admin Manual Add";
-    setMembers(ms=>ms.map(m=>m.id===member.id?{...m,coins:Math.max(0,m.coins+change),txLog:[...(m.txLog||[]),{change,reason:reason||"—",date:new Date().toLocaleDateString(),logType,addedBy:currentUser.name}]}:m));
+    setMembers(ms=>ms.map(m=>m.id===member.id?{...m,coins:Math.max(0,m.coins+change),txLog:[...(m.txLog||[]),{change,reason:reason||"—",date:new Date().toLocaleDateString(),logType,addedBy:currentUser.name,ts:Date.now()}]}:m));
     addToast(`${type==="add"?"Added":"Removed"} ${fmt(val)} coins ${type==="add"?"to":"from"} ${member.name}.`,type==="add"?"gold":"red","Coins Adjusted");
     setModal(null);
   }
