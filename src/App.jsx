@@ -2055,9 +2055,10 @@ export default function App() {
 
   const _isLeader = currentUser.role==="Leader";
   const _isElder  = currentUser.role==="Elder";
+  const _isMaster = currentUser.role==="Master";
   const _reportItems = [];
-  if (_isLeader || _isElder) _reportItems.push({id:"export",icon:"📤",label:"Export Data"});
-  if (_isLeader) _reportItems.push({id:"settings",icon:"⚙️",label:"Settings"});
+  if (_isLeader || _isElder || _isMaster) _reportItems.push({id:"export",icon:"📤",label:"Export Data"});
+  if (_isLeader || _isMaster) _reportItems.push({id:"settings",icon:"⚙️",label:"Settings"});
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
   const NAV = [
     { section:"Main", items:[
