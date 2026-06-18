@@ -2056,9 +2056,9 @@ export default function App() {
   const _isLeader = currentUser.role==="Leader";
   const _isElder  = currentUser.role==="Elder";
   const _isMaster = currentUser.role==="Master";
-  const _reportItems = [];
-  if (_isLeader || _isElder || _isMaster) _reportItems.push({id:"export",icon:"📤",label:"Export Data"});
-  if (_isLeader || _isMaster) _reportItems.push({id:"settings",icon:"⚙️",label:"Settings"});
+  const _reportPages = [];
+  if (_isLeader || _isElder || _isMaster) _reportPages.push({id:"export",label:"Export Data"});
+  if (_isLeader || _isMaster) _reportPages.push({id:"settings",label:"Settings"});
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
   const NAV = [
     { section:"Main", items:[
@@ -2070,7 +2070,7 @@ export default function App() {
         {id:"attendance",icon:<StatIcon src={ATTENDANCE_ICON} size={16}/>,label:"Attendance",sub:["Record Attendance","History","Event Tracker"]},
         {id:"auctions",icon:<StatIcon src={AUCTION_ICON} size={16}/>,label:"Auctions",sub:["Live Auctions","History","Loot Roulette",...(isAdmin?["Create Auction"]:[])]},
       ]},
-    ...(_reportItems.length>0?[{ section:"Reports", items:_reportItems.map(x=>({...x,icon:null,sub:[]}))}]:[]),
+    ...(_reportPages.length>0?[{ section:"Reports", items:[{id:"reports",icon:"📊",label:"Reports",subPages:_reportPages}]}]:[]),
   ];
 
   return (
@@ -2086,10 +2086,14 @@ export default function App() {
               {section.items.map(item => (
                 <div key={item.id} className={`nav-group${openDropdown===item.id?" dd-open":""}`}
                   onMouseLeave={()=>setOpenDropdown(null)}>
-                  <div className={`nav-item${page===item.id?" active":""}`} onClick={()=>{setPage(item.id);setOpenDropdown(openDropdown===item.id?null:item.id);}}>
+                  <div className={`nav-item${(item.subPages?item.subPages.some(sp=>sp.id===page):page===item.id)?" active":""}`}
+                    onClick={()=>{
+                      if(item.subPages){ setOpenDropdown(openDropdown===item.id?null:item.id); }
+                      else { setPage(item.id); setOpenDropdown(openDropdown===item.id?null:item.id); }
+                    }}>
                     {item.icon && <span className="nav-icon">{item.icon}</span>}
                     {item.label}
-                    {item.sub&&item.sub.length>0&&<span style={{fontSize:7,marginLeft:2,opacity:0.5}}>▾</span>}
+                    {((item.sub&&item.sub.length>0)||(item.subPages&&item.subPages.length>0))&&<span style={{fontSize:7,marginLeft:2,opacity:0.5}}>▾</span>}
                   </div>
                   {item.sub&&item.sub.length>0&&(
                     <div className="nav-dropdown">
@@ -2098,6 +2102,17 @@ export default function App() {
                         <div className="nav-dd-sep"/>
                         {item.sub.map(s=>(
                           <div key={s} className={`nav-dd-item${page===item.id?" active":""}`} onClick={()=>{ setPage(item.id); setOpenDropdown(null); }}>{s}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {item.subPages&&item.subPages.length>0&&(
+                    <div className="nav-dropdown">
+                      <div className="nav-dropdown-inner">
+                        <div className="nav-dd-label">{item.label}</div>
+                        <div className="nav-dd-sep"/>
+                        {item.subPages.map(sp=>(
+                          <div key={sp.id} className={`nav-dd-item${page===sp.id?" active":""}`} onClick={()=>{ setPage(sp.id); setOpenDropdown(null); }}>{sp.label}</div>
                         ))}
                       </div>
                     </div>
@@ -2146,10 +2161,17 @@ export default function App() {
                 <div key={section.section}>
                   <div className="drawer-section-label">{section.section}</div>
                   {section.items.map(item => (
-                    <div key={item.id} className={`drawer-nav-item${page===item.id?" active":""}`}
-                      onClick={()=>{setPage(item.id);setDrawerOpen(false);}}>
-                      {item.icon && <span style={{display:"flex",alignItems:"center",opacity:0.8}}>{item.icon}</span>}{item.label}
-                    </div>
+                    item.subPages ? item.subPages.map(sp=>(
+                      <div key={sp.id} className={`drawer-nav-item${page===sp.id?" active":""}`}
+                        onClick={()=>{setPage(sp.id);setDrawerOpen(false);}}>
+                        {item.icon && <span style={{display:"flex",alignItems:"center",opacity:0.8}}>{item.icon}</span>}{sp.label}
+                      </div>
+                    )) : (
+                      <div key={item.id} className={`drawer-nav-item${page===item.id?" active":""}`}
+                        onClick={()=>{setPage(item.id);setDrawerOpen(false);}}>
+                        {item.icon && <span style={{display:"flex",alignItems:"center",opacity:0.8}}>{item.icon}</span>}{item.label}
+                      </div>
+                    )
                   ))}
                 </div>
               ))}
@@ -4436,7 +4458,6 @@ function Settings({ ctx }) {
     return tuesday.getTime();
   }
   useEffect(() => {
-    if (!dbReady) return;
     const lastTuesday7am = getLastTuesday7am();
     let lastDecay = 0;
     try { lastDecay = parseInt(localStorage.getItem("last_decay") || "0"); } catch {}
@@ -4446,7 +4467,7 @@ function Settings({ ctx }) {
       try { localStorage.setItem("last_decay", lastTuesday7am.toString()); } catch {}
       addToast("Weekly 5% coin decay has been applied automatically.","red","Auto Decay");
     }
-  }, [dbReady]);
+  }, []);
 
   function triggerDecay() {
     setMembers(ms=>ms.map(m=>{const d=Math.floor(m.coins*0.05);return{...m,coins:m.coins-d,decayLog:[...(m.decayLog||[]),{amount:-d,date:new Date().toLocaleDateString()}]};}));
