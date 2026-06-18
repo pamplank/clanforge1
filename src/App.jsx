@@ -4357,8 +4357,40 @@ function Export({ ctx }) {
     const a=document.createElement("a");a.href=url;a.download=filename;a.click();
     addToast(`${filename} downloaded!`,"green","Export");
   }
+  // Per-member breakdown: every event a member attended, the coins earned from
+  // it, and a running total per member (plus a grand total across everyone).
+  // Built by hand (rather than the generic downloadCSV helper) so 0-coin rows
+  // and TOTAL rows render correctly.
+  function downloadAttendanceCoinsCSV() {
+    const headers = ["Member","Class","Event","Date","Qualifier","CoinsEarned"];
+    const lines = [headers.join(",")];
+    const csvRow = (vals) => vals.map(v => JSON.stringify(v===undefined||v===null?"":v)).join(",");
+    let grandTotal = 0;
+    [...members].sort((a,b)=>a.name.localeCompare(b.name)).forEach(m=>{
+      const log = m.attendLog||[];
+      if(log.length===0){
+        lines.push(csvRow([m.name,m.cls,"No attendance recorded","","",0]));
+        return;
+      }
+      let memberTotal = 0;
+      log.forEach(e=>{
+        const coins = e.coins||0;
+        memberTotal += coins;
+        lines.push(csvRow([m.name,m.cls,e.event,e.date,e.qualifier||"full",coins]));
+      });
+      lines.push(csvRow([m.name,"","TOTAL","","",memberTotal]));
+      grandTotal += memberTotal;
+    });
+    lines.push(csvRow(["","","","","GRAND TOTAL (all members)",grandTotal]));
+    const csv = lines.join("\n");
+    const blob = new Blob([csv],{type:"text/csv"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href=url; a.download="attendance_coins_breakdown.csv"; a.click();
+    addToast("attendance_coins_breakdown.csv downloaded!","green","Export");
+  }
   const exports=[
     {title:"Coin Rankings",icon:<StatIcon src={COINS_ICON} size={32}/>,desc:"Member coin balances sorted by rank.",action:()=>downloadCSV([...members].sort((a,b)=>b.coins-a.coins).map((m,i)=>({Rank:i+1,Name:m.name,Class:m.cls,Coins:m.coins,Power:m.power})),"coin_rankings.csv",["Rank","Name","Class","Coins","Power"])},
+    {title:"Attendance Coins Breakdown",icon:<StatIcon src={COINS_ICON} size={32}/>,desc:"Every member's attended events, the coins earned from each, and their total.",action:downloadAttendanceCoinsCSV},
     {title:"Attendance Logs",icon:<StatIcon src={ATTENDANCE_ICON} size={32}/>,desc:"All recorded attendance sessions.",action:()=>downloadCSV(attendanceLogs.map(l=>({Date:l.date,Event:l.event,Members:l.members,RecordedBy:l.recordedBy})),"attendance_logs.csv",["Date","Event","Members","RecordedBy"])},
     {title:"Auction History",icon:<StatIcon src={AUCTION_ICON} size={32}/>,desc:"All auction results with winners.",action:()=>downloadCSV(auctions.map(a=>({Name:a.name,Winner:a.topBidder||"None",FinalBid:a.currentBid,Status:a.status,TotalBids:(a.bids||[]).length,Rarity:a.rarity})),"auction_history.csv",["Name","Winner","FinalBid","Status","TotalBids","Rarity"])},
     {title:"Power Leaderboard",icon:"⚡",desc:"Members sorted by power level.",action:()=>downloadCSV([...members].sort((a,b)=>b.power-a.power).map((m,i)=>({Rank:i+1,Name:m.name,Class:m.cls,Power:m.power,Attendance:m.attendance})),"power_leaderboard.csv",["Rank","Name","Class","Power","Attendance"])},
