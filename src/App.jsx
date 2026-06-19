@@ -1713,6 +1713,7 @@ export default function App() {
 
   const deletedAuctionIds = useRef(new Set());
   const endedAuctionIds = useRef(new Set());
+  const deletedAttendanceIds = useRef(new Set());
 
   function setAuctions(updater) {
     setAuctionsRaw(prev => {
@@ -1746,6 +1747,7 @@ export default function App() {
     setAttendanceLogsRaw(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       const prevIds = new Set(prev.map(l => l.id));
+      const nextIds = new Set(next.map(l => l.id));
       const newEntries = next.filter(l => !prevIds.has(l.id));
       newEntries.forEach(l => {
         dbUpsert("attendance_logs", {
@@ -1757,6 +1759,14 @@ export default function App() {
           recorded_by: l.recordedBy || "",
           attendees:   JSON.stringify(l.attendees || []),
         });
+      });
+      // Anything that was present before but isn't in `next` was deleted
+      // (e.g. Master removing an attendance record) — propagate the delete
+      // to the DB and remember the id so a lagging poll can't bring it back.
+      const removedIds = prev.filter(l => !nextIds.has(l.id)).map(l => l.id);
+      removedIds.forEach(id => {
+        deletedAttendanceIds.current.add(id);
+        dbDelete("attendance_logs", { id });
       });
       return next;
     });
@@ -1771,13 +1781,24 @@ export default function App() {
   useJitteredInterval(async () => {
       const [mRows, lRows] = await Promise.all([dbLoad("members"), dbLoad("attendance_logs")]);
       if (Array.isArray(lRows) && lRows.length > 0) {
-        setAttendanceLogsRaw(lRows.map(r => ({
+        const fromDb = lRows.map(r => ({
           ...r,
           recordedBy: r.recorded_by || r.recordedBy || "",
           members:    Number(r.members) || 0,
           ts:         Number(r.ts) || (typeof r.id === "number" && r.id > 1e11 ? r.id : null) || null,
           attendees:  (() => { try { return typeof r.attendees === "string" ? JSON.parse(r.attendees) : (r.attendees || []); } catch { return []; } })(),
-        })).sort((a,b) => new Date(b.date) - new Date(a.date)));
+        }));
+        // Merge by id-union instead of overwriting wholesale: a log just
+        // submitted locally may not have round-tripped to the DB yet when
+        // this poll's read started, so a row present only locally (and not
+        // explicitly deleted) is kept rather than dropped. Deleted ids are
+        // tracked in deletedAttendanceIds so a stale DB read can't resurrect
+        // a row the Master intentionally removed.
+        setAttendanceLogsRaw(prev => {
+          const dbIds = new Set(fromDb.map(l => l.id));
+          const localOnly = prev.filter(l => !dbIds.has(l.id) && !deletedAttendanceIds.current.has(l.id));
+          return [...fromDb, ...localOnly].sort((a,b) => (b.ts||0) - (a.ts||0) || new Date(b.date) - new Date(a.date));
+        });
       }
       if (!Array.isArray(mRows) || mRows.length === 0) return;
       const safeJson = (v) => {
@@ -2264,6 +2285,7 @@ export default function App() {
       {modal?.type==="discord"      && <DiscordModal member={modal.data} onSave={(tag)=>linkDiscord(modal.data.id,tag)} onClose={()=>setModal(null)} />}
       {modal?.type==="changePassword" && <ChangePasswordModal ctx={ctx} />}
       {modal?.type==="renameMember"   && <RenameMemberModal ctx={ctx} />}
+      {modal?.type==="deleteAttendance" && <DeleteAttendanceModal ctx={ctx} />}
       <Toast toasts={toasts} remove={removeToast} />
     </>
   );
@@ -3011,7 +3033,7 @@ function getRankMultiplier(members, memberId) {
 // ─── ATTENDANCE ───────────────────────────────────────────────────────────────
 function Attendance({ ctx }) {
   const [memberSearch, setMemberSearch] = useState("");
-  const { members, setMembers, addToast, currentUser, attendanceLogs, setAttendanceLogs } = ctx;
+  const { members, setMembers, addToast, currentUser, attendanceLogs, setAttendanceLogs, setModal } = ctx;
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectedMembers, setSelectedMembers] = useState({});
   const [qualifier, setQualifier] = useState({});
@@ -3019,7 +3041,7 @@ function Attendance({ ctx }) {
   const [bonusSearch, setBonusSearch] = useState("");
   const [historyFilter, setHistoryFilter] = useState("All");
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
-  // History pagination & dropdown state
+  const isMaster = currentUser.role==="Master";
   const [logPage, setLogPage] = useState(0);
   const [expandedLog, setExpandedLog] = useState(null);
   const PAGE_SIZE = 10;
@@ -3255,9 +3277,9 @@ function Attendance({ ctx }) {
         <div className="card" style={{padding:0}}>
           <div className="table-wrap">
             <table className="table-stack">
-              <thead><tr><th>Date &amp; Time</th><th>Event</th><th>Members</th><th>Recorded By</th><th>Attendees</th></tr></thead>
+              <thead><tr><th>Date &amp; Time</th><th>Event</th><th>Members</th><th>Recorded By</th><th>Attendees</th>{isMaster&&<th>Actions</th>}</tr></thead>
               <tbody>
-                {attendanceLogs.length===0 && <tr><td colSpan={5} style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>No attendance recorded yet.</td></tr>}
+                {attendanceLogs.length===0 && <tr><td colSpan={isMaster?6:5} style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>No attendance recorded yet.</td></tr>}
                 {pagedLogs.map(l=>(
                   <>
                     <tr key={l.id}>
@@ -3270,10 +3292,15 @@ function Attendance({ ctx }) {
                           {expandedLog===l.id?"▲ Hide":"▼ Show"}
                         </button>
                       </td>
+                      {isMaster && (
+                        <td data-label="Actions">
+                          <button className="btn btn-red btn-sm" onClick={()=>setModal({type:"deleteAttendance",data:l})}>✕ Remove</button>
+                        </td>
+                      )}
                     </tr>
                     {expandedLog===l.id && (
                       <tr key={`${l.id}-expand`}>
-                        <td colSpan={5} style={{padding:"10px 18px",background:"rgba(10,11,15,0.7)"}}>
+                        <td colSpan={isMaster?6:5} style={{padding:"10px 18px",background:"rgba(10,11,15,0.7)"}}>
                           <div style={{fontFamily:"'Spectral',serif",fontSize:10,color:"var(--gold-dim)",fontWeight:700,letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Attendees</div>
                           <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
                             {(l.attendees||[]).map((a,i)=>(
@@ -4835,6 +4862,70 @@ function RenameMemberModal({ ctx }) {
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={()=>setModal(null)}>Cancel</button>
           <button className="btn btn-gold" onClick={submit}>Save Name</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── DELETE ATTENDANCE MODAL (Master only) ───────────────────────────────────
+// Reverses an attendance record entirely: deducts the base attendance payout
+// from every attendee AND any bonus (Major Events / ISB Veteran / Sindri
+// Veteran) that was triggered by that specific submission, then removes the
+// log entry. Matching is done on the shared `ts` stamped onto the attendLog
+// entry, the attendance-log entry, and any System-awarded bonus txLog entries
+// created in that same submission — so only effects from THIS event are
+// undone, never any other attendance the member recorded before or since.
+function DeleteAttendanceModal({ ctx }) {
+  const { modal, setModal, members, setMembers, setAttendanceLogs, addToast } = ctx;
+  const log = modal.data;
+  const ts = log.ts;
+  const affected = members.filter(m => (m.attendLog||[]).some(e => e.ts === ts && e.event === log.event));
+  const totalRefund = affected.reduce((sum, m) => {
+    const matchingAttend = (m.attendLog||[]).find(e => e.ts === ts && e.event === log.event);
+    const base = matchingAttend?.coins || 0;
+    const bonus = (m.txLog||[]).filter(t => t.ts === ts && t.addedBy === "System").reduce((s,t)=>s+(t.change||0),0);
+    return sum + base + bonus;
+  }, 0);
+
+  function confirmDelete() {
+    setMembers(ms => ms.map(m => {
+      const matchingAttend = (m.attendLog||[]).find(e => e.ts === ts && e.event === log.event);
+      if (!matchingAttend) return m;
+      const refund = matchingAttend.coins || 0;
+      const bonusRefund = (m.txLog||[]).filter(t => t.ts === ts && t.addedBy === "System").reduce((s,t)=>s+(t.change||0),0);
+      return {
+        ...m,
+        coins: Math.max(0, m.coins - refund - bonusRefund),
+        attendance: Math.max(0, m.attendance - (matchingAttend.qualifier!=="afk" ? 1 : 0)),
+        attendLog: (m.attendLog||[]).filter(e => !(e.ts === ts && e.event === log.event)),
+        txLog: (m.txLog||[]).filter(t => !(t.ts === ts && t.addedBy === "System")),
+      };
+    }));
+    setAttendanceLogs(p => p.filter(l => l.id !== log.id));
+    addToast(`"${log.event}" removed — ${fmt(totalRefund)} coins deducted from ${affected.length} member(s).`, "red", "Attendance Deleted");
+    setModal(null);
+  }
+
+  return (
+    <div className="modal-overlay" onClick={()=>setModal(null)}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title">Remove Attendance Record</div>
+          <button className="btn btn-ghost" onClick={()=>setModal(null)}>✕</button>
+        </div>
+        <div className="modal-body">
+          <div style={{marginBottom:14,fontFamily:"'Spectral',serif",fontSize:13,color:"var(--text)"}}>
+            This will permanently delete <span style={{color:"var(--gold-light)",fontWeight:700}}>{log.event}</span> ({formatLogDateTime(log)}) from the history and automatically deduct the coins it awarded from every participant — including any bonus it triggered.
+          </div>
+          <div style={{background:"rgba(122,26,26,0.12)",border:"1px solid rgba(224,112,112,0.3)",borderRadius:4,padding:"12px 14px",marginBottom:6}}>
+            <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:6,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700}}>This will affect</div>
+            <div style={{fontFamily:"'Spectral',serif",fontSize:13,fontWeight:700,color:"#e07070"}}>{affected.length} member(s) · −{fmt(totalRefund)} coins total</div>
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-outline" onClick={()=>setModal(null)}>Cancel</button>
+          <button className="btn btn-red" onClick={confirmDelete}>✕ Remove &amp; Deduct</button>
         </div>
       </div>
     </div>
