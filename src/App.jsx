@@ -766,6 +766,22 @@ tbody tr:last-child td{border-bottom:none;}
 .members-layout{display:flex;gap:20px;}
 @media(max-width:700px){.members-layout{flex-direction:column;}}
 
+/* ── MEMBER CARD GRID (compact roster view) ── */
+.member-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;}
+.member-row-card{display:flex;align-items:center;gap:10px;
+  background:linear-gradient(135deg,rgba(28,24,20,0.9),rgba(16,13,11,0.95));
+  border:1px solid var(--border-dim);border-radius:4px;padding:8px 12px;
+  transition:border-color 0.2s,transform 0.15s;
+}
+.member-row-card:hover{border-color:rgba(201,151,42,0.4);transform:translateY(-1px);}
+.member-row-icon{width:46px;height:46px;border-radius:4px;flex-shrink:0;
+  background:linear-gradient(160deg,#1c1712,#0c0a08);border:1px solid var(--border-bright);
+  display:flex;align-items:center;justify-content:center;position:relative;
+}
+.member-row-diamond{position:absolute;top:-4px;left:-4px;width:11px;height:11px;
+  transform:rotate(45deg);border:1.5px solid var(--bg-dark);
+}
+
 /* ── BADGES ── */
 .badge{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:1px;
    font-size:9px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:1px;text-transform:uppercase;}
@@ -922,11 +938,12 @@ tbody tr:last-child td{border-bottom:none;}
   background:rgba(0,0,0,0.55);
   pointer-events:none;
 }
-.login-card{position:relative;z-index:1;position:relative;z-index:1;
-  background:linear-gradient(160deg,#12131e,#0d0e18);
-  border:1px solid var(--border-bright);
-  border-radius:4px;padding:48px 42px;width:100%;max-width:400px;
-  box-shadow:0 30px 80px rgba(0,0,0,0.7),0 0 60px rgba(201,151,42,0.05);
+.login-card{position:relative;z-index:1;margin:0 auto;
+  background:linear-gradient(160deg,rgba(18,19,30,0.88),rgba(13,14,24,0.94));
+  border:1px solid rgba(201,151,42,0.35);
+  border-radius:6px;padding:26px;width:100%;max-width:380px;
+  box-shadow:0 30px 80px rgba(0,0,0,0.6),0 0 60px rgba(201,151,42,0.08);
+  backdrop-filter:blur(4px);
   position:relative;overflow:hidden;
 }
 .login-card::before{
@@ -938,10 +955,14 @@ tbody tr:last-child td{border-bottom:none;}
   background:radial-gradient(ellipse at 50% 0%,rgba(201,151,42,0.07) 0%,transparent 60%);
   pointer-events:none;
 }
-.login-logo{text-align:center;margin-bottom:36px;position:relative;z-index:1;}
-.login-emblem{font-size:52px;margin-bottom:14px;filter:drop-shadow(0 0 18px rgba(201,151,42,0.7));}
-.login-title{font-family:'Spectral',serif;font-size:28px;font-weight:800;color:var(--gold-light);letter-spacing:4px}
-.login-sub{font-size:9px;color:var(--text-dim);letter-spacing:5px;text-transform:uppercase;margin-top:5px;font-weight:700;}
+.login-hero{text-align:center;width:100%;max-width:420px;position:relative;z-index:1;}
+.login-quote{font-family:'Inter',sans-serif;font-style:italic;font-size:13px;font-weight:500;
+  color:#b09572;letter-spacing:0.5px;margin-bottom:14px;}
+.login-hero-title{font-family:'Spectral',serif;font-size:clamp(32px,7vw,46px);font-weight:800;
+  color:var(--gold-light);letter-spacing:1px;line-height:1.05;
+  text-shadow:0 0 40px rgba(201,151,42,0.35);}
+.login-hero-sub{font-size:10px;color:#a08860;letter-spacing:5px;text-transform:uppercase;
+  margin-top:12px;font-weight:600;margin-bottom:32px;}
 .login-error{background:rgba(122,26,26,0.2);border:1px solid rgba(122,26,26,0.5);color:#e07070;
   border-radius:2px;padding:10px 14px;font-size:12px;margin-bottom:16px;font-weight:600;
   font-family:'Inter',sans-serif;letter-spacing:0.5px;}
@@ -1095,26 +1116,25 @@ function LoginScreen({ members, onLogin }) {
 
   return (
     <div className="login-wrap">
-      <div className="login-card">
-        <div className="login-logo">
-          <div className="login-emblem"><StatIcon src={WARRIORS_ICON} size={36}/></div>
-          <div className="login-title">Ymir</div>
-          <div className="login-sub">Peaky Blinders Management</div>
+      <div className="login-hero">
+        <div className="login-quote">"You touch one of us, you fight us all."</div>
+        <div className="login-hero-title">PEAKY BLINDERS</div>
+        <div className="login-hero-sub">Clan Stronghold</div>
+        <div className="login-card">
+          {error && <div className="login-error">{error}</div>}
+          <div className="form-group">
+            <label className="form-label">Username</label>
+            <input className="input" placeholder="Enter username…" value={form.username} onChange={e=>setForm(p=>({...p,username:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doLogin()} autoComplete="username" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Password</label>
+            <input className="input" type="password" placeholder="Enter password…" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doLogin()} autoComplete="current-password" />
+          </div>
+          <button className="btn btn-gold" style={{width:"100%",justifyContent:"center",padding:"12px 20px"}} onClick={doLogin}>Enter</button>
         </div>
-        {error && <div className="login-error">{error}</div>}
-        <div className="form-group">
-          <label className="form-label">Username</label>
-          <input className="input" placeholder="Enter username…" value={form.username} onChange={e=>setForm(p=>({...p,username:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doLogin()} autoComplete="username" />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Password</label>
-          <input className="input" type="password" placeholder="Enter password…" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doLogin()} autoComplete="current-password" />
-        </div>
-        <button className="btn btn-gold" style={{width:"100%",justifyContent:"center",padding:"12px 20px"}} onClick={doLogin}>Enter the Forge</button>
         <div style={{marginTop:16,textAlign:"center",fontSize:11,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",letterSpacing:0.5}}>
           Contact your Master to get access.
         </div>
-
       </div>
     </div>
   );
@@ -2977,6 +2997,7 @@ function Members({ ctx }) {
   const [classFilter, setClassFilter] = useState("All");
   const [sortBy, setSortBy] = useState("coins");
   const [selectedMember, setSelectedMember] = useState(null);
+  const [viewMode, setViewMode] = useState("table"); // "table" | "cards"
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
 
   const filtered = members
@@ -3009,11 +3030,39 @@ function Members({ ctx }) {
           <option value="coins">Sort: Coins</option><option value="power">Sort: Power</option>
           <option value="attendance">Sort: Attendance</option><option value="name">Sort: Name</option>
         </select>
-        {isAdmin && <button className="btn btn-gold" style={{marginLeft:"auto"}} onClick={()=>setModal({type:"addMember"})}>+ Add Member</button>}
+        <div className="view-toggle" style={{display:"flex",marginLeft:isAdmin?0:"auto"}}>
+          <button className={`btn btn-sm ${viewMode==="table"?"btn-gold":"btn-outline"}`} style={{borderRadius:"2px 0 0 2px"}} onClick={()=>setViewMode("table")}>☰ Table</button>
+          <button className={`btn btn-sm ${viewMode==="cards"?"btn-gold":"btn-outline"}`} style={{borderRadius:"0 2px 2px 0",marginLeft:-1}} onClick={()=>setViewMode("cards")}>▦ Cards</button>
+        </div>
+        {isAdmin && <button className="btn btn-gold" style={{marginLeft:isAdmin?"auto":0}} onClick={()=>setModal({type:"addMember"})}>+ Add Member</button>}
       </div>
 
       <div className="members-layout">
         <div style={{flex:1,minWidth:0}}>
+        {viewMode==="cards" ? (
+          <div className="member-card-grid">
+            {filtered.map(m => {
+              const roleStyle = m.role==="Master" ? {border:"rgba(201,151,42,0.35)",diamond:"#c8922a"}
+                : m.role==="Elder" ? {border:"rgba(122,26,26,0.35)",diamond:"#c0392b"}
+                : {border:"rgba(255,255,255,0.1)",diamond:"#7a7a82"};
+              return (
+                <div key={m.id} className="member-row-card" style={{borderColor:roleStyle.border,cursor:"pointer"}} onClick={()=>setSelectedMember(m)}>
+                  <div className="member-row-icon">
+                    <div className="member-row-diamond" style={{background:roleStyle.diamond}} />
+                    <ClassIcon cls={m.cls} size={34} />
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontFamily:"'Spectral',serif",fontSize:13,fontWeight:700,color:"#f0e4cc",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.name}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,fontWeight:700,color:"var(--gold-light)",marginTop:2}}>
+                      <StatIcon src={COINS_ICON} size={14}/>{fmt(m.coins)}
+                    </div>
+                  </div>
+                  {isAdmin && <button className="btn btn-ghost btn-sm" style={{flexShrink:0}} onClick={e=>{e.stopPropagation();removeMember(m.id);}}>✕</button>}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
           <div className="card" style={{padding:0,overflow:"hidden"}}>
             <div className="table-wrap members-table-wrap">
               <table className="table-stack members-table">
@@ -3045,6 +3094,7 @@ function Members({ ctx }) {
               </table>
             </div>
           </div>
+        )}
         </div>
 
         {selectedMember && (
