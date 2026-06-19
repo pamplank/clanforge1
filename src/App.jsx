@@ -571,14 +571,16 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
 /* ── MOBILE DRAWER ── */
 .mobile-drawer{display:none;position:fixed;inset:0;z-index:200;}
 .mobile-drawer.open{display:block;}
-.drawer-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);}
+.drawer-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);animation:overlayFadeIn 0.2s ease both;}
 .drawer-panel{
   position:absolute;top:0;left:0;bottom:0;width:270px;
   background:linear-gradient(180deg,rgba(16,12,10,0.99),rgba(12,9,7,0.99));
   border-right:1px solid var(--border-bright);
   display:flex;flex-direction:column;overflow-y:auto;
   box-shadow:8px 0 40px rgba(0,0,0,0.8);
+  animation:drawerSlideIn 0.25s cubic-bezier(0.16,1,0.3,1) both;
 }
+@keyframes drawerSlideIn{from{transform:translateX(-100%);}to{transform:translateX(0);}}
 .drawer-header{display:flex;align-items:center;justify-content:space-between;
   padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;}
 .drawer-close{background:none;border:none;color:var(--text-dim);font-size:18px;cursor:pointer;
@@ -837,6 +839,7 @@ tbody tr:last-child td{border-bottom:none;}
   position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:200;
   display:flex;align-items:center;justify-content:center;padding:20px;
   backdrop-filter:blur(6px);
+  animation:overlayFadeIn 0.2s ease both;
 }
 .modal{
   background:var(--bg-panel);border:1px solid var(--border-bright);
@@ -844,7 +847,10 @@ tbody tr:last-child td{border-bottom:none;}
   box-shadow:0 30px 80px rgba(0,0,0,0.8),0 0 60px rgba(201,151,42,0.06);
   max-height:90vh;overflow-y:auto;
   position:relative;
+  animation:modalPopIn 0.25s cubic-bezier(0.16,1,0.3,1) both;
 }
+@keyframes overlayFadeIn{from{opacity:0;}to{opacity:1;}}
+@keyframes modalPopIn{from{opacity:0;transform:scale(0.95) translateY(8px);}to{opacity:1;transform:scale(1) translateY(0);}}
 .modal::before{
   content:'';position:absolute;top:0;left:0;right:0;height:2px;
   background:linear-gradient(90deg,transparent,var(--gold-dim),transparent);
@@ -884,6 +890,8 @@ tbody tr:last-child td{border-bottom:none;}
 .toast-blue{border-left:3px solid var(--rare);}
 .toast-green{border-left:3px solid #27ae60;}
 @keyframes slideIn{from{transform:translateX(80px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+@keyframes slideOut{from{transform:translateX(0) scale(1);opacity:1;}to{transform:translateX(40px) scale(0.96);opacity:0;}}
+.toast-exit{animation:slideOut 0.22s ease forwards!important;}
 @keyframes spin{to{transform:rotate(360deg);}}
 @keyframes fadeInUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
 
@@ -959,7 +967,7 @@ function Toast({ toasts, remove }) {
   return (
     <div className="toast-container">
       {toasts.map(t => (
-        <div key={t.id} className={`toast toast-${t.type||'gold'}`} style={{position:"relative"}} onClick={() => remove(t.id)}>
+        <div key={t.id} className={`toast toast-${t.type||'gold'}${t.exiting?' toast-exit':''}`} style={{position:"relative"}} onClick={() => remove(t.id)}>
           <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:10,color:"var(--gold-light)",marginBottom:3,letterSpacing:2,textTransform:"uppercase"}}>{t.title||"Notice"}</div>
           <div style={{color:"var(--text)",fontWeight:500,fontSize:13}}>{t.msg}</div>
         </div>
@@ -2049,10 +2057,17 @@ export default function App() {
 
   function addToast(msg, type="gold", title="") {
     const id = Date.now()+Math.random();
-    setToasts(t => [...t,{id,msg,type,title}]);
-    setTimeout(() => setToasts(t => t.filter(x=>x.id!==id)), 4000);
+    setToasts(t => [...t,{id,msg,type,title,exiting:false}]);
+    setTimeout(() => dismissToast(id), 4000);
   }
-  function removeToast(id) { setToasts(t => t.filter(x=>x.id!==id)); }
+  // Two-phase removal: flag the toast as exiting (triggers the CSS exit
+  // animation), then actually drop it from state once that animation has
+  // had time to finish — instead of yanking it out of the DOM instantly.
+  function dismissToast(id) {
+    setToasts(t => t.map(x => x.id===id ? {...x, exiting:true} : x));
+    setTimeout(() => setToasts(t => t.filter(x=>x.id!==id)), 250);
+  }
+  function removeToast(id) { dismissToast(id); }
   function handleLogin(m) {
     setCurrentUser(m);
     setLoggedIn(true);
