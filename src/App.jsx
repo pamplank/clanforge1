@@ -229,6 +229,33 @@ function PowerIcon({ size = 16 }) {
   );
 }
 
+// ─── LINE ICON SET ────────────────────────────────────────────────────────────
+// Replaces emoji used as UI chrome (🏆👑⚔⚜🔒🔔🎲🪙📅⚠) with crisp SVG line
+// icons that inherit currentColor and the app's signature gold-glow drop
+// shadow — so they render identically across every OS/browser, instead of
+// each platform drawing its own colorful emoji glyph.
+function Icon({ size = 16, style, children, viewBox = "0 0 24 24" }) {
+  return (
+    <svg width={size} height={size} viewBox={viewBox} fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      style={{ flexShrink: 0, verticalAlign: "middle", display: "inline-block",
+        filter: "drop-shadow(0 0 3px rgba(200,146,42,0.4))", ...style }}>
+      {children}
+    </svg>
+  );
+}
+function TrophyIcon(p) { return <Icon {...p}><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4.5A1.5 1.5 0 0 0 3 7.5C3 9 4 10 6 10M17 6h2.5A1.5 1.5 0 0 1 21 7.5C21 9 20 10 18 10"/></Icon>; }
+function CrownIcon(p) { return <Icon {...p}><path d="M3 18h18M4 18l-1-9 5 4 4-7 4 7 5-4-1 9"/></Icon>; }
+function SwordsIcon(p) { return <Icon {...p}><path d="M14.5 17.5 3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2M9.5 9.5 21 21M21 3h-3v3l-2 2"/></Icon>; }
+function ShieldIcon(p) { return <Icon {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></Icon>; }
+function LockIcon(p) { return <Icon {...p}><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></Icon>; }
+function BellIcon(p) { return <Icon {...p}><path d="M6 8a6 6 0 1 1 12 0c0 3 1 4.5 2 6H4c1-1.5 2-3 2-6Z"/><path d="M10 21a2 2 0 0 0 4 0"/></Icon>; }
+function DiceIcon(p) { return <Icon {...p}><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="16" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="16" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></Icon>; }
+function CalendarIcon(p) { return <Icon {...p}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></Icon>; }
+function WarningIcon(p) { return <Icon {...p}><path d="M12 3 2 20h20L12 3Z"/><path d="M12 10v4M12 17h.01"/></Icon>; }
+function ColumnIcon(p) { return <Icon {...p}><path d="M4 21h16M5 21V8M19 21V8M3 8h18l-9-5-9 5Z M9 21V8M15 21V8"/></Icon>; }
+function GearIcon(p) { return <Icon {...p}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></Icon>; }
+
 const EVENTS = [
   { id:"ISB", name:"Inter Server Battle", coins:100, color:"#e74c3c" },
   { id:"CA",  name:"Clan Annihilation",   coins:40,  color:"#e67e22" },
@@ -1246,7 +1273,7 @@ function LootRoulette({ ctx }) {
 
   if (!isAdmin) return (
     <div className="card" style={{textAlign:"center",padding:56,color:"var(--text-dim)"}}>
-      <div style={{fontSize:48,marginBottom:14}}>🔒</div>
+      <div style={{marginBottom:14,display:"flex",justifyContent:"center"}}><LockIcon size={44}/></div>
       <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:18,color:"var(--text)"}}>Admin Only</div>
       <div style={{marginTop:8,fontSize:13}}>Only Elders and Leaders can use Loot Roulette.</div>
     </div>
@@ -1260,7 +1287,7 @@ function LootRoulette({ ctx }) {
           <div style={{width:52,height:52,borderRadius:6,
             background:"linear-gradient(135deg,#3d0000,var(--blood-light))",
             display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,
-            boxShadow:"0 0 24px rgba(168,50,40,0.55)",fontSize:28}}>⚔</div>
+            boxShadow:"0 0 24px rgba(168,50,40,0.55)"}}><SwordsIcon size={26} style={{color:"#fff"}}/></div>
           <div>
             <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:20,color:"#ff9090",letterSpacing:1}}>Loot Roulette</div>
             <div style={{fontSize:12,color:"var(--text-dim)",marginTop:3}}>
@@ -1427,7 +1454,7 @@ function LootRoulette({ ctx }) {
               opacity:(spinning||!lootItems.length||!presentList.length)?0.5:1}}
             onClick={distribute}
             disabled={spinning||!lootItems.length||!presentList.length}>
-            {spinning?"⚙  Distributing…":"⚔  SPIN & DISTRIBUTE"}
+            {spinning?<span style={{display:"inline-flex",alignItems:"center",gap:8}}><GearIcon size={14}/>Distributing…</span>:<span style={{display:"inline-flex",alignItems:"center",gap:8}}><SwordsIcon size={14}/>SPIN & DISTRIBUTE</span>}
           </button>
 
           {(!lootItems.length||!presentList.length)&&!spinning&&(
@@ -1446,7 +1473,7 @@ function LootRoulette({ ctx }) {
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
               <div>
                 <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:16,
-                  color:"var(--gold-light)",marginBottom:2}}>⚔ Distribution Complete</div>
+                  color:"var(--gold-light)",marginBottom:2,display:"flex",alignItems:"center",gap:6}}><SwordsIcon size={13}/>Distribution Complete</div>
                 <div style={{fontSize:12,color:"var(--text-dim)"}}>
                   {totalLootQty} pieces distributed across {presentList.length} warriors
                 </div>
@@ -1791,7 +1818,7 @@ export default function App() {
         // still fails, tell the recorder directly so they know to re-submit
         // rather than discovering it's missing days later.
         dbUpsertReliable("attendance_logs", row).then(ok => {
-          if (!ok) addToast(`⚠ "${l.event}" attendance failed to save to the shared log — please re-submit it.`, "red", "Save Failed");
+          if (!ok) addToast(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>"{l.event}" attendance failed to save to the shared log — please re-submit it.</span>, "red", "Save Failed");
         });
       });
       // Anything that was present before but isn't in `next` was deleted
@@ -2105,7 +2132,7 @@ export default function App() {
     <>
       <style>{GLOBAL_CSS}</style>
       <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--bg-dark)",flexDirection:"column",gap:16,padding:24,textAlign:"center"}}>
-        <div style={{fontSize:40}}>⚠</div>
+        <div style={{display:"flex",justifyContent:"center"}}><WarningIcon size={36} style={{color:"var(--gold-light)"}}/></div>
         <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:18,color:"var(--gold-light)",letterSpacing:2}}>Connection Problem</div>
         <div style={{fontSize:13,color:"var(--text-dim)",maxWidth:360}}>
           Couldn't reach the database. Your data is safe — please check your connection and try again.
@@ -2120,7 +2147,7 @@ export default function App() {
     <>
       <style>{GLOBAL_CSS}</style>
       <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--bg-dark)",flexDirection:"column",gap:16}}>
-        <div style={{fontSize:40,animation:"spin 1.2s linear infinite"}}>⚔</div>
+        <div style={{animation:"spin 1.2s linear infinite",display:"flex"}}><SwordsIcon size={38} style={{color:"var(--gold-light)"}}/></div>
         <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:18,color:"var(--gold-light)",letterSpacing:2}}>Loading ClanForge…</div>
         <div style={{fontSize:12,color:"var(--text-dim)"}}>Connecting to database</div>
       </div>
@@ -2797,11 +2824,11 @@ function Dashboard({ ctx, setPage }) {
                 <span style={{fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",
                   background:"rgba(122,26,26,0.35)",border:"1px solid rgba(200,80,80,0.3)",
                   borderRadius:20,padding:"3px 12px",color:"#e07070"
-                }}>⚔ {members.length} Warriors</span>
+                }}><span style={{display:"inline-flex",alignItems:"center",gap:5}}><SwordsIcon size={11}/>{members.length} Warriors</span></span>
                 <span style={{fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",
                   background:"rgba(201,151,42,0.15)",border:"1px solid rgba(201,151,42,0.3)",
                   borderRadius:20,padding:"3px 12px",color:"var(--gold-light)"
-                }}>🏛 {auctions.filter(a=>a.status==="active").length} Live Auctions</span>
+                }}><span style={{display:"inline-flex",alignItems:"center",gap:5}}><ColumnIcon size={11}/>{auctions.filter(a=>a.status==="active").length} Live Auctions</span></span>
               </div>
               {/* Divider */}
               <div style={{height:1,background:"linear-gradient(90deg,rgba(200,146,42,0.25),transparent)",marginBottom:16,width:"80%"}} />
@@ -2812,7 +2839,7 @@ function Dashboard({ ctx, setPage }) {
                   display:"flex",alignItems:"center",justifyContent:"center",
                   fontSize:16,flexShrink:0,
                 }}>
-                  {currentUser.role==="Master"?"👑":currentUser.role==="Elder"?"⚜":"⚔"}
+                  {currentUser.role==="Master"?<CrownIcon size={17}/>:currentUser.role==="Elder"?<ShieldIcon size={17}/>:<SwordsIcon size={17}/>}
                 </div>
                 <div>
                   <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:15,color:"var(--text-bright)"}}>
@@ -3204,7 +3231,7 @@ function Attendance({ ctx }) {
       const { updatedMembers, bonusToasts } = performAttendancePayout(ms, { ev, date: today, ts: nowTs, present, qualifierMap });
       // Show bonus toasts after state update
       setTimeout(()=>{
-        bonusToasts.forEach(t=>addToast(`🏆 ${t.name} earned +${t.coins} coins — ${t.bonus} Bonus!`,"gold","Bonus Awarded"));
+        bonusToasts.forEach(t=>addToast(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><TrophyIcon size={14}/>{t.name} earned +{t.coins} coins — {t.bonus} Bonus!</span>,"gold","Bonus Awarded"));
       }, 200);
       return updatedMembers;
     });
@@ -3920,7 +3947,7 @@ function Auctions({ ctx }) {
               <option value="bid-desc">Bid: High → Low</option>
               <option value="bid-asc">Bid: Low → High</option>
               <option value="rarity">Rarity</option>
-              <option value="has-bidder">🏆 Has Bidder</option>
+              <option value="has-bidder">Has Bidder</option>
             </select>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -3964,7 +3991,7 @@ function Auctions({ ctx }) {
                       {isWinning&&<span style={{fontSize:8,fontWeight:700,padding:"2px 5px",background:"rgba(39,174,96,0.2)",border:"1px solid rgba(39,174,96,0.5)",color:"#6ee89a",borderRadius:2,flexShrink:0}}>✓ WINNING</span>}
                     </div>
                     {a.topBidder
-                      ? <div style={{display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:10}}>🏆</span><span style={{fontSize:11,color:"#6ee89a",fontWeight:700,fontFamily:"'Spectral',serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:110}}>{a.topBidder}</span></div>
+                      ? <div style={{display:"flex",alignItems:"center",gap:3}}><TrophyIcon size={11} style={{color:"#6ee89a",filter:"drop-shadow(0 0 3px rgba(110,232,154,0.4))"}}/><span style={{fontSize:11,color:"#6ee89a",fontWeight:700,fontFamily:"'Spectral',serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:110}}>{a.topBidder}</span></div>
                       : <div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic"}}>No bids yet</div>
                     }
                   </div>
@@ -4007,7 +4034,7 @@ function Auctions({ ctx }) {
                       <div className="current-bid"><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={28}/>{fmt(a.currentBid)}</span></div>
                       {a.topBidder ? (
                         <div style={{display:"inline-flex",alignItems:"center",gap:5,marginTop:5,background:"rgba(39,174,96,0.15)",border:"1px solid rgba(39,174,96,0.45)",padding:"3px 8px",borderRadius:2}}>
-                          <span style={{fontSize:10,color:"rgba(39,174,96,0.85)",fontWeight:700,letterSpacing:1,textTransform:"uppercase",fontFamily:"'Spectral',serif"}}>🏆</span>
+                          <TrophyIcon size={12} style={{color:"rgba(39,174,96,0.85)"}}/>
                           <span style={{fontSize:12,color:"#6ee89a",fontWeight:800,fontFamily:"'Spectral',serif",letterSpacing:0.5}}>{a.topBidder}</span>
                         </div>
                       ) : (
@@ -4086,14 +4113,14 @@ function Auctions({ ctx }) {
           {/* ── Header ── */}
           <div className="card card-red" style={{marginBottom:20,padding:"18px 22px"}}>
             <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
-              <div style={{width:46,height:46,borderRadius:6,background:"linear-gradient(135deg,#3d0000,var(--blood-light))",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:"0 0 20px rgba(168,50,40,0.5)",fontSize:26}}>⚔</div>
+              <div style={{width:46,height:46,borderRadius:6,background:"linear-gradient(135deg,#3d0000,var(--blood-light))",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:"0 0 20px rgba(168,50,40,0.5)"}}><SwordsIcon size={24} style={{color:"#fff"}}/></div>
               <div style={{flex:1}}>
                 <div style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:18,color:"#f4e8cc",letterSpacing:1}}>Loot Roulette</div>
                 <div style={{fontSize:11,color:"var(--text-dim)",marginTop:2}}>Fair random loot distribution · {isAdmin?"Elder controls active":"View results & history"}</div>
               </div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"flex-end",flexShrink:0}}>
                 <button className={`btn btn-sm${lrTab==="history"?" btn-red":" btn-ghost"}`} onClick={()=>setLrTab("history")}>📜 History</button>
-                {isAdmin&&<button className={`btn btn-sm${lrTab==="manage"?" btn-gold":" btn-outline"}`} onClick={()=>setLrTab("manage")}>⚙ Manage</button>}
+                {isAdmin&&<button className={`btn btn-sm${lrTab==="manage"?" btn-gold":" btn-outline"}`} onClick={()=>setLrTab("manage")}><span style={{display:"inline-flex",alignItems:"center",gap:6}}><GearIcon size={11}/>Manage</span></button>}
               </div>
             </div>
           </div>
@@ -4111,7 +4138,7 @@ function Auctions({ ctx }) {
                     <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,var(--gold),transparent)"}} />
                     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
                       <div style={{width:8,height:8,borderRadius:"50%",background:"#27ae60",boxShadow:"0 0 8px #27ae60",animation:"pulse 1s infinite",flexShrink:0}} />
-                      <span style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:15,color:"var(--gold-light)",letterSpacing:1}}>⚔ Loot Just Rolled!</span>
+                      <span style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:15,color:"var(--gold-light)",letterSpacing:1,display:"inline-flex",alignItems:"center",gap:6}}><SwordsIcon size={14}/>Loot Just Rolled!</span>
                       <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>{latest.eventLabel} · {latest.date}</span>
                       <button className="btn btn-ghost btn-sm" style={{marginLeft:"auto",fontSize:10}} onClick={()=>setLrLatestId(null)}>✕ Dismiss</button>
                     </div>
@@ -4260,7 +4287,7 @@ function Auctions({ ctx }) {
                 {/* ── Event & Date Panel ── */}
                 <div className="card" style={{marginBottom:16,position:"relative",overflow:"hidden"}}>
                   <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,rgba(200,146,42,0.6),transparent)"}} />
-                  <SectionTitle>⚔ Session Info</SectionTitle>
+                  <SectionTitle><span style={{display:"inline-flex",alignItems:"center",gap:6}}><SwordsIcon size={13}/>Session Info</span></SectionTitle>
 
                   {/* Auto-import from attendance log */}
                   {attendanceLogs.length>0&&(
@@ -4372,7 +4399,7 @@ function Auctions({ ctx }) {
                 </div>
                 <div className="card card-red">
                   <button className="btn btn-red" style={{width:"100%",fontSize:15,padding:"14px 0",letterSpacing:2,justifyContent:"center",display:"flex",alignItems:"center",gap:8}} onClick={()=>{lrDistribute();}} disabled={lrSpinning}>
-                    {lrSpinning?"⚙ Rolling…":"⚔ Roll the Loot!"}
+                    {lrSpinning?"Rolling…":<span style={{display:"inline-flex",alignItems:"center",gap:7}}><SwordsIcon size={13}/>Roll the Loot!</span>}
                   </button>
                   {lrDist&&<button className="btn btn-ghost btn-sm" style={{width:"100%",marginTop:8}} onClick={lrReset}>Reset</button>}
                 </div>
@@ -4479,7 +4506,7 @@ function LBList({ data, valueKey, label, format, color, currentUser }) {
                    valueKey==="power"?`${fmt(data[myRank-1][valueKey]-myEntry[valueKey])} BP behind #${myRank}`:
                    `${data[myRank-1][valueKey]-myEntry[valueKey]} att behind #${myRank}`}
                 </span>}
-                {myRank===0&&<span style={{marginLeft:8,fontSize:10,color:"var(--gold)"}}>👑 Leading!</span>}
+                {myRank===0&&<span style={{marginLeft:8,fontSize:10,color:"var(--gold)",display:"inline-flex",alignItems:"center",gap:4}}><CrownIcon size={11}/>Leading!</span>}
               </div>
             </div>
 
@@ -4680,7 +4707,7 @@ function Settings({ ctx }) {
   }
   if(!isMaster) return (
     <div className="card" style={{textAlign:"center",padding:48,color:"var(--text-dim)"}}>
-      <div style={{fontSize:48,marginBottom:14,filter:"drop-shadow(0 0 8px rgba(122,26,26,0.5))"}}>🔒</div>
+      <div style={{marginBottom:14,display:"flex",justifyContent:"center"}}><LockIcon size={44} style={{filter:"drop-shadow(0 0 8px rgba(122,26,26,0.5))"}}/></div>
       <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:20,color:"var(--text)"}}>Master Only</div>
       <div style={{marginTop:8,fontSize:13}}>Settings require Master privileges.</div>
     </div>
@@ -4715,7 +4742,7 @@ function Settings({ ctx }) {
         </table></div>
       </div>
       <div className="card" style={{marginTop:20}}>
-        <SectionTitle>⚙️ Elder Management</SectionTitle>
+        <SectionTitle><span style={{display:"inline-flex",alignItems:"center",gap:6}}><GearIcon size={13}/>Elder Management</span></SectionTitle>
         <div className="table-wrap"><table className="table-stack">
           <thead><tr><th>Member</th><th>Class</th><th>Power</th><th>Discord</th><th>Role</th><th>Action</th></tr></thead>
           <tbody>{members.filter(m=>m.id!==currentUser.id).map(m=>(
@@ -5098,7 +5125,7 @@ function AddMissingAttendanceModal({ ctx }) {
       setMembers(ms => {
         const { updatedMembers, bonusToasts } = performAttendancePayout(ms, { ev, date, ts, present, qualifierMap });
         setTimeout(()=>{
-          bonusToasts.forEach(t=>addToast(`🏆 ${t.name} earned +${t.coins} coins — ${t.bonus} Bonus!`,"gold","Bonus Awarded"));
+          bonusToasts.forEach(t=>addToast(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><TrophyIcon size={14}/>{t.name} earned +{t.coins} coins — {t.bonus} Bonus!</span>,"gold","Bonus Awarded"));
         }, 200);
         return updatedMembers;
       });
