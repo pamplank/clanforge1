@@ -3979,13 +3979,37 @@ function Auctions({ ctx }) {
         pool.forEach((name,idx)=>{result[idx%result.length].items.push(name);});
         result.sort((a,b)=>members.indexOf(a.member)-members.indexOf(b.member));
         setLrDist(result);setTimeout(()=>setLrRevealed(true),200);
-        // Save to history + persist to Supabase so all users see it
+        // Save to history + persist to Supabase so all users see it.
+        // ROOT CAUSE FIX: this write used to be fire-and-forget (no await,
+        // result ignored). dbUpsert swallows its own errors and returns
+        // null on failure, so a rejected write (RLS, timeout, oversized
+        // payload, etc.) was invisible — the roller's local state updated
+        // regardless, so only they ever saw the result, and every other
+        // client's poll kept reading the same stale rows forever.
+        // Now we await a retrying upsert and tell the roller if it never
+        // actually made it to the DB, so they know to retry rather than
+        // assume everyone else can already see it.
         const entry={id:Date.now(),timestamp:Date.now(),date:lrEventDate||new Date().toLocaleDateString(),eventLabel:lrEventLabel||"Loot Distribution",results:result.map(r=>({memberName:r.member.name,items:r.items}))};
         setLrHistory(h=>[entry,...h].filter(e=>Date.now()-e.timestamp<ONE_WEEK_MS).slice(0,50));
-        dbUpsert("loot_results",{id:String(entry.id),timestamp:entry.timestamp,date:entry.date,event_label:entry.eventLabel,results:JSON.stringify(entry.results)});
         setLrLatestId(String(entry.id));
         // Switch to history tab so admin also sees the results
         setTimeout(()=>setLrTab("history"),400);
+        (async () => {
+          const ok = await dbUpsertReliable("loot_results", {
+            id: String(entry.id),
+            timestamp: entry.timestamp,
+            date: entry.date,
+            event_label: entry.eventLabel,
+            results: JSON.stringify(entry.results),
+          });
+          if (!ok) {
+            addToast(
+              "Couldn't sync this roll to other members — they won't see it until you retry. Check your connection and re-roll.",
+              "red",
+              "Sync Failed"
+            );
+          }
+        })();
       }
     }
     lrRef.current=requestAnimationFrame(animate);
