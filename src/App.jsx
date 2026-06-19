@@ -59,7 +59,17 @@ const supa = {
           headers: { ...headers, "Prefer": "resolution=merge-duplicates,return=representation" },
           body: JSON.stringify(Array.isArray(data) ? data : [data]),
         });
-        return res.json();
+        const json = await res.json().catch(() => null);
+        // A non-2xx response is always a failure, even if the error body
+        // doesn't happen to carry a `code` or `message` field (e.g. a plain
+        // text error, or a body that fails to parse as JSON at all) — without
+        // this check, dbUpsert's "throw if res.code || res.message" guard
+        // could be bypassed by an error shape it doesn't recognize, and the
+        // write would be silently treated as successful.
+        if (!res.ok) {
+          throw new Error(`upsert ${table} failed: HTTP ${res.status} ${json ? JSON.stringify(json) : "(no body)"}`);
+        }
+        return json;
       },
       async delete(match) {
         const params = Object.entries(match).map(([k,v])=>`${k}=eq.${encodeURIComponent(v)}`).join("&");
@@ -306,7 +316,8 @@ function fmt(n) { return n?.toLocaleString() ?? "0"; }
 // Falls back to the plain date string for older entries recorded before
 // timestamps existed.
 function formatLogDateTime(entry) {
-  const ms = entry?.ts || (typeof entry?.id === "number" && entry.id > 1e11 ? entry.id : null);
+  const idNum = Number(entry?.id);
+  const ms = entry?.ts || (Number.isFinite(idNum) && idNum > 1e11 ? idNum : null);
   if (ms) {
     const d = new Date(ms);
     if (!isNaN(d)) return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}`;
@@ -318,7 +329,8 @@ function formatLogDateTime(entry) {
 // date-only string for older entries.
 function logSortKey(entry) {
   if (entry?.ts) return entry.ts;
-  if (typeof entry?.id === "number" && entry.id > 1e11) return entry.id;
+  const idNum = Number(entry?.id);
+  if (Number.isFinite(idNum) && idNum > 1e11) return idNum;
   const d = new Date(entry?.date);
   return isNaN(d) ? 0 : d.getTime();
 }
@@ -1724,7 +1736,7 @@ export default function App() {
           ...r,
           recordedBy: r.recorded_by || r.recordedBy || "",
           members:    Number(r.members) || 0,
-          ts:         Number(r.ts) || (typeof r.id === "number" && r.id > 1e11 ? r.id : null) || null,
+          ts:         Number(r.ts) || (Number(r.id) > 1e11 ? Number(r.id) : null) || null,
           attendees:  (() => { try { return typeof r.attendees === "string" ? JSON.parse(r.attendees) : (r.attendees || []); } catch { return []; } })(),
         })));
       }
@@ -1829,15 +1841,28 @@ export default function App() {
   function setAttendanceLogs(updater) {
     setAttendanceLogsRaw(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      const prevIds = new Set(prev.map(l => l.id));
-      const nextIds = new Set(next.map(l => l.id));
-      const newEntries = next.filter(l => !prevIds.has(l.id));
+      // Compare by stringified id — local entries are created with a numeric
+      // Date.now() id, while rows that have round-tripped through Supabase
+      // come back with a string id. Without normalizing, a freshly-submitted
+      // local entry and its own DB row would never be recognized as "the
+      // same" entry, since `Set.has` never coerces types.
+      const prevIds = new Set(prev.map(l => String(l.id)));
+      const nextIds = new Set(next.map(l => String(l.id)));
+      const newEntries = next.filter(l => !prevIds.has(String(l.id)));
       newEntries.forEach(l => {
         const row = {
-          id:          l.id,
+          // ROOT CAUSE FIX: every other table (auctions, loot_results,
+          // bid_events) stringifies its Date.now()-based id before writing —
+          // this was the only one sending a raw number. Left as a number,
+          // it round-trips back from Supabase as a string (the column is
+          // text, like its siblings), so a strict `Set.has(id)` comparison
+          // in the poll-merge below would never match the local numeric id
+          // against the DB's string id, and the freshly-submitted row could
+          // fail to reconcile correctly for other clients reading it back.
+          id:          String(l.id),
           event:       l.event,
           date:        l.date,
-          ts:          l.ts || (typeof l.id === "number" && l.id > 1e11 ? l.id : null) || null,
+          ts:          l.ts || (Number(l.id) > 1e11 ? Number(l.id) : null) || null,
           members:     l.members || 0,
           recorded_by: l.recordedBy || "",
           attendees:   JSON.stringify(l.attendees || []),
@@ -1853,7 +1878,7 @@ export default function App() {
       // Anything that was present before but isn't in `next` was deleted
       // (e.g. Master removing an attendance record) — propagate the delete
       // to the DB and remember the id so a lagging poll can't bring it back.
-      const removedIds = prev.filter(l => !nextIds.has(l.id)).map(l => l.id);
+      const removedIds = prev.filter(l => !nextIds.has(String(l.id))).map(l => l.id);
       removedIds.forEach(id => {
         deletedAttendanceIds.current.add(id);
         dbDelete("attendance_logs", { id });
@@ -1875,7 +1900,7 @@ export default function App() {
           ...r,
           recordedBy: r.recorded_by || r.recordedBy || "",
           members:    Number(r.members) || 0,
-          ts:         Number(r.ts) || (typeof r.id === "number" && r.id > 1e11 ? r.id : null) || null,
+          ts:         Number(r.ts) || (Number(r.id) > 1e11 ? Number(r.id) : null) || null,
           attendees:  (() => { try { return typeof r.attendees === "string" ? JSON.parse(r.attendees) : (r.attendees || []); } catch { return []; } })(),
         }));
         // Merge by id-union instead of overwriting wholesale: a log just
@@ -1885,8 +1910,13 @@ export default function App() {
         // tracked in deletedAttendanceIds so a stale DB read can't resurrect
         // a row the Master intentionally removed.
         setAttendanceLogsRaw(prev => {
-          const dbIds = new Set(fromDb.map(l => l.id));
-          const localOnly = prev.filter(l => !dbIds.has(l.id) && !deletedAttendanceIds.current.has(l.id));
+          // Compare by stringified id for the same reason as setAttendanceLogs
+          // above: a row just submitted locally has a numeric Date.now() id,
+          // but once it round-trips through Supabase it comes back as a
+          // string. Comparing raw ids here would never recognize them as the
+          // same entry, duplicating the row instead of reconciling it.
+          const dbIds = new Set(fromDb.map(l => String(l.id)));
+          const localOnly = prev.filter(l => !dbIds.has(String(l.id)) && !deletedAttendanceIds.current.has(l.id));
           return [...fromDb, ...localOnly].sort((a,b) => (b.ts||0) - (a.ts||0) || new Date(b.date) - new Date(a.date));
         });
       }
@@ -1975,10 +2005,11 @@ export default function App() {
 
   // Poll loot_results every 10s so all users see new distributions
   const [latestLootId, setLatestLootId] = useState(null);
+  const deletedLootIds = useRef(new Set());
   useEffect(() => {
     const iv = setInterval(async () => {
       const rows = await dbLoad("loot_results");
-      if (Array.isArray(rows) && rows.length > 0) {
+      if (Array.isArray(rows)) {
         const parsed = rows.map(r => ({
           id: r.id,
           timestamp: Number(r.timestamp) || 0,
@@ -1987,12 +2018,30 @@ export default function App() {
           results: (() => { try { return typeof r.results === "string" ? JSON.parse(r.results) : (r.results || []); } catch { return []; } })(),
         })).filter(r => Date.now() - r.timestamp < 7*24*60*60*1000).sort((a,b)=>b.timestamp-a.timestamp);
         setLootResults(prev => {
+          // ROOT CAUSE FIX: this used to be a hard overwrite (`return parsed`).
+          // A roll is saved optimistically into local state immediately, then
+          // written to Supabase asynchronously (with retries, which can take
+          // a couple seconds). This poll runs on its own independent 10s timer,
+          // not synchronized with that write at all — if a tick landed in the
+          // gap before the write finished, it would read the DB's still-stale
+          // rows and stomp over the optimistic entry, erasing it from this
+          // client's memory before the write ever had a chance to land (and
+          // permanently if the user refreshed in that window). Now we merge
+          // by id-union, the same way attendance_logs already does: a row
+          // that exists locally but not yet in the DB read is kept, not
+          // dropped, until it either appears in a DB read or its id is
+          // confirmed deleted.
+          const dbIds = new Set(parsed.map(r => String(r.id)));
+          const localOnly = prev.filter(r => !dbIds.has(String(r.id)) && !deletedLootIds.current.has(String(r.id)));
+          const merged = [...parsed, ...localOnly]
+            .filter(r => Date.now() - r.timestamp < 7*24*60*60*1000)
+            .sort((a,b)=>b.timestamp-a.timestamp);
           const prevNewest = prev.length > 0 ? prev[0].id : null;
-          const newNewest = parsed.length > 0 ? parsed[0].id : null;
-          if (newNewest && newNewest !== prevNewest) {
+          const newNewest = merged.length > 0 ? merged[0].id : null;
+          if (newNewest && String(newNewest) !== String(prevNewest)) {
             setLatestLootId(String(newNewest));
           }
-          return parsed;
+          return merged;
         });
       }
     }, 10000);
@@ -3272,6 +3321,28 @@ function Attendance({ ctx }) {
   const [expandedLog, setExpandedLog] = useState(null);
   const PAGE_SIZE = 10;
 
+  // Downloads a single attendance log's attendee list (name, qualifier,
+  // coins earned) as a CSV — for Elders/Master to keep an offline record of
+  // one specific event without having to export everything.
+  function downloadLogCSV(log) {
+    const headers = ["Member", "Qualifier", "CoinsEarned"];
+    const csvRow = (vals) => vals.map(v => JSON.stringify(v===undefined||v===null?"":v)).join(",");
+    const lines = [csvRow(headers)];
+    (log.attendees||[]).forEach(a => {
+      lines.push(csvRow([a.name||"", a.qualifier||"full", a.earned||0]));
+    });
+    const csv = lines.join("\n");
+    const blob = new Blob([csv], {type:"text/csv"});
+    const url = URL.createObjectURL(blob);
+    const safeEvent = (log.event||"attendance").replace(/[^a-z0-9]+/gi,"_");
+    const safeDate = (log.date||"").replace(/[^a-z0-9]+/gi,"_");
+    const filename = `${safeEvent}_${safeDate||log.id}.csv`;
+    const link = document.createElement("a");
+    link.href = url; link.download = filename; link.click();
+    URL.revokeObjectURL(url);
+    addToast(`${filename} downloaded!`,"green","Export");
+  }
+
   function toggleMember(id) {
     setSelectedMembers(p=>({...p,[id]:!p[id]}));
     if(!qualifier[id]) setQualifier(p=>({...p,[id]:"full"}));
@@ -3437,7 +3508,7 @@ function Attendance({ ctx }) {
 
       {tab==="logs" && (
         <>
-        {isMaster && (
+        {isAdmin && (
           <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
             <button className="btn btn-outline btn-sm" onClick={()=>setModal({type:"addMissingAttendance"})}>+ Add Missing Record</button>
           </div>
@@ -3456,9 +3527,16 @@ function Attendance({ ctx }) {
                       <td data-label="Members"><span className="badge badge-blue">{l.members} members</span></td>
                       <td data-label="Rec. By" style={{color:"var(--gold-light)",fontWeight:700}}>{l.recordedBy}</td>
                       <td data-label="Attendees">
-                        <button className="btn btn-ghost btn-sm" onClick={()=>setExpandedLog(expandedLog===l.id?null:l.id)}>
-                          {expandedLog===l.id?"▲ Hide":"▼ Show"}
-                        </button>
+                        <div style={{display:"flex",gap:6}}>
+                          <button className="btn btn-ghost btn-sm" onClick={()=>setExpandedLog(expandedLog===l.id?null:l.id)}>
+                            {expandedLog===l.id?"▲ Hide":"▼ Show"}
+                          </button>
+                          {isAdmin && (
+                            <button className="btn btn-ghost btn-sm" title="Download this event's attendance as CSV" onClick={()=>downloadLogCSV(l)}>
+                              ⬇ CSV
+                            </button>
+                          )}
+                        </div>
                       </td>
                       {isMaster && (
                         <td data-label="Actions">
