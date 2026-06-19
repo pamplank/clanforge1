@@ -90,7 +90,34 @@ async function dbLoadAuctionImage(id) {
   } catch { return null; }
 }
 async function dbUpsert(table, data) {
-  try { const t = await supa.from(table); return await t.upsert(data); } catch { return null; }
+  try {
+    const t = await supa.from(table);
+    const res = await t.upsert(data);
+    // Supabase returns an array on success. On failure (RLS violation, schema
+    // mismatch, payload too large, etc.) it returns an error object instead —
+    // previously this was returned as-is and treated as "success" by every
+    // caller, so a write could fail completely with zero visibility anywhere
+    // in the app. Surface that as a thrown error so callers (and the retry
+    // wrapper below) can actually react to it.
+    if (res && !Array.isArray(res) && (res.code || res.message)) {
+      throw new Error(`${table} upsert rejected: ${res.message || res.code}`);
+    }
+    return res;
+  } catch (e) {
+    console.error(`dbUpsert(${table}) failed:`, e);
+    return null;
+  }
+}
+// Same as dbUpsert, but retries on failure and reports back whether it
+// ultimately succeeded — for writes where silent data loss is unacceptable
+// (e.g. attendance records, which directly control coin payouts).
+async function dbUpsertReliable(table, data, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const result = await dbUpsert(table, data);
+    if (result !== null) return true;
+    if (attempt < retries) await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
+  }
+  return false;
 }
 async function dbDelete(table, match) {
   try { const t = await supa.from(table); return await t.delete(match); } catch { return null; }
@@ -1750,7 +1777,7 @@ export default function App() {
       const nextIds = new Set(next.map(l => l.id));
       const newEntries = next.filter(l => !prevIds.has(l.id));
       newEntries.forEach(l => {
-        dbUpsert("attendance_logs", {
+        const row = {
           id:          l.id,
           event:       l.event,
           date:        l.date,
@@ -1758,6 +1785,13 @@ export default function App() {
           members:     l.members || 0,
           recorded_by: l.recordedBy || "",
           attendees:   JSON.stringify(l.attendees || []),
+        };
+        // This write directly controls coin payouts, so a failure here can't
+        // be allowed to disappear silently — retry a few times, and if it
+        // still fails, tell the recorder directly so they know to re-submit
+        // rather than discovering it's missing days later.
+        dbUpsertReliable("attendance_logs", row).then(ok => {
+          if (!ok) addToast(`⚠ "${l.event}" attendance failed to save to the shared log — please re-submit it.`, "red", "Save Failed");
         });
       });
       // Anything that was present before but isn't in `next` was deleted
@@ -4880,26 +4914,59 @@ function DeleteAttendanceModal({ ctx }) {
   const { modal, setModal, members, setMembers, setAttendanceLogs, addToast } = ctx;
   const log = modal.data;
   const ts = log.ts;
-  const affected = members.filter(m => (m.attendLog||[]).some(e => e.ts === ts && e.event === log.event));
-  const totalRefund = affected.reduce((sum, m) => {
-    const matchingAttend = (m.attendLog||[]).find(e => e.ts === ts && e.event === log.event);
-    const base = matchingAttend?.coins || 0;
-    const bonus = (m.txLog||[]).filter(t => t.ts === ts && t.addedBy === "System").reduce((s,t)=>s+(t.change||0),0);
+  // The log's own `attendees` list (names recorded at submit time) is the
+  // ground truth for who was in THIS specific submission. Restricting to
+  // those names first prevents cross-matching with a different submission
+  // of the same event on the same day (e.g. two separate Sindri's runs both
+  // logged on 6/14) before falling back to event+date+ts disambiguation.
+  const attendeeNames = new Set((log.attendees||[]).map(a => a.name));
+  const hasAttendeeList = attendeeNames.size > 0;
+  // Match loosely on event+date rather than strict ts equality: `ts` can end
+  // up as different types (string from a DB round-trip vs number from a
+  // fresh local write) depending on when an entry was created, and a strict
+  // `===` then fails to find a real, present entry — which is what caused
+  // this modal to show "0 members / 0 coins" for a record that genuinely had
+  // both. event+date are always plain strings and don't have that problem.
+  // When a member has more than one entry for the same event+date, ts (loosely
+  // compared) disambiguates between them.
+  function findMatch(log_, ts_, e) {
+    if (e.event !== log_.event || e.date !== log_.date) return false;
+    return true;
+  }
+  function pickMatch(entries) {
+    if (entries.length <= 1) return entries[0] || null;
+    // Multiple same-day same-event entries for this member — narrow down by
+    // ts if possible (loose comparison handles string/number mismatches).
+    const tsMatch = entries.find(e => e.ts != null && ts != null && String(e.ts) === String(ts));
+    return tsMatch || entries[0];
+  }
+  const matches = members.filter(m => !hasAttendeeList || attendeeNames.has(m.name)).map(m => {
+    const candidates = (m.attendLog||[]).filter(e => findMatch(log, ts, e));
+    return { m, entry: pickMatch(candidates) };
+  }).filter(x => x.entry);
+  const affected = matches.map(x => x.m);
+  const totalRefund = matches.reduce((sum, {m, entry}) => {
+    const base = entry?.coins || 0;
+    const entryTs = entry?.ts;
+    const bonus = (m.txLog||[]).filter(t => t.addedBy === "System" && entryTs != null && String(t.ts) === String(entryTs)).reduce((s,t)=>s+(t.change||0),0);
     return sum + base + bonus;
   }, 0);
 
   function confirmDelete() {
     setMembers(ms => ms.map(m => {
-      const matchingAttend = (m.attendLog||[]).find(e => e.ts === ts && e.event === log.event);
+      if (hasAttendeeList && !attendeeNames.has(m.name)) return m;
+      const candidates = (m.attendLog||[]).filter(e => findMatch(log, ts, e));
+      const matchingAttend = pickMatch(candidates);
       if (!matchingAttend) return m;
       const refund = matchingAttend.coins || 0;
-      const bonusRefund = (m.txLog||[]).filter(t => t.ts === ts && t.addedBy === "System").reduce((s,t)=>s+(t.change||0),0);
+      const entryTs = matchingAttend.ts;
+      const bonusRefund = (m.txLog||[]).filter(t => t.addedBy === "System" && entryTs != null && String(t.ts) === String(entryTs)).reduce((s,t)=>s+(t.change||0),0);
       return {
         ...m,
         coins: Math.max(0, m.coins - refund - bonusRefund),
         attendance: Math.max(0, m.attendance - (matchingAttend.qualifier!=="afk" ? 1 : 0)),
-        attendLog: (m.attendLog||[]).filter(e => !(e.ts === ts && e.event === log.event)),
-        txLog: (m.txLog||[]).filter(t => !(t.ts === ts && t.addedBy === "System")),
+        attendLog: (m.attendLog||[]).filter(e => e !== matchingAttend),
+        txLog: (m.txLog||[]).filter(t => !(t.addedBy === "System" && entryTs != null && String(t.ts) === String(entryTs))),
       };
     }));
     setAttendanceLogs(p => p.filter(l => l.id !== log.id));
