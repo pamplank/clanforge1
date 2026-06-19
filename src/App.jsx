@@ -341,6 +341,7 @@ function rankIcon(i){return `#${i+1}`;}
 // ─── GLOBAL CSS ───────────────────────────────────────────────────────────────
 const GLOBAL_CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 
@@ -355,7 +356,7 @@ const GLOBAL_CSS = `
   --shadow:0 8px 40px rgba(0,0,0,0.85);
 }
 
-body{background:url("data:image/webp;base64,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") center center / cover no-repeat fixed;color:var(--text);font-family:'Spectral',serif;font-size:16px;min-height:100vh;}
+body{background:url("data:image/webp;base64,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") center center / cover no-repeat fixed;color:var(--text);font-family:'Inter',sans-serif;font-size:16px;min-height:100vh;}
 ::-webkit-scrollbar{width:5px;height:5px;}
 ::-webkit-scrollbar-track{background:var(--bg-dark);}
 ::-webkit-scrollbar-thumb{background:var(--gold-dim);border-radius:2px;}
@@ -439,7 +440,7 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
   padding:0 13px;cursor:pointer;
   color:var(--text-dim);font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;
   transition:all 0.25s;border-radius:5px;
-  font-family:'Spectral',serif;
+  font-family:'Inter',sans-serif;
   position:relative;height:38px;white-space:nowrap;margin:0 1px;
 }
 .nav-item::before{
@@ -489,7 +490,7 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
   display:flex;align-items:center;gap:8px;
   padding:8px 16px;cursor:pointer;
   color:var(--text-mid);font-size:10px;font-weight:700;letter-spacing:1px;
-  text-transform:uppercase;font-family:'Spectral',serif;
+  text-transform:uppercase;font-family:'Inter',sans-serif;
   transition:all 0.15s;white-space:nowrap;
 }
 .nav-dd-item:hover{color:var(--gold-light);background:rgba(200,146,42,0.08);}
@@ -497,7 +498,7 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
 .nav-dd-sep{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:4px 10px;}
 .nav-dd-label{
   font-size:8px;font-weight:700;letter-spacing:2.5px;color:var(--text-dim);
-  padding:6px 16px 2px;text-transform:uppercase;font-family:'Spectral',serif;
+  padding:6px 16px 2px;text-transform:uppercase;font-family:'Inter',sans-serif;
 }
 /* ── USER AREA FIX — collapse gracefully ── */
 .sidebar-user{
@@ -510,7 +511,7 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
 .user-menu-btn{
   background:none;border:1px solid var(--border);border-radius:5px;
   color:var(--text-dim);cursor:pointer;font-size:10px;padding:3px 7px;
-  font-family:'Spectral',serif;font-weight:700;letter-spacing:0.5px;
+  font-family:'Inter',sans-serif;font-weight:700;letter-spacing:0.5px;
   transition:all 0.2s;flex-shrink:0;white-space:nowrap;
 }
 .user-menu-btn:hover{color:var(--gold-light);border-color:var(--gold-dim);}
@@ -535,7 +536,7 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
   display:flex;align-items:center;gap:8px;
   padding:8px 14px;cursor:pointer;
   color:var(--text-mid);font-size:11px;font-weight:600;
-  font-family:'Spectral',serif;transition:all 0.15s;white-space:nowrap;
+  font-family:'Inter',sans-serif;transition:all 0.15s;white-space:nowrap;
 }
 .user-dd-item:hover{color:var(--gold-light);background:rgba(200,146,42,0.08);}
 .user-dd-item.danger{color:#e07070;}
@@ -554,9 +555,9 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
   border:1px solid var(--border-bright);
   box-shadow:0 0 8px rgba(200,146,42,0.25);flex-shrink:0;
 }
-.user-name{font-family:'Spectral',serif;font-size:11px;font-weight:700;color:var(--gold-light);}
+.user-name{font-family:'Inter',sans-serif;font-size:11px;font-weight:700;color:var(--gold-light);}
 .user-role{font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:2px;font-weight:600;}
-.user-coins{font-size:11px;color:var(--gold);font-family:'Spectral',serif;font-weight:700;}
+.user-coins{font-size:11px;color:var(--gold);font-family:'Inter',sans-serif;font-weight:700;}
 
 /* ── TOPBAR LOGOUT MOBILE ── */
 .topbar-logout-mobile{display:none;}
@@ -585,10 +586,10 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
 .drawer-close:hover{color:var(--gold-light);}
 .drawer-nav{padding:12px 0;flex:1;}
 .drawer-section-label{font-size:8px;font-weight:700;letter-spacing:3px;text-transform:uppercase;
-  color:var(--text-dim);padding:10px 20px 6px;font-family:'Spectral',serif;}
+  color:var(--text-dim);padding:10px 20px 6px;font-family:'Inter',sans-serif;}
 .drawer-nav-item{display:flex;align-items:center;gap:10px;padding:11px 20px;cursor:pointer;
   color:var(--text-mid);font-size:13px;font-weight:600;letter-spacing:0.5px;
-  transition:all 0.2s;border-left:2px solid transparent;font-family:'Spectral',serif;}
+  transition:all 0.2s;border-left:2px solid transparent;font-family:'Inter',sans-serif;}
 .drawer-nav-item:hover{color:var(--gold-light);background:rgba(200,146,42,0.07);border-left-color:var(--gold-dim);}
 .drawer-nav-item.active{color:var(--gold-bright);background:rgba(200,146,42,0.12);border-left-color:var(--gold);}
 .drawer-user{padding:14px 20px;border-top:1px solid var(--border);flex-shrink:0;
@@ -611,9 +612,9 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
 .table-wrap{overflow-x:auto;}
 table{width:100%;border-collapse:collapse;}
 thead{background:rgba(10,11,15,0.6);}
-th{padding:10px 14px;text-align:left;font-family:'Spectral',serif;font-size:9px;font-weight:700;
+th{padding:10px 14px;text-align:left;font-family:'Inter',sans-serif;font-size:9px;font-weight:700;
    color:var(--gold-dim);letter-spacing:2.5px;text-transform:uppercase;border-bottom:1px solid var(--border);}
-td{padding:12px 14px;border-bottom:1px solid var(--border-dim);font-size:13px;font-family:'Spectral',serif;}
+td{padding:12px 14px;border-bottom:1px solid var(--border-dim);font-size:13px;font-family:'Inter',sans-serif;}
 tr:hover td{background:rgba(201,151,42,0.03);}
 tbody tr:last-child td{border-bottom:none;}
 
@@ -657,7 +658,7 @@ tbody tr:last-child td{border-bottom:none;}
   .table-stack tbody tr{display:block;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;margin-bottom:10px;padding:4px 0;}
   .table-stack td{display:flex;align-items:center;justify-content:flex-start;padding:9px 14px;border-bottom:1px solid var(--border-dim);font-size:12px;gap:10px;}
   .table-stack td:last-child{border-bottom:none;}
-  .table-stack td::before{content:attr(data-label);font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold-dim);font-family:'Spectral',serif;flex-shrink:0;min-width:72px;display:block;}
+  .table-stack td::before{content:attr(data-label);font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold-dim);font-family:'Inter',sans-serif;flex-shrink:0;min-width:72px;display:block;}
   .modal{max-width:calc(100vw - 24px);}
   .modal-body{padding:18px;}
   .modal-header{padding:16px 18px;}
@@ -722,7 +723,7 @@ tbody tr:last-child td{border-bottom:none;}
 /* ── BUTTONS ── */
 .btn{
   padding:9px 22px;border-radius:2px;border:none;cursor:pointer;
-  font-family:'Spectral',serif;font-size:11px;font-weight:700;letter-spacing:2px;
+  font-family:'Inter',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;
   text-transform:uppercase;
   transition:all 0.2s;display:inline-flex;align-items:center;gap:7px;
   position:relative;overflow:hidden;
@@ -745,14 +746,14 @@ tbody tr:last-child td{border-bottom:none;}
 .btn-discord{background:linear-gradient(135deg,#2d3380,#7289da);color:#fff;font-weight:700;}
 .btn-discord:hover{box-shadow:0 4px 16px rgba(114,137,218,0.4);}
 .btn-sm{padding:5px 14px;font-size:9px;letter-spacing:1.5px;}
-.btn-ghost{background:transparent;border:none;color:var(--text-dim);font-size:11px;font-family:'Spectral',serif;font-weight:600;cursor:pointer;letter-spacing:1px;padding:4px 8px;}
+.btn-ghost{background:transparent;border:none;color:var(--text-dim);font-size:11px;font-family:'Inter',sans-serif;font-weight:600;cursor:pointer;letter-spacing:1px;padding:4px 8px;}
 .btn-ghost:hover{color:var(--gold-light);}
 
 /* ── INPUTS ── */
 .input,.select{
   background:rgba(10,11,15,0.8);border:1px solid var(--border);
   color:var(--text);padding:9px 14px;border-radius:2px;font-size:13px;
-  font-family:'Spectral',serif;font-weight:500;outline:none;width:100%;
+  font-family:'Inter',sans-serif;font-weight:500;outline:none;width:100%;
   transition:border-color 0.2s,box-shadow 0.2s;
 }
 .input:focus,.select:focus{border-color:var(--gold);box-shadow:0 0 0 1px rgba(201,151,42,0.2);}
@@ -765,7 +766,7 @@ tbody tr:last-child td{border-bottom:none;}
 
 /* ── BADGES ── */
 .badge{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:1px;
-   font-size:9px;font-weight:700;font-family:'Spectral',serif;letter-spacing:1.5px;text-transform:uppercase;}
+   font-size:9px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:1px;text-transform:uppercase;}
 .badge-gold{background:rgba(201,151,42,0.12);color:var(--gold-light);border:1px solid rgba(201,151,42,0.35);}
 .badge-red{background:rgba(122,26,26,0.2);color:#e07070;border:1px solid rgba(122,26,26,0.5);}
 .badge-blue{background:rgba(26,90,138,0.15);color:#5dade2;border:1px solid rgba(26,90,138,0.4);}
@@ -789,7 +790,7 @@ tbody tr:last-child td{border-bottom:none;}
   background:linear-gradient(90deg,transparent,var(--border),transparent);}
 .tab{
   padding:10px 22px;cursor:pointer;color:var(--text-mid);
-  font-family:'Spectral',serif;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;
   border-bottom:2px solid transparent;margin-bottom:-1px;
   transition:all 0.2s;white-space:nowrap;flex-shrink:0;
 }
@@ -813,7 +814,7 @@ tbody tr:last-child td{border-bottom:none;}
 .auction-img.rarity-kari{background-size:cover!important;background-position:center!important;background-repeat:no-repeat!important;}
 .auction-img img{width:80%;height:80%;object-fit:contain;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);filter:drop-shadow(0 4px 16px rgba(0,0,0,0.7));}
 .auction-timer{position:absolute;top:8px;right:8px;background:rgba(122,26,26,0.92);color:#f0a0a0;
-  font-family:'Spectral',serif;font-size:10px;font-weight:700;padding:3px 8px;
+  font-family:'Inter',sans-serif;font-size:10px;font-weight:700;padding:3px 8px;
   border:1px solid rgba(192,57,43,0.5);letter-spacing:1px;}
 .auction-rarity-badge{position:absolute;top:8px;left:8px;z-index:10;line-height:1;}
 .auction-body{padding:12px;min-width:0;}
@@ -857,16 +858,16 @@ tbody tr:last-child td{border-bottom:none;}
 /* ── LEADERBOARD ── */
 .lb-grid{display:flex;flex-wrap:wrap;gap:20px;width:100%;box-sizing:border-box;align-items:start;}.lb-grid>*{flex:1 1 300px;min-width:0;}
 .lb-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-dim);width:100%;}
-.lb-rank{font-family:'Spectral',serif;font-size:12px;font-weight:700;min-width:28px;width:28px;text-align:center;flex-shrink:0;color:var(--text-dim);letter-spacing:0.5px;}
+.lb-rank{font-family:'Inter',sans-serif;font-size:12px;font-weight:700;min-width:28px;width:28px;text-align:center;flex-shrink:0;color:var(--text-dim);letter-spacing:0.5px;}
 .lb-name{font-family:'Spectral',serif;font-size:12px;font-weight:700;color:var(--text-bright);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;}
-.lb-val{font-family:'Spectral',serif;font-size:13px;font-weight:800;color:var(--gold-light);min-width:72px;text-align:right;flex-shrink:0;}
+.lb-val{font-family:'Inter',sans-serif;font-size:13px;font-weight:800;color:var(--gold-light);min-width:72px;text-align:right;flex-shrink:0;}
 .lb-bar-bg{height:3px;background:rgba(255,255,255,0.06);border-radius:2px;margin-top:5px;}
 .lb-bar{height:3px;background:linear-gradient(90deg,var(--gold-dim),var(--gold-light));border-radius:2px;}
 
 /* ── FORM ── */
 .form-group{margin-bottom:16px;}
-.form-label{display:block;font-family:'Spectral',serif;font-size:9px;font-weight:700;
-  color:var(--text-dim);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:7px;}
+.form-label{display:block;font-family:'Inter',sans-serif;font-size:9px;font-weight:700;
+  color:var(--text-dim);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:7px;}
 
 /* ── TOAST ── */
 .toast-container{position:fixed;bottom:24px;right:24px;z-index:300;display:flex;flex-direction:column;gap:10px;}
@@ -874,7 +875,7 @@ tbody tr:last-child td{border-bottom:none;}
   background:var(--bg-panel);border:1px solid var(--border-bright);
   border-radius:2px;padding:13px 18px;min-width:270px;
   box-shadow:0 6px 30px rgba(0,0,0,0.6);
-  animation:slideIn 0.3s ease;font-size:13px;font-family:'Spectral',serif;
+  animation:slideIn 0.3s ease;font-size:13px;font-family:'Inter',sans-serif;
 }
 .toast::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
   background:linear-gradient(90deg,transparent,var(--gold-dim),transparent);}
@@ -892,7 +893,7 @@ tbody tr:last-child td{border-bottom:none;}
 .event-pill{
   padding:9px 14px;border-radius:2px;cursor:pointer;
   border:1px solid rgba(255,255,255,0.08);transition:all 0.2s;
-  background:rgba(10,11,15,0.6);font-family:'Spectral',serif;font-size:12px;font-weight:600;
+  background:rgba(10,11,15,0.6);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;
 }
 .event-pill:hover{border-color:var(--gold-dim);}
 .event-pill.selected{background:rgba(201,151,42,0.12);border-color:var(--gold);color:var(--gold-light);}
@@ -904,7 +905,7 @@ tbody tr:last-child td{border-bottom:none;}
 @keyframes fadeGlow{from{box-shadow:0 0 40px rgba(201,151,42,0.5);}to{box-shadow:0 0 10px rgba(201,151,42,0.08);}}
 .discord-tag{display:inline-flex;align-items:center;gap:5px;background:rgba(71,82,196,0.18);
   border:1px solid rgba(114,137,218,0.4);color:#8ba4e8;border-radius:2px;padding:3px 9px;
-  font-size:11px;font-weight:600;font-family:'Spectral',serif;}
+  font-size:11px;font-weight:600;font-family:'Inter',sans-serif;}
 
 /* ── LOGIN ── */
 .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:url("data:image/webp;base64,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") center center / cover no-repeat;position:relative;}
@@ -935,8 +936,8 @@ tbody tr:last-child td{border-bottom:none;}
 .login-sub{font-size:9px;color:var(--text-dim);letter-spacing:5px;text-transform:uppercase;margin-top:5px;font-weight:700;}
 .login-error{background:rgba(122,26,26,0.2);border:1px solid rgba(122,26,26,0.5);color:#e07070;
   border-radius:2px;padding:10px 14px;font-size:12px;margin-bottom:16px;font-weight:600;
-  font-family:'Spectral',serif;letter-spacing:0.5px;}
-.register-link{text-align:center;margin-top:20px;font-size:12px;color:var(--text-dim);font-weight:500;font-family:'Spectral',serif;}
+  font-family:'Inter',sans-serif;letter-spacing:0.5px;}
+.register-link{text-align:center;margin-top:20px;font-size:12px;color:var(--text-dim);font-weight:500;font-family:'Inter',sans-serif;}
 .register-link span{color:var(--gold-light);cursor:pointer;font-weight:700;}
 .register-link span:hover{text-decoration:underline;}
 
@@ -959,7 +960,7 @@ function Toast({ toasts, remove }) {
     <div className="toast-container">
       {toasts.map(t => (
         <div key={t.id} className={`toast toast-${t.type||'gold'}`} style={{position:"relative"}} onClick={() => remove(t.id)}>
-          <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:10,color:"var(--gold-light)",marginBottom:3,letterSpacing:2,textTransform:"uppercase"}}>{t.title||"Notice"}</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:10,color:"var(--gold-light)",marginBottom:3,letterSpacing:2,textTransform:"uppercase"}}>{t.title||"Notice"}</div>
           <div style={{color:"var(--text)",fontWeight:500,fontSize:13}}>{t.msg}</div>
         </div>
       ))}
@@ -1051,7 +1052,7 @@ function ItemImagePicker({ value, onChange, library, addImage }) {
         <div style={{marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
           <img src={value.dataUrl} alt={value.name} style={{width:64,height:64,objectFit:"cover",borderRadius:2,border:"1px solid var(--gold-dim)"}} />
           <div>
-            <div style={{fontSize:12,fontWeight:600,color:"var(--text-bright)",fontFamily:"'Spectral',serif"}}>{value.name}</div>
+            <div style={{fontSize:12,fontWeight:600,color:"var(--text-bright)",fontFamily:"'Inter',sans-serif"}}>{value.name}</div>
             <button type="button" className="btn btn-ghost btn-sm" onClick={()=>onChange(null)}>✕ Remove</button>
           </div>
         </div>
@@ -1102,7 +1103,7 @@ function LoginScreen({ members, onLogin }) {
           <input className="input" type="password" placeholder="Enter password…" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doLogin()} autoComplete="current-password" />
         </div>
         <button className="btn btn-gold" style={{width:"100%",justifyContent:"center",padding:"12px 20px"}} onClick={doLogin}>Enter the Forge</button>
-        <div style={{marginTop:16,textAlign:"center",fontSize:11,color:"var(--text-dim)",fontFamily:"'Spectral',serif",letterSpacing:0.5}}>
+        <div style={{marginTop:16,textAlign:"center",fontSize:11,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",letterSpacing:0.5}}>
           Contact your Master to get access.
         </div>
 
@@ -1125,15 +1126,15 @@ function DiscordModal({ member, onSave, onClose }) {
           <div style={{display:"flex",alignItems:"center",gap:14,padding:16,background:"rgba(71,82,196,0.08)",border:"1px solid rgba(114,137,218,0.25)",borderRadius:2,marginBottom:20}}>
             <span style={{fontSize:30}}>🎮</span>
             <div>
-              <div style={{fontWeight:700,fontSize:13,color:"var(--text-bright)",fontFamily:"'Spectral',serif"}}>Connect your Discord</div>
-              <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3,fontFamily:"'Spectral',serif"}}>Link your Discord so clan mates can reach you.</div>
+              <div style={{fontWeight:700,fontSize:13,color:"var(--text-bright)",fontFamily:"'Inter',sans-serif"}}>Connect your Discord</div>
+              <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>Link your Discord so clan mates can reach you.</div>
             </div>
           </div>
           <div className="form-group">
             <label className="form-label">Discord Username</label>
             <input className="input" placeholder="e.g. username#1234 or username" value={val} onChange={e=>setVal(e.target.value)} />
           </div>
-          {member.discord && <div style={{fontSize:12,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>Current: <span className="discord-tag">🎮 {member.discord}</span></div>}
+          {member.discord && <div style={{fontSize:12,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>Current: <span className="discord-tag">🎮 {member.discord}</span></div>}
         </div>
         <div className="modal-footer">
           {member.discord && <button className="btn btn-red" onClick={()=>onSave("")}>Unlink</button>}
@@ -1160,7 +1161,7 @@ function AdjustPowerModal({ member, onSave, onClose }) {
             <span style={{display:"inline-flex",alignItems:"center",gap:6}}><PowerIcon size={20} />Current: {fmt(member.power)}</span>
           </div>
           <div style={{marginBottom:16,padding:12,background:"rgba(10,11,15,0.7)",border:"1px solid var(--border)",borderRadius:2}}>
-            <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:2,textTransform:"uppercase",fontFamily:"'Spectral',serif",fontWeight:700,marginBottom:6}}>Quick Adjust</div>
+            <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:2,textTransform:"uppercase",fontFamily:"'Inter',sans-serif",fontWeight:700,marginBottom:6}}>Quick Adjust</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               {[-5000,-1000,-500,500,1000,5000].map(d => (
                 <button key={d} type="button" className={`btn btn-sm ${d<0?"btn-red":"btn-outline"}`}
@@ -1175,8 +1176,8 @@ function AdjustPowerModal({ member, onSave, onClose }) {
             <input className="input" type="number" min={0} value={power} onChange={e=>setPower(parseInt(e.target.value)||0)} />
           </div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"rgba(201,151,42,0.06)",border:"1px solid var(--border)",borderRadius:2}}>
-            <span style={{fontFamily:"'Spectral',serif",fontSize:12,color:"var(--text-dim)",fontWeight:600}}>Change</span>
-            <span style={{fontFamily:"'Spectral',serif",fontSize:14,fontWeight:800,color:power>member.power?"#58d68d":power<member.power?"#e07070":"var(--text-dim)"}}>
+            <span style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:"var(--text-dim)",fontWeight:600}}>Change</span>
+            <span style={{fontFamily:"'Inter',sans-serif",fontSize:14,fontWeight:800,color:power>member.power?"#58d68d":power<member.power?"#e07070":"var(--text-dim)"}}>
               {power>member.power?"+":""}{fmt(power-member.power)}
             </span>
           </div>
@@ -1312,7 +1313,7 @@ function LootRoulette({ ctx }) {
               <button className="btn btn-outline btn-sm"
                 onClick={()=>setPresentMembers(Object.fromEntries(members.map(m=>[m.id,true])))}>All</button>
               <button className="btn btn-ghost btn-sm" onClick={()=>setPresentMembers({})}>None</button>
-              <span style={{marginLeft:"auto",fontFamily:"'Spectral',serif",fontSize:11,
+              <span style={{marginLeft:"auto",fontFamily:"'Inter',sans-serif",fontSize:11,
                 color:"var(--gold)",fontWeight:700}}>{presentList.length} selected</span>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:4,maxHeight:360,overflowY:"auto"}}>
@@ -1326,7 +1327,7 @@ function LootRoulette({ ctx }) {
                     style={{accentColor:"var(--gold)",flexShrink:0,pointerEvents:"none"}} />
                   <ClassIcon cls={m.cls} size={30} />
                   <div style={{flex:1}}>
-                    <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13,
+                    <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,
                       color:presentMembers[m.id]?"var(--gold-light)":"var(--text)"}}>{m.name}</div>
                     <div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:1,textTransform:"uppercase"}}>{m.cls}</div>
                   </div>
@@ -1354,7 +1355,7 @@ function LootRoulette({ ctx }) {
 
             {lootItems.length===0 && (
               <div style={{textAlign:"center",padding:"32px 0",color:"var(--text-dim)",
-                fontFamily:"'Spectral',serif",fontSize:13}}>No loot added yet.<br/>
+                fontFamily:"'Inter',sans-serif",fontSize:13}}>No loot added yet.<br/>
                 <span style={{fontSize:11,opacity:0.6}}>Type an item name and press +</span>
               </div>
             )}
@@ -1364,11 +1365,11 @@ function LootRoulette({ ctx }) {
                 <div key={item.id} style={{display:"flex",alignItems:"center",gap:8,
                   padding:"9px 12px",borderRadius:4,
                   background:"rgba(168,50,40,0.07)",border:"1px solid rgba(200,80,80,0.15)"}}>
-                  <div style={{flex:1,fontFamily:"'Spectral',serif",fontWeight:700,
+                  <div style={{flex:1,fontFamily:"'Inter',sans-serif",fontWeight:700,
                     fontSize:13,color:"var(--text-bright)"}}>{item.name}</div>
                   <button onClick={()=>updateQty(item.id,item.qty-1)}
                     className="btn btn-ghost btn-sm" style={{padding:"2px 8px",fontSize:14}}>−</button>
-                  <span style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:13,
+                  <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:13,
                     color:"#ff9090",minWidth:24,textAlign:"center"}}>×{item.qty}</span>
                   <button onClick={()=>updateQty(item.id,item.qty+1)}
                     className="btn btn-ghost btn-sm" style={{padding:"2px 8px",fontSize:14}}>+</button>
@@ -1382,10 +1383,10 @@ function LootRoulette({ ctx }) {
               <div style={{marginTop:12,padding:"8px 12px",borderRadius:4,
                 background:"rgba(0,0,0,0.3)",border:"1px solid rgba(200,146,42,0.1)",
                 display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <span style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>
+                <span style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
                   {lootItems.length} item types
                 </span>
-                <span style={{fontFamily:"'Spectral',serif",fontWeight:800,
+                <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,
                   color:"var(--gold)",fontSize:13}}>{totalLootQty} total pieces</span>
               </div>
             )}
@@ -1420,7 +1421,7 @@ function LootRoulette({ ctx }) {
                     <text x={lx} y={ly} fill="rgba(240,220,180,0.9)" fontSize="7" fontWeight="bold"
                       textAnchor="middle" dominantBaseline="middle"
                       transform={`rotate(${sliceAngle*i+sliceAngle/2},${lx},${ly})`}
-                      style={{fontFamily:"'Spectral',serif"}}>
+                      style={{fontFamily:"'Inter',sans-serif"}}>
                       {m.name.slice(0,9)}
                     </text>
                   </g>
@@ -1436,7 +1437,7 @@ function LootRoulette({ ctx }) {
           </div>
 
           <div style={{marginBottom:20}}>
-            <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,
+            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:17,
               color:"var(--gold-light)",marginBottom:6}}>Ready to Distribute</div>
             <div style={{fontSize:12,color:"var(--text-dim)"}}>
               <span style={{color:presentList.length?"var(--gold)":"#e07070",fontWeight:700}}>{presentList.length} warriors</span>
@@ -1472,7 +1473,7 @@ function LootRoulette({ ctx }) {
           <div className="card card-gold" style={{marginBottom:20,padding:"16px 22px"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
               <div>
-                <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:16,
+                <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:16,
                   color:"var(--gold-light)",marginBottom:2,display:"flex",alignItems:"center",gap:6}}><SwordsIcon size={13}/>Distribution Complete</div>
                 <div style={{fontSize:12,color:"var(--text-dim)"}}>
                   {totalLootQty} pieces distributed across {presentList.length} warriors
@@ -1498,7 +1499,7 @@ function LootRoulette({ ctx }) {
                     paddingBottom:10,borderBottom:"1px solid rgba(200,146,42,0.1)"}}>
                     <ClassIcon cls={entry.member.cls} size={38} />
                     <div style={{flex:1}}>
-                      <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:14,
+                      <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:14,
                         color:"var(--gold-light)"}}>{entry.member.name}</div>
                       <div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:1,
                         textTransform:"uppercase"}}>{entry.member.cls}</div>
@@ -1517,10 +1518,10 @@ function LootRoulette({ ctx }) {
                           padding:"6px 10px",borderRadius:3,
                           background:qty>1?"rgba(200,146,42,0.1)":"rgba(200,146,42,0.05)",
                           border:qty>1?"1px solid rgba(200,146,42,0.28)":"1px solid rgba(200,146,42,0.1)"}}>
-                          <span style={{fontFamily:"'Spectral',serif",fontSize:12,
+                          <span style={{fontFamily:"'Inter',sans-serif",fontSize:12,
                             color:"var(--text-bright)",fontWeight:600}}>{name}</span>
                           <span style={{
-                            fontFamily:"'Spectral',serif",fontSize:11,fontWeight:900,
+                            fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:900,
                             color:qty>1?"var(--gold-light)":"rgba(180,150,100,0.55)",
                             letterSpacing:0.5,flexShrink:0,marginLeft:6
                           }}>×{qty}</span>
@@ -1536,7 +1537,7 @@ function LootRoulette({ ctx }) {
           {/* Full text summary */}
           <div className="card" style={{marginTop:20,padding:0,overflow:"hidden"}}>
             <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(200,146,42,0.12)"}}>
-              <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:14,color:"var(--gold-light)"}}>
+              <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:14,color:"var(--gold-light)"}}>
                 📋 Full Distribution Summary
               </div>
             </div>
@@ -1551,14 +1552,14 @@ function LootRoulette({ ctx }) {
                         <td data-label="Warrior">
                           <div style={{display:"flex",alignItems:"center",gap:8}}>
                             <ClassIcon cls={entry.member.cls} size={28}/>
-                            <span style={{fontFamily:"'Spectral',serif",fontWeight:700,color:"var(--text-bright)"}}>{entry.member.name}</span>
+                            <span style={{fontFamily:"'Inter',sans-serif",fontWeight:700,color:"var(--text-bright)"}}>{entry.member.name}</span>
                           </div>
                         </td>
                         <td data-label="Class"><span className="badge badge-silver">{entry.member.cls}</span></td>
                         <td data-label="Items Received">
                           <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
                             {Object.entries(grouped).map(([name,qty],j)=>(
-                              <span key={j} style={{fontFamily:"'Spectral',serif",fontSize:11,
+                              <span key={j} style={{fontFamily:"'Inter',sans-serif",fontSize:11,
                                 color:"var(--text-bright)",background:qty>1?"rgba(200,146,42,0.12)":"rgba(200,146,42,0.07)",
                                 border:qty>1?"1px solid rgba(200,146,42,0.3)":"1px solid rgba(200,146,42,0.15)",borderRadius:2,
                                 padding:"2px 7px",fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}>
@@ -1569,7 +1570,7 @@ function LootRoulette({ ctx }) {
                             {entry.items.length===0&&<span style={{color:"var(--text-dim)",fontSize:11,fontStyle:"italic"}}>—</span>}
                           </div>
                         </td>
-                        <td data-label="Count" style={{fontFamily:"'Spectral',serif",fontWeight:800,color:"var(--gold)"}}>{entry.items.length===0?"—":entry.items.length+" pc"+(entry.items.length!==1?"s":"")}</td>
+                        <td data-label="Count" style={{fontFamily:"'Inter',sans-serif",fontWeight:800,color:"var(--gold)"}}>{entry.items.length===0?"—":entry.items.length+" pc"+(entry.items.length!==1?"s":"")}</td>
                       </tr>
                     );
                   })}
@@ -2357,7 +2358,7 @@ export default function App() {
 function SectionTitle({ children }) {
   return (
     <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:20}}>
-      <div style={{fontFamily:"'Spectral',serif",fontSize:15,fontWeight:800,color:"var(--gold-light)",letterSpacing:1,whiteSpace:"nowrap"}}>{children}</div>
+      <div style={{fontFamily:"'Inter',sans-serif",fontSize:15,fontWeight:800,color:"var(--gold-light)",letterSpacing:1,whiteSpace:"nowrap"}}>{children}</div>
       <div style={{flex:1,height:1,background:"linear-gradient(90deg,var(--gold-dim),transparent)"}} />
     </div>
   );
@@ -2405,7 +2406,7 @@ function WorldBossSchedule() {
               display:"flex", alignItems:"center", gap:4,
               boxShadow:`0 0 12px ${glow}`,
             }}>
-              <span style={{fontSize: compact?14:19, fontFamily:"'Spectral',serif", fontWeight:900, color:"#f2cc60", lineHeight:1}}>{`+${ev.coins}`}</span>
+              <span style={{fontSize: compact?14:19, fontFamily:"'Inter',sans-serif", fontWeight:900, color:"#f2cc60", lineHeight:1}}>{`+${ev.coins}`}</span>
               <span style={{fontSize:8, color:"rgba(200,146,42,0.7)", fontWeight:700, letterSpacing:1, textTransform:"uppercase", alignSelf:"flex-end", paddingBottom:1}}>coins</span>
             </div>
             {/* Event ID badge */}
@@ -2421,7 +2422,7 @@ function WorldBossSchedule() {
           {/* Text content */}
           <div style={{flex:1, padding: compact?"12px 14px":"18px 20px", display:"flex", flexDirection:"column", justifyContent:"center", minWidth:0}}>
             <div style={{
-              fontFamily:"'Spectral',serif", fontWeight:900,
+              fontFamily:"'Inter',sans-serif", fontWeight:900,
               fontSize: compact?14:19, color:"#f4e8cc",
               marginBottom:6, lineHeight:1.2,
               textShadow:`0 0 20px ${col}66`,
@@ -2433,11 +2434,11 @@ function WorldBossSchedule() {
               borderRadius:20, padding:"3px 10px", width:"fit-content",
             }}>
               <span style={{fontSize:10}}>🕐</span>
-              <span style={{fontSize: compact?9:11, fontWeight:800, color:col, fontFamily:"'Spectral',serif", letterSpacing:0.5}}>{ev.time} SERVER TIME</span>
+              <span style={{fontSize: compact?9:11, fontWeight:800, color:col, fontFamily:"'Inter',sans-serif", letterSpacing:0.5}}>{ev.time} SERVER TIME</span>
             </div>
             <div style={{
               fontSize: compact?10:11, color:"rgba(156,126,92,0.85)", lineHeight:1.65,
-              fontFamily:"'Spectral',serif", fontStyle:"italic",
+              fontFamily:"'Inter',sans-serif", fontStyle:"italic",
               display:"-webkit-box", WebkitLineClamp: compact?2:3,
               WebkitBoxOrient:"vertical", overflow:"hidden",
               textAlign:"left",
@@ -2474,7 +2475,7 @@ function WorldBossSchedule() {
             flexShrink:0,
           }}><StatIcon src={WARRIORS_ICON} size={28}/></div>
           <div>
-            <div style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:17,color:"#e6b048",letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 20px rgba(200,146,42,0.5)",textAlign:"left"}}>Event Schedule</div>
+            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:900,fontSize:17,color:"#e6b048",letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 20px rgba(200,146,42,0.5)",textAlign:"left"}}>Event Schedule</div>
             <div style={{fontSize:9,color:"rgba(110,88,64,0.9)",letterSpacing:3,fontWeight:700,textTransform:"uppercase",marginTop:1,textAlign:"left"}}>Peaky Blinders · Server Time</div>
           </div>
         </div>
@@ -2482,7 +2483,7 @@ function WorldBossSchedule() {
           {[["today","Today"],["week","Full Week"]].map(([id,label])=>(
             <button key={id} onClick={()=>setSchedTab(id)} style={{
               padding:"6px 14px", border:"none", borderRadius:4, cursor:"pointer",
-              fontFamily:"'Spectral',serif", fontWeight:800, fontSize:10, letterSpacing:1,
+              fontFamily:"'Inter',sans-serif", fontWeight:800, fontSize:10, letterSpacing:1,
               background: schedTab===id ? "linear-gradient(135deg,rgba(200,146,42,0.5),rgba(200,146,42,0.3))" : "transparent",
               color: schedTab===id ? "#f2cc60" : "rgba(110,88,64,0.9)",
               boxShadow: schedTab===id ? "0 0 10px rgba(200,146,42,0.2)" : "none",
@@ -2496,7 +2497,7 @@ function WorldBossSchedule() {
         <div>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
             <div style={{flex:1,height:1,background:"linear-gradient(90deg,rgba(200,146,42,0.4),transparent)"}} />
-            <span style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:10,color:"rgba(200,146,42,0.6)",letterSpacing:4,textTransform:"uppercase"}}>{dayName}</span>
+            <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:10,color:"rgba(200,146,42,0.6)",letterSpacing:4,textTransform:"uppercase"}}>{dayName}</span>
             <div style={{flex:1,height:1,background:"linear-gradient(270deg,rgba(200,146,42,0.4),transparent)"}} />
           </div>
           {todaySched && todaySched.events.length>0 ? (
@@ -2504,7 +2505,7 @@ function WorldBossSchedule() {
               {todaySched.events.map((ev,i)=><EventCard key={i} ev={ev} compact={false}/>)}
             </div>
           ) : (
-            <div style={{textAlign:"center",padding:"40px 0",color:"rgba(110,88,64,0.7)",fontFamily:"'Spectral',serif"}}>
+            <div style={{textAlign:"center",padding:"40px 0",color:"rgba(110,88,64,0.7)",fontFamily:"'Inter',sans-serif"}}>
               <div style={{fontSize:40,marginBottom:10,opacity:0.3}}>🌙</div>
               <div style={{fontSize:14,fontStyle:"italic"}}>No events today, warrior. Rest and prepare.</div>
             </div>
@@ -2524,7 +2525,7 @@ function WorldBossSchedule() {
               }}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
                   <span style={{
-                    fontFamily:"'Spectral',serif",fontWeight:900,fontSize:11,letterSpacing:3,textTransform:"uppercase",
+                    fontFamily:"'Inter',sans-serif",fontWeight:900,fontSize:11,letterSpacing:3,textTransform:"uppercase",
                     color: isToday?"#e6b048":"rgba(110,88,64,0.8)",
                     minWidth:90,
                   }}>{day.day}</span>
@@ -2698,7 +2699,7 @@ function UpdateNotes() {
             display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,
           }}>📋</div>
           <div>
-            <div style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:14,color:"var(--gold-light)",letterSpacing:1}}>Update Notes</div>
+            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:900,fontSize:14,color:"var(--gold-light)",letterSpacing:1}}>Update Notes</div>
             <div style={{fontSize:10,color:"var(--text-dim)",fontWeight:600,letterSpacing:2,textTransform:"uppercase"}}>Recent Changes</div>
           </div>
           <span style={{
@@ -2730,9 +2731,9 @@ function UpdateNotes() {
               onMouseLeave={e=>e.currentTarget.style.background=expanded===pi?`${patch.color}12`:"transparent"}
             >
               <div style={{width:6,height:6,borderRadius:"50%",background:patch.color,boxShadow:`0 0 6px ${patch.color}`,flexShrink:0}} />
-              <span style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:11,color:patch.color,minWidth:32,flexShrink:0,letterSpacing:0.5,textAlign:"left"}}>{patch.version}</span>
-              <span style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:12,color:"var(--text-bright)",flex:1,textAlign:"left"}}>{patch.title}</span>
-              <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Spectral',serif",flexShrink:0,textAlign:"left"}}>{patch.date}</span>
+              <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:11,color:patch.color,minWidth:32,flexShrink:0,letterSpacing:0.5,textAlign:"left"}}>{patch.version}</span>
+              <span style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:12,color:"var(--text-bright)",flex:1,textAlign:"left"}}>{patch.title}</span>
+              <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",flexShrink:0,textAlign:"left"}}>{patch.date}</span>
               <span style={{fontSize:9,color:"var(--text-dim)",marginLeft:4,flexShrink:0,transition:"transform 0.2s",display:"inline-block",transform:expanded===pi?"rotate(180deg)":"rotate(0deg)"}}>▼</span>
             </div>
             {/* Change list */}
@@ -2741,7 +2742,7 @@ function UpdateNotes() {
                 {patch.changes.map((c,ci)=>(
                   <div key={ci} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"5px 0",borderBottom:ci<patch.changes.length-1?`1px solid rgba(255,255,255,0.04)`:"none"}}>
                     <span style={{width:5,height:5,borderRadius:"50%",background:"var(--text-dim)",flexShrink:0,marginTop:6,opacity:0.6}}></span>
-                    <span style={{fontSize:12,color:"var(--text-dim)",fontFamily:"'Spectral',serif",lineHeight:1.6,textAlign:"left"}}>{c.text}</span>
+                    <span style={{fontSize:12,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",lineHeight:1.6,textAlign:"left"}}>{c.text}</span>
                   </div>
                 ))}
               </div>
@@ -2755,7 +2756,7 @@ function UpdateNotes() {
             style={{
               marginTop:6,width:"100%",padding:"8px 0",cursor:"pointer",
               background:"transparent",border:"1px solid rgba(200,146,42,0.2)",borderRadius:4,
-              fontFamily:"'Spectral',serif",fontWeight:700,fontSize:11,
+              fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:11,
               color:"var(--gold-dim)",letterSpacing:1,textTransform:"uppercase",
               transition:"all .15s",
             }}
@@ -2812,7 +2813,7 @@ function Dashboard({ ctx, setPage }) {
             <div className="dashboard-banner-left" style={{flex:"1 1 280px",textAlign:"left"}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
                 <div style={{width:28,height:1,background:"linear-gradient(90deg,transparent,rgba(200,146,42,0.6))"}} />
-                <span style={{fontSize:9,color:"rgba(200,146,42,0.7)",letterSpacing:5,textTransform:"uppercase",fontFamily:"'Spectral',serif",fontWeight:700}}>Clan HQ · Season 4</span>
+                <span style={{fontSize:9,color:"rgba(200,146,42,0.7)",letterSpacing:5,textTransform:"uppercase",fontFamily:"'Inter',sans-serif",fontWeight:700}}>Clan HQ · Season 4</span>
                 <div style={{width:28,height:1,background:"linear-gradient(90deg,rgba(200,146,42,0.6),transparent)"}} />
               </div>
               <div style={{fontFamily:"'Spectral',serif",fontSize:42,fontWeight:900,lineHeight:1,marginBottom:12,
@@ -2842,7 +2843,7 @@ function Dashboard({ ctx, setPage }) {
                   {currentUser.role==="Master"?<CrownIcon size={17}/>:currentUser.role==="Elder"?<ShieldIcon size={17}/>:<SwordsIcon size={17}/>}
                 </div>
                 <div>
-                  <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:15,color:"var(--text-bright)"}}>
+                  <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:15,color:"var(--text-bright)"}}>
                     {currentUser.name}
                   </div>
                   <div style={{fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:roleColor}}>
@@ -2868,18 +2869,18 @@ function Dashboard({ ctx, setPage }) {
         {/* Live Auctions Preview */}
         <div className="card" style={{flex:"1 1 280px",minWidth:0}}>
           <SectionTitle><span style={{display:"inline-flex",alignItems:"center",gap:6}}><StatIcon src={AUCTION_ICON} size={32}/>Live Auctions</span></SectionTitle>
-          {activeAuctions.length===0&&<div style={{color:"var(--text-dim)",fontSize:13,fontFamily:"'Spectral',serif"}}>No active auctions.</div>}
+          {activeAuctions.length===0&&<div style={{color:"var(--text-dim)",fontSize:13,fontFamily:"'Inter',sans-serif"}}>No active auctions.</div>}
           {[...activeAuctions].sort((a,b)=>b.currentBid-a.currentBid).slice(0,3).map(a=>(
             <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid var(--border-dim)"}}>
               <div style={{width:42,height:42,borderRadius:2,overflow:"hidden",background:a.rarity==="epic"?"rgba(122,26,26,0.3)":"rgba(26,90,138,0.3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
                 {a.image?<AuctionImage auction={a} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={<span style={{fontSize:22}}>{a.emoji}</span>}/>:<span style={{fontSize:22}}>{a.emoji}</span>}
               </div>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</div>
+                <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</div>
                 <div style={{fontSize:11,color:"var(--text-dim)",fontWeight:500}}>Top: {a.topBidder||"No bids"}</div>
               </div>
               <div style={{textAlign:"right",flexShrink:0}}>
-                <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:15,color:"var(--gold-light)",display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={24}/>{fmt(a.currentBid)}</div>
+                <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:15,color:"var(--gold-light)",display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={24}/>{fmt(a.currentBid)}</div>
                 <div style={{fontSize:10,color:"#e07070",fontWeight:700,letterSpacing:1}}>{timeLeft(a.endsAt)}</div>
               </div>
             </div>
@@ -2896,8 +2897,8 @@ function Dashboard({ ctx, setPage }) {
             const valColor=wtMode==="attendance"?"#60aadd":wtMode==="power"?"#a8b8c8":"var(--gold-light)";
             return(<>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:8}}>
-                <span style={{display:"inline-flex",alignItems:"center",gap:6,fontFamily:"'Spectral',serif",fontWeight:800,fontSize:15,color:"var(--gold-light)"}}><LBIcon src={LEADERBOARD_ICON} size={16}/>{WT_MODES.find(m=>m.id===wtMode)?.label}</span>
-                <select style={{background:"rgba(10,8,6,0.85)",border:"1px solid var(--border)",color:"var(--gold-light)",fontFamily:"'Spectral',serif",fontSize:10,fontWeight:700,padding:"4px 8px",borderRadius:4,cursor:"pointer",letterSpacing:1}} value={wtMode} onChange={e=>setWtMode(e.target.value)}>
+                <span style={{display:"inline-flex",alignItems:"center",gap:6,fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:15,color:"var(--gold-light)"}}><LBIcon src={LEADERBOARD_ICON} size={16}/>{WT_MODES.find(m=>m.id===wtMode)?.label}</span>
+                <select style={{background:"rgba(10,8,6,0.85)",border:"1px solid var(--border)",color:"var(--gold-light)",fontFamily:"'Inter',sans-serif",fontSize:10,fontWeight:700,padding:"4px 8px",borderRadius:4,cursor:"pointer",letterSpacing:1}} value={wtMode} onChange={e=>setWtMode(e.target.value)}>
                   {WT_MODES.map(m=><option key={m.id} value={m.id}>{m.label}</option>)}
                 </select>
               </div>
@@ -2910,8 +2911,8 @@ function Dashboard({ ctx, setPage }) {
                     <div style={{fontSize:10,color:"var(--text-dim)",fontWeight:600,letterSpacing:1,textAlign:"left"}}>{m.cls}</div>
                   </div>
                   <div style={{textAlign:"right",flexShrink:0}}>
-                    <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:14,color:valColor}}>{valFn(m)}</div>
-                    {wtMode!=="coins"&&<div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:11,color:"var(--gold-light)",display:"inline-flex",alignItems:"center",gap:3}}><StatIcon src={COINS_ICON} size={20}/>{fmt(m.coins)}</div>}
+                    <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:14,color:valColor}}>{valFn(m)}</div>
+                    {wtMode!=="coins"&&<div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:11,color:"var(--gold-light)",display:"inline-flex",alignItems:"center",gap:3}}><StatIcon src={COINS_ICON} size={20}/>{fmt(m.coins)}</div>}
                   </div>
                 </div>
               ))}
@@ -2924,17 +2925,17 @@ function Dashboard({ ctx, setPage }) {
       <div style={{display:"flex",flexWrap:"wrap",gap:16}}>
         <div className="card card-gold" style={{flex:"1 1 280px",minWidth:0}}>
           <SectionTitle>Recent Winners</SectionTitle>
-          {recentWinners.length===0&&<div style={{color:"var(--text-dim)",fontSize:13,fontFamily:"'Spectral',serif"}}>No recent winners.</div>}
+          {recentWinners.length===0&&<div style={{color:"var(--text-dim)",fontSize:13,fontFamily:"'Inter',sans-serif"}}>No recent winners.</div>}
           {recentWinners.map(a=>(
             <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid var(--border-dim)"}}>
               <div style={{width:36,height:36,borderRadius:2,overflow:"hidden",background:"var(--bg-mid)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                 {a.image?<AuctionImage auction={a} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={<StatIcon src={AUCTION_ICON} size={32}/>}/>:<StatIcon src={AUCTION_ICON} size={32}/>}
               </div>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:12,color:"var(--gold-light)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.topBidder}</div>
+                <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:12,color:"var(--gold-light)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.topBidder}</div>
                 <div style={{fontSize:11,color:"var(--text-dim)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</div>
               </div>
-              <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:15,color:"var(--gold)",flexShrink:0}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={24}/>{fmt(a.currentBid)}</span></div>
+              <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:15,color:"var(--gold)",flexShrink:0}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={24}/>{fmt(a.currentBid)}</span></div>
             </div>
           ))}
         </div>
@@ -2943,8 +2944,8 @@ function Dashboard({ ctx, setPage }) {
           {EVENTS.map(ev=>(
             <div key={ev.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid rgba(26,90,138,0.12)"}}>
               <div style={{width:7,height:7,borderRadius:"50%",background:ev.color,flexShrink:0,boxShadow:`0 0 6px ${ev.color}`}}/>
-              <div style={{flex:1,fontSize:12,color:"var(--text)",fontFamily:"'Spectral',serif",fontWeight:500}}>{ev.name}</div>
-              <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:13,color:"var(--gold-light)"}}>+{ev.coins}</div>
+              <div style={{flex:1,fontSize:12,color:"var(--text)",fontFamily:"'Inter',sans-serif",fontWeight:500}}>{ev.name}</div>
+              <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:13,color:"var(--gold-light)"}}>+{ev.coins}</div>
               <span className="badge badge-blue">{ev.id}</span>
             </div>
           ))}
@@ -3011,13 +3012,13 @@ function Members({ ctx }) {
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
                           <ClassIcon cls={m.cls} size={40} />
                           <div>
-                            <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",textAlign:"left"}}>{m.name}</div>
+                            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",textAlign:"left"}}>{m.name}</div>
                             <div style={{fontSize:10,color:"var(--text-dim)",fontWeight:500}}>Joined {m.joinDate}</div>
                           </div>
                         </div>
                       </td>
-                      <td data-label="Power" style={{fontFamily:"'Spectral',serif",fontWeight:700,color:"#a8b8c8"}}><span style={{display:"inline-flex",alignItems:"center",gap:5}}><PowerIcon size={14} />{fmt(m.power)}</span></td>
-                      <td data-label="Coins" style={{fontFamily:"'Spectral',serif",fontWeight:800,color:"var(--gold-light)"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={28}/>{fmt(m.coins)}</span></td>
+                      <td data-label="Power" style={{fontFamily:"'Inter',sans-serif",fontWeight:700,color:"#a8b8c8"}}><span style={{display:"inline-flex",alignItems:"center",gap:5}}><PowerIcon size={14} />{fmt(m.power)}</span></td>
+                      <td data-label="Coins" style={{fontFamily:"'Inter',sans-serif",fontWeight:800,color:"var(--gold-light)"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={28}/>{fmt(m.coins)}</span></td>
                       <td data-label="Attend." style={{color:"#60aadd",fontWeight:700}}>{m.attendance}</td>
                       <td data-label="Wins" style={{color:"var(--gold)",fontWeight:700}}>{m.auctionWins}×</td>
                       <td data-label="Role"><span className={`badge ${m.role==="Master"?"badge-gold":m.role==="Elder"?"badge-red":"badge-silver"}`}>{m.role}</span></td>
@@ -3043,13 +3044,13 @@ function Members({ ctx }) {
             <div className="divider" />
             {[["Coins",fmt(selectedMember.coins)],["Attendance",selectedMember.attendance],["Wins",selectedMember.auctionWins],["Joined",selectedMember.joinDate]].map(([k,v]) => (
               <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--border-dim)",fontSize:12}}>
-                <span style={{color:"var(--text-dim)",fontFamily:"'Spectral',serif",fontWeight:500}}>{k}</span>
-                <span style={{color:"var(--text-bright)",fontFamily:"'Spectral',serif",fontWeight:700}}>{v}</span>
+                <span style={{color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",fontWeight:500}}>{k}</span>
+                <span style={{color:"var(--text-bright)",fontFamily:"'Inter',sans-serif",fontWeight:700}}>{v}</span>
               </div>
             ))}
             <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--border-dim)",fontSize:12}}>
-              <span style={{display:"inline-flex",alignItems:"center",gap:5,color:"var(--text-dim)",fontFamily:"'Spectral',serif",fontWeight:500}}><PowerIcon size={13} /> Power</span>
-              <span style={{color:"var(--text-bright)",fontFamily:"'Spectral',serif",fontWeight:700}}>{fmt(selectedMember.power)}</span>
+              <span style={{display:"inline-flex",alignItems:"center",gap:5,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",fontWeight:500}}><PowerIcon size={13} /> Power</span>
+              <span style={{color:"var(--text-bright)",fontFamily:"'Inter',sans-serif",fontWeight:700}}>{fmt(selectedMember.power)}</span>
             </div>
             {isAdmin && (
               <div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
@@ -3061,7 +3062,7 @@ function Members({ ctx }) {
                 )}
                 {currentUser.role==="Master" && selectedMember.id!==currentUser.id && (
                   <div style={{borderTop:"1px solid var(--border-dim)",paddingTop:8}}>
-                    <div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:2,textTransform:"uppercase",fontFamily:"'Spectral',serif",marginBottom:6}}>Change Role</div>
+                    <div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:2,textTransform:"uppercase",fontFamily:"'Inter',sans-serif",marginBottom:6}}>Change Role</div>
                     <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                       {selectedMember.role!=="Member"&&<button className="btn btn-ghost btn-sm" onClick={()=>{setMembers(ms=>ms.map(x=>x.id===selectedMember.id?{...x,role:"Member"}:x));setSelectedMember(p=>({...p,role:"Member"}));addToast(`${selectedMember.name} set to Member.`,"gold","Role Changed");}}>→ Member</button>}
                       {selectedMember.role!=="Elder"&&<button className="btn btn-outline btn-sm" onClick={()=>{setMembers(ms=>ms.map(x=>x.id===selectedMember.id?{...x,role:"Elder"}:x));setSelectedMember(p=>({...p,role:"Elder"}));addToast(`${selectedMember.name} promoted to Elder.`,"gold","Role Changed");}}>→ Elder</button>}
@@ -3309,7 +3310,7 @@ function Attendance({ ctx }) {
 
       {tab==="record" && (
         <div>
-          {!isAdmin && <div className="card" style={{color:"var(--text-dim)",textAlign:"center",padding:32,fontFamily:"'Spectral',serif"}}>Only Elders and Leaders can record attendance.</div>}
+          {!isAdmin && <div className="card" style={{color:"var(--text-dim)",textAlign:"center",padding:32,fontFamily:"'Inter',sans-serif"}}>Only Elders and Leaders can record attendance.</div>}
           {isAdmin && (
             <div className="grid-2">
               <div>
@@ -3320,7 +3321,7 @@ function Attendance({ ctx }) {
                       <div key={ev.id} className={`event-pill${selectedEvent===ev.id?" selected":""}`} onClick={()=>setSelectedEvent(ev.id)}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                           <span>{ev.name}</span>
-                          <span style={{color:"var(--gold)",fontFamily:"'Spectral',serif",fontWeight:800}}>+{ev.coins}</span>
+                          <span style={{color:"var(--gold)",fontFamily:"'Inter',sans-serif",fontWeight:800}}>+{ev.coins}</span>
                         </div>
                       </div>
                     ))}
@@ -3329,9 +3330,9 @@ function Attendance({ ctx }) {
                 {selectedEvent && (
                   <div className="card card-blue">
                     <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>Coin Rules</div>
-                    <div style={{fontSize:13,marginBottom:4,fontFamily:"'Spectral',serif"}}>Full: <strong style={{color:"var(--gold)"}}>{EVENTS.find(e=>e.id===selectedEvent)?.coins}</strong></div>
-                    <div style={{fontSize:13,marginBottom:4,fontFamily:"'Spectral',serif"}}>Late: <strong style={{color:"var(--gold)"}}>{Math.floor(EVENTS.find(e=>e.id===selectedEvent)?.coins*0.5)}</strong></div>
-                    <div style={{fontSize:13,fontFamily:"'Spectral',serif"}}>AFK: <strong style={{color:"var(--text-dim)"}}>0</strong></div>
+                    <div style={{fontSize:13,marginBottom:4,fontFamily:"'Inter',sans-serif"}}>Full: <strong style={{color:"var(--gold)"}}>{EVENTS.find(e=>e.id===selectedEvent)?.coins}</strong></div>
+                    <div style={{fontSize:13,marginBottom:4,fontFamily:"'Inter',sans-serif"}}>Late: <strong style={{color:"var(--gold)"}}>{Math.floor(EVENTS.find(e=>e.id===selectedEvent)?.coins*0.5)}</strong></div>
+                    <div style={{fontSize:13,fontFamily:"'Inter',sans-serif"}}>AFK: <strong style={{color:"var(--text-dim)"}}>0</strong></div>
                   </div>
                 )}
               </div>
@@ -3350,7 +3351,7 @@ function Attendance({ ctx }) {
                     <div key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:2,background:selectedMembers[m.id]?"rgba(201,151,42,0.07)":"rgba(10,11,15,0.5)",border:`1px solid ${selectedMembers[m.id]?"var(--gold-dim)":"transparent"}`,cursor:"pointer"}} onClick={()=>toggleMember(m.id)}>
                       <input type="checkbox" checked={!!selectedMembers[m.id]} onChange={()=>toggleMember(m.id)} style={{accentColor:"var(--gold)"}} />
                       <ClassIcon cls={m.cls} size={32} />
-                      <span style={{flex:1,fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13,color:"var(--text-bright)"}}>{m.name}</span>
+                      <span style={{flex:1,fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:"var(--text-bright)"}}>{m.name}</span>
                       {selectedMembers[m.id] && (
                         <select className="select" style={{width:"auto",padding:"3px 8px",fontSize:11}} value={qualifier[m.id]||"full"} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();setQualifier(p=>({...p,[m.id]:e.target.value}));}}>
                           <option value="full">Full</option><option value="late">Late</option><option value="afk">AFK</option>
@@ -3386,7 +3387,7 @@ function Attendance({ ctx }) {
                   <>
                     <tr key={l.id}>
                       <td data-label="Date & Time" style={{fontWeight:500,whiteSpace:"nowrap"}}>{formatLogDateTime(l)}</td>
-                      <td data-label="Event" style={{fontFamily:"'Spectral',serif",fontWeight:700}}>{l.event}</td>
+                      <td data-label="Event" style={{fontFamily:"'Inter',sans-serif",fontWeight:700}}>{l.event}</td>
                       <td data-label="Members"><span className="badge badge-blue">{l.members} members</span></td>
                       <td data-label="Rec. By" style={{color:"var(--gold-light)",fontWeight:700}}>{l.recordedBy}</td>
                       <td data-label="Attendees">
@@ -3403,13 +3404,13 @@ function Attendance({ ctx }) {
                     {expandedLog===l.id && (
                       <tr key={`${l.id}-expand`}>
                         <td colSpan={isMaster?6:5} style={{padding:"10px 18px",background:"rgba(10,11,15,0.7)"}}>
-                          <div style={{fontFamily:"'Spectral',serif",fontSize:10,color:"var(--gold-dim)",fontWeight:700,letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Attendees</div>
+                          <div style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:"var(--gold-dim)",fontWeight:700,letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Attendees</div>
                           <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
                             {(l.attendees||[]).map((a,i)=>(
                               <div key={i} style={{display:"flex",alignItems:"center",gap:6,background:"rgba(201,151,42,0.08)",border:"1px solid var(--border)",borderRadius:2,padding:"4px 10px"}}>
-                                <span style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:12,color:"var(--text-bright)"}}>{a.name}</span>
+                                <span style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:12,color:"var(--text-bright)"}}>{a.name}</span>
                                 <span className={`badge ${a.qualifier==="full"?"badge-gold":a.qualifier==="late"?"badge-blue":"badge-red"}`}>{a.qualifier}</span>
-                                {a.earned>0&&<span style={{fontFamily:"'Spectral',serif",fontSize:11,color:"var(--gold)",fontWeight:700}}>+{a.earned}</span>}
+                                {a.earned>0&&<span style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:"var(--gold)",fontWeight:700}}>+{a.earned}</span>}
                               </div>
                             ))}
                           </div>
@@ -3423,7 +3424,7 @@ function Attendance({ ctx }) {
           </div>
           {totalPages>1 && (
             <div style={{display:"flex",alignItems:"center",gap:10,padding:"14px 18px",borderTop:"1px solid var(--border)",justifyContent:"flex-end"}}>
-              <span style={{fontFamily:"'Spectral',serif",fontSize:11,color:"var(--text-dim)"}}>Page {logPage+1} of {totalPages}</span>
+              <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:"var(--text-dim)"}}>Page {logPage+1} of {totalPages}</span>
               <button className="btn btn-outline btn-sm" disabled={logPage===0} onClick={()=>setLogPage(p=>p-1)} style={{opacity:logPage===0?0.4:1}}>← Prev</button>
               <button className="btn btn-outline btn-sm" disabled={logPage>=totalPages-1} onClick={()=>setLogPage(p=>p+1)} style={{opacity:logPage>=totalPages-1?0.4:1}}>Next →</button>
             </div>
@@ -3445,52 +3446,52 @@ function Attendance({ ctx }) {
                   <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
                     <ClassIcon cls={m.cls} size={36}/>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.name}</div>
+                      <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.name}</div>
                       <div style={{fontSize:10,color:"var(--text-dim)",fontWeight:600,letterSpacing:1}}>{m.cls}</div>
                     </div>
                   </div>
                   {/* Major Events */}
                   <div style={{marginBottom:10}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                      <span style={{fontFamily:"'Spectral',serif",fontSize:11,fontWeight:700,color:b.attendedAll?"var(--gold-light)":"var(--text-dim)"}}>Major Events</span>
-                      {b.attendedAll?<span className="badge badge-gold">+300</span>:<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>{b.attendedNames.size}/{b.totalEvents}</span>}
+                      <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:b.attendedAll?"var(--gold-light)":"var(--text-dim)"}}>Major Events</span>
+                      {b.attendedAll?<span className="badge badge-gold">+300</span>:<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{b.attendedNames.size}/{b.totalEvents}</span>}
                     </div>
                     <div style={{height:4,background:"rgba(255,255,255,0.07)",borderRadius:2}}>
                       <div style={{height:4,borderRadius:2,background:"linear-gradient(90deg,var(--gold-dim),var(--gold-light))",width:`${Math.min(100,(b.attendedNames.size/b.totalEvents)*100)}%`,transition:"width 0.4s"}} />
                     </div>
-                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Spectral',serif"}}>ISB · CA×2 · STI×2 · CS · WB×3</div>
+                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>ISB · CA×2 · STI×2 · CS · WB×3</div>
                   </div>
                   {/* Sindri Veteran */}
                   <div style={{marginBottom:10}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                      <span style={{fontFamily:"'Spectral',serif",fontSize:11,fontWeight:700,color:b.sindriVet?"var(--gold-light)":"var(--text-dim)"}}>Sindri Veteran</span>
-                      {b.sindriVet?<span className="badge badge-gold">✓ Earned</span>:<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>{b.stiQualWeeks}/5 weeks</span>}
+                      <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:b.sindriVet?"var(--gold-light)":"var(--text-dim)"}}>Sindri Veteran</span>
+                      {b.sindriVet?<span className="badge badge-gold">✓ Earned</span>:<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{b.stiQualWeeks}/5 weeks</span>}
                     </div>
                     <div style={{height:4,background:"rgba(255,255,255,0.07)",borderRadius:2}}>
                       <div style={{height:4,borderRadius:2,background:"linear-gradient(90deg,#6c1e6c,#9b59b6)",width:`${Math.min(100,(b.stiQualWeeks/5)*100)}%`,transition:"width 0.4s"}} />
                     </div>
-                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Spectral',serif"}}>{b.stiQualWeeks}/5 weeks with 2× Sindri's</div>
+                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>{b.stiQualWeeks}/5 weeks with 2× Sindri's</div>
                   </div>
                   {/* ISB Veteran */}
                   <div>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                      <span style={{fontFamily:"'Spectral',serif",fontSize:11,fontWeight:700,color:b.isbVet?"var(--gold-light)":"var(--text-dim)"}}>ISB Veteran</span>
+                      <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:b.isbVet?"var(--gold-light)":"var(--text-dim)"}}>ISB Veteran</span>
                       {b.isbVet && <span className="badge badge-gold">+500</span>}
                     </div>
                     <div style={{height:4,background:"rgba(255,255,255,0.07)",borderRadius:2}}>
                       <div style={{height:4,borderRadius:2,background:"linear-gradient(90deg,#6c1e6c,#8e44ad)",width:`${Math.min(100,(b.isbCount/10)*100)}%`,transition:"width 0.4s"}} />
                     </div>
-                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Spectral',serif"}}>{b.isbCount}/10 ISB events</div>
+                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>{b.isbCount}/10 ISB events</div>
                   </div>
                 </div>
               );
             })}
             {members.filter(m=>m.name.toLowerCase().includes(bonusSearch.toLowerCase())).length===0&&(
-              <div style={{gridColumn:"1/-1",textAlign:"center",padding:32,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>No warrior matches your search.</div>
+              <div style={{gridColumn:"1/-1",textAlign:"center",padding:32,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>No warrior matches your search.</div>
             )}
           </div>
           <div className="card card-gold" style={{marginBottom:16}}>
-            <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:14,color:"var(--gold-light)",marginBottom:6}}>Bonus Rules</div>
+            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:"var(--gold-light)",marginBottom:6}}>Bonus Rules</div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
               <div style={{fontSize:12,color:"var(--text-dim)"}}>Major Events — attend all 5 event types this week: ISB (×1), CA (×2), STI (×2), CS (×1), WB (×3): <strong style={{color:"var(--gold)"}}>+300 Coins</strong></div>
               <div style={{fontSize:12,color:"var(--text-dim)"}}>Sindri Veteran — attend 2× Sindri's Treasure Island per week for 5 weeks: <strong style={{color:"var(--gold)"}}>+400 Coins</strong> (one-time)</div>
@@ -3498,7 +3499,7 @@ function Attendance({ ctx }) {
             </div>
           </div>
           <div className="card card-red">
-            <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:14,color:"#e07070",marginBottom:6}}>Weekly Coin Decay</div>
+            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:"#e07070",marginBottom:6}}>Weekly Coin Decay</div>
             <div style={{fontSize:12,color:"var(--text-dim)",lineHeight:1.7}}>Unused coins decay 10% every Sunday. Stay active!</div>
             <span className="badge badge-red" style={{marginTop:8,display:"inline-block"}}>-10% / week</span>
           </div>
@@ -3508,7 +3509,7 @@ function Attendance({ ctx }) {
       {tab==="mylog" && (
         <div className="card" style={{padding:0}}>
           <div style={{padding:"16px 20px",borderBottom:"1px solid var(--border)"}}>
-            <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:15,color:"var(--gold-light)"}}>My Points History — Private</div>
+            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:15,color:"var(--gold-light)"}}>My Points History — Private</div>
             <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3}}>Attendance, bonuses, admin coin adjustments, auction wins, and weekly decay. Only you can see this record.</div>
           </div>
           {(()=>{
@@ -3553,9 +3554,9 @@ function Attendance({ ctx }) {
                   </div>
                 )}
                 {rawEntries.length===0 ? (
-                  <div style={{padding:32,textAlign:"center",color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>No points history recorded yet.</div>
+                  <div style={{padding:32,textAlign:"center",color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>No points history recorded yet.</div>
                 ) : filteredEntries.length===0 ? (
-                  <div style={{padding:32,textAlign:"center",color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>No entries match this filter.</div>
+                  <div style={{padding:32,textAlign:"center",color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>No entries match this filter.</div>
                 ) : (
                   <div className="table-wrap">
                     <table className="table-stack">
@@ -3565,8 +3566,8 @@ function Attendance({ ctx }) {
                           <tr key={i}>
                             <td data-label="Date & Time" style={{fontWeight:500,whiteSpace:"nowrap"}}>{formatLogDateTime(e)}</td>
                             <td data-label="Type"><span className={`badge ${badgeClass(e)}`}>{e.type}</span></td>
-                            <td data-label="Details" style={{fontFamily:"'Spectral',serif",fontWeight:600}}>{e.details}</td>
-                            <td data-label="Coins" style={{fontFamily:"'Spectral',serif",fontWeight:800,color:e.coins>=0?"var(--gold-light)":"#e07070"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={22}/>{e.coins>0?`+${e.coins}`:e.coins}</span></td>
+                            <td data-label="Details" style={{fontFamily:"'Inter',sans-serif",fontWeight:600}}>{e.details}</td>
+                            <td data-label="Coins" style={{fontFamily:"'Inter',sans-serif",fontWeight:800,color:e.coins>=0?"var(--gold-light)":"#e07070"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={22}/>{e.coins>0?`+${e.coins}`:e.coins}</span></td>
                           </tr>
                         ))}
                       </tbody>
@@ -3582,7 +3583,7 @@ function Attendance({ ctx }) {
       {tab==="globallog" && (
         <div className="card" style={{padding:0}}>
           <div style={{padding:"16px 20px",borderBottom:"1px solid var(--border)"}}>
-            <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:15,color:"var(--gold-light)"}}>Global Points History</div>
+            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:15,color:"var(--gold-light)"}}>Global Points History</div>
             <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3}}>Admin manual adjustments, bonuses, and weekly decay — visible to everyone.</div>
           </div>
           <div className="table-wrap">
@@ -3603,10 +3604,10 @@ function Attendance({ ctx }) {
                   return allEntries.map((entry,i)=>(
                     <tr key={i}>
                       <td data-label="Date & Time" style={{fontWeight:500,whiteSpace:"nowrap"}}>{formatLogDateTime(entry)}</td>
-                      <td data-label="Member" style={{fontFamily:"'Spectral',serif",fontWeight:700,color:"var(--text-bright)"}}>{entry.member}</td>
+                      <td data-label="Member" style={{fontFamily:"'Inter',sans-serif",fontWeight:700,color:"var(--text-bright)"}}>{entry.member}</td>
                       <td data-label="Type"><span className={`badge ${entry.amount>0?"badge-gold":"badge-red"}`}>{entry.type}</span></td>
-                      <td data-label="Amount" style={{fontFamily:"'Spectral',serif",fontWeight:800,color:entry.amount>=0?"var(--gold-light)":"#e07070"}}>{entry.amount>=0?`+${entry.amount}`:entry.amount}</td>
-                      <td data-label="Added By" style={{fontFamily:"'Spectral',serif",fontWeight:600,color:"var(--gold)",fontSize:12}}>{entry.addedBy}</td>
+                      <td data-label="Amount" style={{fontFamily:"'Inter',sans-serif",fontWeight:800,color:entry.amount>=0?"var(--gold-light)":"#e07070"}}>{entry.amount>=0?`+${entry.amount}`:entry.amount}</td>
+                      <td data-label="Added By" style={{fontFamily:"'Inter',sans-serif",fontWeight:600,color:"var(--gold)",fontSize:12}}>{entry.addedBy}</td>
                       <td data-label="Reason" style={{fontSize:11,color:"var(--text-dim)"}}>{entry.reason}</td>
                     </tr>
                   ));
@@ -3671,7 +3672,7 @@ function BidMarquee({ feed, auctions }) {
       <div ref={trackRef} style={{ display:"inline-block", willChange:"transform" }}>
         {[...items, ...items].map((b, i) => (
           <span key={i} style={{
-            marginRight:60, fontSize:13, fontFamily:"'Spectral',serif",
+            marginRight:60, fontSize:13, fontFamily:"'Inter',sans-serif",
             color:"var(--gold)", letterSpacing:0.5,
           }}>
             🔨 <strong style={{color:"#fff"}}>{b.bidder}</strong> bid{" "}
@@ -3941,7 +3942,7 @@ function Auctions({ ctx }) {
       {(tab==="active"||tab==="ended") && (
         <div style={{display:"flex",alignItems:"center",gap:10,margin:"14px 0 4px",flexWrap:"wrap",justifyContent:"flex-end"}}>
           <div style={{display:"flex",alignItems:"center",gap:6}}>
-            <span style={{fontSize:11,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700,fontFamily:"'Spectral',serif"}}>Sort:</span>
+            <span style={{fontSize:11,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700,fontFamily:"'Inter',sans-serif"}}>Sort:</span>
             <select className="select" style={{width:"auto",fontSize:11,padding:"4px 10px",cursor:"pointer"}} value={sortBy} onChange={e=>setSortBy(e.target.value)}>
               <option value="default">Default</option>
               <option value="bid-desc">Bid: High → Low</option>
@@ -3951,7 +3952,7 @@ function Auctions({ ctx }) {
             </select>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:6}}>
-            <span style={{fontSize:11,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700,fontFamily:"'Spectral',serif"}}>View:</span>
+            <span style={{fontSize:11,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700,fontFamily:"'Inter',sans-serif"}}>View:</span>
             <select className="select" style={{width:"auto",fontSize:11,padding:"4px 10px",cursor:"pointer"}} value={viewMode} onChange={e=>setViewMode(e.target.value)}>
               <option value="grid">⊞ Grid</option>
               <option value="compact">≡ Compact</option>
@@ -3962,7 +3963,7 @@ function Auctions({ ctx }) {
 
       {tab==="active" && (
         <div className={viewMode==="grid"?"grid-3":""} style={viewMode==="compact"?{display:"flex",flexDirection:"column",gap:6}:{}}>
-          {active.length===0&&<div style={{color:"var(--text-dim)",gridColumn:"1/-1",textAlign:"center",padding:48,fontFamily:"'Spectral',serif"}}>No active auctions right now.</div>}
+          {active.length===0&&<div style={{color:"var(--text-dim)",gridColumn:"1/-1",textAlign:"center",padding:48,fontFamily:"'Inter',sans-serif"}}>No active auctions right now.</div>}
           {active.map(a=>{
             const isWinning=a.topBidder===currentUser.name;
             const minBid=a.currentBid+5;
@@ -3986,12 +3987,12 @@ function Auctions({ ctx }) {
                   {/* Name + bidder */}
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginBottom:3}}>
-                      <span style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:130}}>{a.name}</span>
+                      <span style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:130}}>{a.name}</span>
                       <span style={{fontSize:8,fontWeight:700,padding:"2px 5px",background:rc2.bg,border:`1px solid ${rc2.border}`,color:rc2.color,letterSpacing:1,borderRadius:2,flexShrink:0}}>{(a.rarity||"epic").toUpperCase()}</span>
                       {isWinning&&<span style={{fontSize:8,fontWeight:700,padding:"2px 5px",background:"rgba(39,174,96,0.2)",border:"1px solid rgba(39,174,96,0.5)",color:"#6ee89a",borderRadius:2,flexShrink:0}}>✓ WINNING</span>}
                     </div>
                     {a.topBidder
-                      ? <div style={{display:"flex",alignItems:"center",gap:3}}><TrophyIcon size={11} style={{color:"#6ee89a",filter:"drop-shadow(0 0 3px rgba(110,232,154,0.4))"}}/><span style={{fontSize:11,color:"#6ee89a",fontWeight:700,fontFamily:"'Spectral',serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:110}}>{a.topBidder}</span></div>
+                      ? <div style={{display:"flex",alignItems:"center",gap:3}}><TrophyIcon size={11} style={{color:"#6ee89a",filter:"drop-shadow(0 0 3px rgba(110,232,154,0.4))"}}/><span style={{fontSize:11,color:"#6ee89a",fontWeight:700,fontFamily:"'Inter',sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:110}}>{a.topBidder}</span></div>
                       : <div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic"}}>No bids yet</div>
                     }
                   </div>
@@ -3999,9 +4000,9 @@ function Auctions({ ctx }) {
                   <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
                     <div style={{display:"flex",alignItems:"center",gap:3}}>
                       <StatIcon src={COINS_ICON} size={14}/>
-                      <span style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:14,color:"var(--gold-light)"}}>{fmt(a.currentBid)}</span>
+                      <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:14,color:"var(--gold-light)"}}>{fmt(a.currentBid)}</span>
                     </div>
-                    <div style={{fontSize:11,fontWeight:700,color:"#f0a0a0",fontFamily:"'Spectral',serif"}}>{timeLeft(a.endsAt)}</div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#f0a0a0",fontFamily:"'Inter',sans-serif"}}>{timeLeft(a.endsAt)}</div>
                   </div>
                 </div>
                 {/* ROW 2: bid input + buttons */}
@@ -4022,8 +4023,8 @@ function Auctions({ ctx }) {
                 <div className={`auction-img rarity-${a.rarity||"epic"}`} style={a.rarity==="kari"?{backgroundImage:`url(${KARI_BG})`}:{}}>
                   {a.image?<AuctionImage auction={a} alt={a.name} style={{width:"80%",height:"80%",objectFit:"contain",position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",filter:"drop-shadow(0 4px 16px rgba(0,0,0,0.7))"}} fallback={<StatIcon src={AUCTION_ICON} size={56}/>}/>:<StatIcon src={AUCTION_ICON} size={56}/>}
                   <div className="auction-timer pulse">{timeLeft(a.endsAt)}</div>
-                  {(()=>{const r=rc2;return(<div style={{position:"absolute",top:8,left:8,zIndex:10,background:r.bg,fontFamily:"'Spectral',serif",fontSize:10,fontWeight:700,padding:"3px 8px",border:`1px solid ${r.border}`,letterSpacing:1,color:r.color}}>{(a.rarity||"epic").toUpperCase()}</div>);})()}
-                  {isWinning&&<div style={{position:"absolute",bottom:8,right:8,background:"rgba(39,174,96,0.85)",color:"#fff",fontFamily:"'Spectral',serif",fontWeight:700,fontSize:9,padding:"3px 8px",letterSpacing:1.5,textTransform:"uppercase"}}>Winning</div>}
+                  {(()=>{const r=rc2;return(<div style={{position:"absolute",top:8,left:8,zIndex:10,background:r.bg,fontFamily:"'Inter',sans-serif",fontSize:10,fontWeight:700,padding:"3px 8px",border:`1px solid ${r.border}`,letterSpacing:1,color:r.color}}>{(a.rarity||"epic").toUpperCase()}</div>);})()}
+                  {isWinning&&<div style={{position:"absolute",bottom:8,right:8,background:"rgba(39,174,96,0.85)",color:"#fff",fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:9,padding:"3px 8px",letterSpacing:1.5,textTransform:"uppercase"}}>Winning</div>}
                 </div>
                 <div className="auction-body">
                   <div className="auction-name">{a.name}</div>
@@ -4035,10 +4036,10 @@ function Auctions({ ctx }) {
                       {a.topBidder ? (
                         <div style={{display:"inline-flex",alignItems:"center",gap:5,marginTop:5,background:"rgba(39,174,96,0.15)",border:"1px solid rgba(39,174,96,0.45)",padding:"3px 8px",borderRadius:2}}>
                           <TrophyIcon size={12} style={{color:"rgba(39,174,96,0.85)"}}/>
-                          <span style={{fontSize:12,color:"#6ee89a",fontWeight:800,fontFamily:"'Spectral',serif",letterSpacing:0.5}}>{a.topBidder}</span>
+                          <span style={{fontSize:12,color:"#6ee89a",fontWeight:800,fontFamily:"'Inter',sans-serif",letterSpacing:0.5}}>{a.topBidder}</span>
                         </div>
                       ) : (
-                        <div style={{marginTop:5,fontSize:11,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Spectral',serif"}}>No bids yet</div>
+                        <div style={{marginTop:5,fontSize:11,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Inter',sans-serif"}}>No bids yet</div>
                       )}
                     </div>
                     <div style={{textAlign:"right"}}>
@@ -4056,12 +4057,12 @@ function Auctions({ ctx }) {
                     <div style={{marginTop:10,fontSize:11,color:"var(--text-dim)",borderTop:"1px solid var(--border-dim)",paddingTop:8}}>
                       {(a.bids||[]).length>0
                         ? [...(a.bids||[])].reverse().slice(0,2).map((b,i)=>(
-                            <div key={i} style={{display:"flex",justifyContent:"space-between",fontFamily:"'Spectral',serif"}}>
+                            <div key={i} style={{display:"flex",justifyContent:"space-between",fontFamily:"'Inter',sans-serif"}}>
                               <span>{b.bidder}</span><span style={{color:"var(--gold)",fontWeight:700}}>{fmt(b.amount)}</span>
                             </div>
                           ))
                         : a.topBidder && (
-                            <div style={{display:"flex",justifyContent:"space-between",fontFamily:"'Spectral',serif"}}>
+                            <div style={{display:"flex",justifyContent:"space-between",fontFamily:"'Inter',sans-serif"}}>
                               <span>{a.topBidder}</span><span style={{color:"var(--gold)",fontWeight:700}}>{fmt(a.currentBid)}</span>
                             </div>
                           )
@@ -4077,7 +4078,7 @@ function Auctions({ ctx }) {
 
       {tab==="ended" && (
         <div>
-          {ended.length===0&&<div style={{color:"var(--text-dim)",textAlign:"center",padding:48,fontFamily:"'Spectral',serif"}}>No ended auctions.</div>}
+          {ended.length===0&&<div style={{color:"var(--text-dim)",textAlign:"center",padding:48,fontFamily:"'Inter',sans-serif"}}>No ended auctions.</div>}
           {ended.map(a=>{
             const rc={epic:{bg:"rgba(122,26,26,0.92)",color:"#ff8080",border:"rgba(192,57,43,0.5)"},rare:{bg:"rgba(26,90,138,0.92)",color:"#60aadd",border:"rgba(46,134,193,0.5)"},kari:{bg:"rgba(0,60,130,0.92)",color:"#a0d8ff",border:"rgba(100,200,255,0.6)"}};
             const rc2=rc[a.rarity]||rc.epic;
@@ -4088,7 +4089,7 @@ function Auctions({ ctx }) {
               </div>
               <div style={{flex:1}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                  <span style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:14,color:"var(--text-bright)"}}>{a.name}</span>
+                  <span style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:"var(--text-bright)"}}>{a.name}</span>
                   <span className={`badge badge-${a.rarity||"epic"}`}>{a.rarity||"epic"}</span>
                 </div>
                 <div style={{fontSize:12,color:"var(--text-dim)"}}>{a.desc}</div>
@@ -4096,8 +4097,8 @@ function Auctions({ ctx }) {
               {a.topBidder?(
                 <div className="winner-banner" style={{minWidth:150,padding:"10px 16px"}}>
                   <div style={{fontSize:9,color:"var(--gold-dim)",letterSpacing:3,fontWeight:700,textTransform:"uppercase"}}>Winner</div>
-                  <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:15,color:"var(--gold-light)"}}>{a.topBidder}</div>
-                  <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13,color:"var(--gold)"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={28}/>{fmt(a.currentBid)}</span></div>
+                  <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:15,color:"var(--gold-light)"}}>{a.topBidder}</div>
+                  <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:"var(--gold)"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={28}/>{fmt(a.currentBid)}</span></div>
                 </div>
               ):(
                 <span className="badge badge-silver">No Winner</span>
@@ -4138,8 +4139,8 @@ function Auctions({ ctx }) {
                     <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,var(--gold),transparent)"}} />
                     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
                       <div style={{width:8,height:8,borderRadius:"50%",background:"#27ae60",boxShadow:"0 0 8px #27ae60",animation:"pulse 1s infinite",flexShrink:0}} />
-                      <span style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:15,color:"var(--gold-light)",letterSpacing:1,display:"inline-flex",alignItems:"center",gap:6}}><SwordsIcon size={14}/>Loot Just Rolled!</span>
-                      <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>{latest.eventLabel} · {latest.date}</span>
+                      <span style={{fontFamily:"'Inter',sans-serif",fontWeight:900,fontSize:15,color:"var(--gold-light)",letterSpacing:1,display:"inline-flex",alignItems:"center",gap:6}}><SwordsIcon size={14}/>Loot Just Rolled!</span>
+                      <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{latest.eventLabel} · {latest.date}</span>
                       <button className="btn btn-ghost btn-sm" style={{marginLeft:"auto",fontSize:10}} onClick={()=>setLrLatestId(null)}>✕ Dismiss</button>
                     </div>
                     <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
@@ -4147,7 +4148,7 @@ function Auctions({ ctx }) {
                         const grp=r.items.reduce((a,n)=>{a[n]=(a[n]||0)+1;return a;},{});
                         return(
                           <div key={ri} style={{background:"rgba(10,8,6,0.7)",border:"1px solid rgba(200,146,42,0.25)",borderRadius:5,padding:"8px 12px",minWidth:130}}>
-                            <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:12,color:r.items.length?"var(--gold-light)":"var(--text-dim)",marginBottom:4,display:"flex",justifyContent:"space-between",gap:6}}>
+                            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:12,color:r.items.length?"var(--gold-light)":"var(--text-dim)",marginBottom:4,display:"flex",justifyContent:"space-between",gap:6}}>
                               <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.memberName}</span>
                               <span style={{fontSize:9,color:"rgba(200,146,42,0.5)",flexShrink:0}}>{r.items.length}pc</span>
                             </div>
@@ -4156,7 +4157,7 @@ function Auctions({ ctx }) {
                               : Object.entries(grp).map(([name,qty],j)=>(
                                   <div key={j} style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--text-dim)"}}>
                                     <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</span>
-                                    <span style={{fontFamily:"'Spectral',serif",fontWeight:900,color:qty>1?"var(--gold-light)":"rgba(180,150,100,0.4)",flexShrink:0,marginLeft:4}}>×{qty}</span>
+                                    <span style={{fontFamily:"'Inter',sans-serif",fontWeight:900,color:qty>1?"var(--gold-light)":"rgba(180,150,100,0.4)",flexShrink:0,marginLeft:4}}>×{qty}</span>
                                   </div>
                                 ))
                             }
@@ -4171,7 +4172,7 @@ function Auctions({ ctx }) {
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <div style={{width:7,height:7,borderRadius:"50%",background:"#27ae60",boxShadow:"0 0 6px #27ae60",animation:"pulse 2s infinite"}}/>
-                  <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>Auto-refreshes every 10s</span>
+                  <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>Auto-refreshes every 10s</span>
                 </div>
                 <button className="btn btn-ghost btn-sm" onClick={async ()=>{
                   const rows=await dbLoad("loot_results");
@@ -4207,11 +4208,11 @@ function Auctions({ ctx }) {
                         <option value="oldest">Oldest First</option>
                       </select>
                     </div>
-                    <div style={{fontSize:10,color:"var(--text-dim)",marginBottom:12,fontFamily:"'Spectral',serif",fontStyle:"italic"}}>
+                    <div style={{fontSize:10,color:"var(--text-dim)",marginBottom:12,fontFamily:"'Inter',sans-serif",fontStyle:"italic"}}>
                       {filtered.length} session{filtered.length!==1?"s":""} · History auto-clears every week
                     </div>
                     {filtered.length===0&&(
-                      <div className="card" style={{textAlign:"center",padding:32,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>
+                      <div className="card" style={{textAlign:"center",padding:32,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
                         No sessions match this filter.
                       </div>
                     )}
@@ -4231,8 +4232,8 @@ function Auctions({ ctx }) {
                           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
                             <div style={{display:"flex",alignItems:"center",gap:10}}>
                               <div style={{width:8,height:8,borderRadius:"50%",background:evColor,boxShadow:`0 0 6px ${evColor}`,flexShrink:0}} />
-                              <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:14,color:"var(--gold-light)"}}>{entry.eventLabel||"Loot Distribution"}</div>
-                              <span style={{fontSize:10,color:"rgba(200,146,42,0.6)",fontFamily:"'Spectral',serif"}}>{entry.date}</span>
+                              <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:14,color:"var(--gold-light)"}}>{entry.eventLabel||"Loot Distribution"}</div>
+                              <span style={{fontSize:10,color:"rgba(200,146,42,0.6)",fontFamily:"'Inter',sans-serif"}}>{entry.date}</span>
                             </div>
                             <div style={{display:"flex",alignItems:"center",gap:10}}>
                               <span style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1}}>{entry.results.length} participants</span>
@@ -4244,21 +4245,21 @@ function Auctions({ ctx }) {
                               const grp=r.items.reduce((a,n)=>{a[n]=(a[n]||0)+1;return a;},{});
                               return(
                                 <div key={ri} style={{background:"rgba(10,8,6,0.6)",border:"1px solid var(--border-dim)",borderRadius:6,padding:"8px 12px",minWidth:140,maxWidth:220}}>
-                                  <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:12,color:"var(--gold-light)",marginBottom:4,display:"flex",justifyContent:"space-between",alignItems:"center",gap:6}}>
+                                  <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:12,color:"var(--gold-light)",marginBottom:4,display:"flex",justifyContent:"space-between",alignItems:"center",gap:6}}>
                                     <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.memberName}</span>
                                     <span style={{fontSize:9,color:"rgba(200,146,42,0.55)",fontWeight:700,flexShrink:0}}>{r.items.length}pc</span>
                                   </div>
                                   {Object.entries(grp).map(([name,qty],j)=>(
                                     <div key={j} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:6,fontSize:11,color:"var(--text-dim)",padding:"1px 0"}}>
                                       <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</span>
-                                      <span style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:11,color:qty>1?"var(--gold-light)":"rgba(180,150,100,0.4)",flexShrink:0}}>×{qty}</span>
+                                      <span style={{fontFamily:"'Inter',sans-serif",fontWeight:900,fontSize:11,color:qty>1?"var(--gold-light)":"rgba(180,150,100,0.4)",flexShrink:0}}>×{qty}</span>
                                     </div>
                                   ))}
                                 </div>
                               );
                             })}
                             {entry.results.filter(r=>r.items.length===0).length>0&&(
-                              <div style={{alignSelf:"center",fontSize:10,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Spectral',serif"}}>
+                              <div style={{alignSelf:"center",fontSize:10,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Inter',sans-serif"}}>
                                 No loot: {entry.results.filter(r=>r.items.length===0).map(r=>r.memberName).join(", ")}
                               </div>
                             )}
@@ -4270,7 +4271,7 @@ function Auctions({ ctx }) {
                 );
               })()}
               {lrHistory.length===0&&(
-                <div className="card" style={{textAlign:"center",padding:48,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>
+                <div className="card" style={{textAlign:"center",padding:48,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
                   <div style={{fontSize:36,marginBottom:10}}>📜</div>
                   <div>No roulette history yet.</div>
                   <div style={{fontSize:11,marginTop:6}}>History auto-clears every week to keep things tidy.</div>
@@ -4292,7 +4293,7 @@ function Auctions({ ctx }) {
                   {/* Auto-import from attendance log */}
                   {attendanceLogs.length>0&&(
                     <div style={{marginBottom:14}}>
-                      <label style={{fontSize:10,color:"var(--gold-dim)",letterSpacing:2,textTransform:"uppercase",fontWeight:700,fontFamily:"'Spectral',serif",display:"block",marginBottom:6}}>Import from Attendance Log</label>
+                      <label style={{fontSize:10,color:"var(--gold-dim)",letterSpacing:2,textTransform:"uppercase",fontWeight:700,fontFamily:"'Inter',sans-serif",display:"block",marginBottom:6}}>Import from Attendance Log</label>
                       <div style={{display:"flex",gap:8,alignItems:"center"}}>
                         <select className="select" style={{flex:1,fontSize:12}}
                           value={lrSelectedLog}
@@ -4318,17 +4319,17 @@ function Auctions({ ctx }) {
                           ))}
                         </select>
                       </div>
-                      <div style={{fontSize:10,color:"var(--text-dim)",marginTop:5,fontFamily:"'Spectral',serif",fontStyle:"italic"}}>Selecting a log auto-fills the event name, date, and marks all non-AFK attendees.</div>
+                      <div style={{fontSize:10,color:"var(--text-dim)",marginTop:5,fontFamily:"'Inter',sans-serif",fontStyle:"italic"}}>Selecting a log auto-fills the event name, date, and marks all non-AFK attendees.</div>
                     </div>
                   )}
 
                   <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
                     <div style={{flex:"1 1 160px"}}>
-                      <label style={{fontSize:10,color:"var(--gold-dim)",letterSpacing:2,textTransform:"uppercase",fontWeight:700,fontFamily:"'Spectral',serif",display:"block",marginBottom:5}}>Event Name</label>
+                      <label style={{fontSize:10,color:"var(--gold-dim)",letterSpacing:2,textTransform:"uppercase",fontWeight:700,fontFamily:"'Inter',sans-serif",display:"block",marginBottom:5}}>Event Name</label>
                       <input className="input" placeholder="e.g. World Boss, ISB…" value={lrEventLabel} onChange={e=>setLrEventLabel(e.target.value)} style={{width:"100%"}} />
                     </div>
                     <div style={{flex:"0 1 140px"}}>
-                      <label style={{fontSize:10,color:"var(--gold-dim)",letterSpacing:2,textTransform:"uppercase",fontWeight:700,fontFamily:"'Spectral',serif",display:"block",marginBottom:5}}>Date</label>
+                      <label style={{fontSize:10,color:"var(--gold-dim)",letterSpacing:2,textTransform:"uppercase",fontWeight:700,fontFamily:"'Inter',sans-serif",display:"block",marginBottom:5}}>Date</label>
                       <input className="input" type="date" value={lrEventDate} onChange={e=>setLrEventDate(e.target.value)} style={{width:"100%"}} />
                     </div>
                   </div>
@@ -4355,7 +4356,7 @@ function Auctions({ ctx }) {
                   <div style={{display:"flex",gap:6,marginBottom:10}}>
                     <button className="btn btn-outline btn-sm" onClick={()=>setLrPresent(Object.fromEntries(members.map(m=>[m.id,true])))}>Select All</button>
                     <button className="btn btn-ghost btn-sm" onClick={()=>setLrPresent({})}>Unselect All</button>
-                    <span style={{marginLeft:"auto",fontFamily:"'Spectral',serif",fontSize:11,color:"var(--gold)",fontWeight:700}}>{lrPresentList.length} selected</span>
+                    <span style={{marginLeft:"auto",fontFamily:"'Inter',sans-serif",fontSize:11,color:"var(--gold)",fontWeight:700}}>{lrPresentList.length} selected</span>
                   </div>
                   <div style={{maxHeight:280,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
                     {members.filter(m=>m.name.toLowerCase().includes((lrMemberSearch||"").toLowerCase())).map(m=>(
@@ -4370,7 +4371,7 @@ function Auctions({ ctx }) {
                         </div>
                         <ClassIcon cls={m.cls} size={28}/>
                         <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:12,color:"var(--text-bright)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.name}</div>
+                          <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:12,color:"var(--text-bright)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.name}</div>
                           <div style={{fontSize:9,color:"var(--text-dim)"}}>{m.cls}</div>
                         </div>
                       </div>
@@ -4387,15 +4388,15 @@ function Auctions({ ctx }) {
                     <input className="input" type="number" min={1} value={lrNewQty} onChange={e=>setLrNewQty(e.target.value)} style={{width:64}}/>
                     <button className="btn btn-gold btn-sm" onClick={lrAddItem}>+ Add</button>
                   </div>
-                  {lrItems.length===0&&<div style={{color:"var(--text-dim)",fontSize:12,fontFamily:"'Spectral',serif",textAlign:"center",padding:"16px 0"}}>No items added yet.</div>}
+                  {lrItems.length===0&&<div style={{color:"var(--text-dim)",fontSize:12,fontFamily:"'Inter',sans-serif",textAlign:"center",padding:"16px 0"}}>No items added yet.</div>}
                   {lrItems.map(item=>(
                     <div key={item.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid var(--border-dim)"}}>
-                      <div style={{flex:1,fontFamily:"'Spectral',serif",fontSize:12,color:"var(--text)"}}>{item.name}</div>
+                      <div style={{flex:1,fontFamily:"'Inter',sans-serif",fontSize:12,color:"var(--text)"}}>{item.name}</div>
                       <input className="input" type="number" min={1} value={item.qty} onChange={e=>lrUpdateQty(item.id,parseInt(e.target.value)||1)} style={{width:52,padding:"3px 6px",fontSize:11}}/>
                       <button className="btn btn-ghost btn-sm" onClick={()=>lrRemoveItem(item.id)}>✕</button>
                     </div>
                   ))}
-                  {lrItems.length>0&&<div style={{marginTop:8,fontSize:11,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>{lrTotalQty} total items · {lrPresentList.length} members</div>}
+                  {lrItems.length>0&&<div style={{marginTop:8,fontSize:11,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{lrTotalQty} total items · {lrPresentList.length} members</div>}
                 </div>
                 <div className="card card-red">
                   <button className="btn btn-red" style={{width:"100%",fontSize:15,padding:"14px 0",letterSpacing:2,justifyContent:"center",display:"flex",alignItems:"center",gap:8}} onClick={()=>{lrDistribute();}} disabled={lrSpinning}>
@@ -4425,7 +4426,7 @@ function Auctions({ ctx }) {
                     background:newAuction.rarity===r.value?r.bg:"rgba(10,11,15,0.6)",
                     border:`1px solid ${newAuction.rarity===r.value?r.border:"var(--border)"}`,
                     color:newAuction.rarity===r.value?r.color:"var(--text-dim)",
-                    fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13,
+                    fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,
                     transition:"all 0.2s"}}>
                   {r.label}
                 </div>
@@ -4459,7 +4460,7 @@ function Auctions({ ctx }) {
               </div>
               <div>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                  <span style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:14,color:"var(--text-bright)"}}>{newAuction.name||"Item Name"}</span>
+                  <span style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:"var(--text-bright)"}}>{newAuction.name||"Item Name"}</span>
                   <span className={`badge badge-${newAuction.rarity}`}>{newAuction.rarity}</span>
                 </div>
                 <div style={{fontSize:12,color:"var(--text-dim)"}}>{newAuction.desc||"Description…"}</div>
@@ -4496,10 +4497,10 @@ function LBList({ data, valueKey, label, format, color, currentUser }) {
             borderRadius:4,padding:"8px 12px",marginBottom:14,
             display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"
           }}>
-            <span style={{fontSize:10,color:"rgba(200,146,42,0.7)",fontFamily:"'Spectral',serif",fontWeight:700,letterSpacing:2,textTransform:"uppercase",flexShrink:0}}>Your Rank</span>
+            <span style={{fontSize:10,color:"rgba(200,146,42,0.7)",fontFamily:"'Inter',sans-serif",fontWeight:700,letterSpacing:2,textTransform:"uppercase",flexShrink:0}}>Your Rank</span>
             <span style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:18,color:"var(--gold-light)",flexShrink:0}}>#{myRank+1}</span>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>
+              <div style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
                 {format?format(myEntry[valueKey]):myEntry[valueKey]}
                 {myRank>0&&<span style={{marginLeft:8,fontSize:10,color:"rgba(200,146,42,0.5)"}}>
                   {valueKey==="coins"?`${fmt(data[myRank-1][valueKey]-myEntry[valueKey])} behind #${myRank}`:
@@ -4536,7 +4537,7 @@ function LBList({ data, valueKey, label, format, color, currentUser }) {
         {/* Pagination */}
         {totalPages>1&&(
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:12,paddingTop:10,borderTop:"1px solid var(--border-dim)",flexWrap:"wrap",gap:8}}>
-            <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>
+            <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
               {page*LB_PAGE+1}–{Math.min((page+1)*LB_PAGE,data.length)} of {data.length}
             </span>
             <div style={{display:"flex",gap:6}}>
@@ -4619,7 +4620,7 @@ function Export({ ctx }) {
   return (
     <div>
       <div className="card card-gold" style={{marginBottom:24}}>
-        <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:16,color:"var(--gold-light)",marginBottom:6}}>📤 Data Export Center</div>
+        <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:16,color:"var(--gold-light)",marginBottom:6}}>📤 Data Export Center</div>
         <div style={{color:"var(--text-dim)",fontSize:13}}>Download clan data as CSV files for external analysis or record keeping.</div>
       </div>
       <div className="grid-2">
@@ -4627,7 +4628,7 @@ function Export({ ctx }) {
           <div key={i} className="card" style={{display:"flex",gap:16,alignItems:"flex-start"}}>
             <div style={{fontSize:34,filter:"drop-shadow(0 0 6px rgba(201,151,42,0.3))"}}>{ex.icon}</div>
             <div style={{flex:1}}>
-              <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:14,color:"var(--text-bright)",marginBottom:4}}>{ex.title}</div>
+              <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:"var(--text-bright)",marginBottom:4}}>{ex.title}</div>
               <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:12}}>{ex.desc}</div>
               <button className="btn btn-gold btn-sm" onClick={ex.action}>Download CSV</button>
             </div>
@@ -4716,13 +4717,13 @@ function Settings({ ctx }) {
     <div>
       <div className="grid-2">
         <div className="card card-red">
-          <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:15,color:"#e07070",marginBottom:8}}>Coin Decay</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:15,color:"#e07070",marginBottom:8}}>Coin Decay</div>
           <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12,lineHeight:1.7}}>Auto-triggers every Tuesday at 7:00 AM. Removes 5% of each member's coins. You can also trigger it manually below.</div>
           <div style={{fontSize:13,color:"var(--text)",marginBottom:16}}>Avg coins: <strong style={{color:"var(--gold)"}}>{fmt(Math.floor(members.reduce((s,m)=>s+m.coins,0)/members.length))}</strong></div>
           <button className="btn btn-red" onClick={triggerDecay}>Trigger Weekly Decay</button>
         </div>
         <div className="card card-blue">
-          <div style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:15,color:"#60aadd",marginBottom:8}}>Attendance Reset</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:15,color:"#60aadd",marginBottom:8}}>Attendance Reset</div>
           <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12,lineHeight:1.7}}>Reset all member attendance counts for the new week.</div>
           <div style={{fontSize:13,color:"var(--text)",marginBottom:16}}>Total records: <strong style={{color:"#60aadd"}}>{members.reduce((s,m)=>s+m.attendance,0)}</strong></div>
           <button className="btn btn-blue" onClick={resetAttendance}>Reset Weekly Attendance</button>
@@ -4734,9 +4735,9 @@ function Settings({ ctx }) {
           <thead><tr><th>Event</th><th>ID</th><th>Coins</th></tr></thead>
           <tbody>{EVENTS.map(ev=>(
             <tr key={ev.id}>
-              <td data-label="Event" style={{fontFamily:"'Spectral',serif",fontWeight:600}}>{ev.name}</td>
+              <td data-label="Event" style={{fontFamily:"'Inter',sans-serif",fontWeight:600}}>{ev.name}</td>
               <td data-label="ID"><span className="badge badge-silver">{ev.id}</span></td>
-              <td data-label="Coins" style={{color:"var(--gold)",fontFamily:"'Spectral',serif",fontWeight:800}}>{ev.coins}</td>
+              <td data-label="Coins" style={{color:"var(--gold)",fontFamily:"'Inter',sans-serif",fontWeight:800}}>{ev.coins}</td>
             </tr>
           ))}</tbody>
         </table></div>
@@ -4747,9 +4748,9 @@ function Settings({ ctx }) {
           <thead><tr><th>Member</th><th>Class</th><th>Power</th><th>Discord</th><th>Role</th><th>Action</th></tr></thead>
           <tbody>{members.filter(m=>m.id!==currentUser.id).map(m=>(
             <tr key={m.id}>
-              <td data-label="Member" style={{fontFamily:"'Spectral',serif",fontWeight:700}}>{m.name}</td>
+              <td data-label="Member" style={{fontFamily:"'Inter',sans-serif",fontWeight:700}}>{m.name}</td>
               <td data-label="Class" style={{fontWeight:500,fontSize:12}}>{m.cls}</td>
-              <td data-label="Power" style={{fontFamily:"'Spectral',serif",fontWeight:700,color:"#a8b8c8"}}><span style={{display:"inline-flex",alignItems:"center",gap:5}}><PowerIcon size={14} />{fmt(m.power)}</span></td>
+              <td data-label="Power" style={{fontFamily:"'Inter',sans-serif",fontWeight:700,color:"#a8b8c8"}}><span style={{display:"inline-flex",alignItems:"center",gap:5}}><PowerIcon size={14} />{fmt(m.power)}</span></td>
               <td data-label="Discord">{m.discord?<span className="discord-tag">🎮 {m.discord}</span>:<span style={{color:"var(--text-dim)",fontSize:12}}>—</span>}</td>
               <td data-label="Role"><span className={`badge ${m.role==="Master"?"badge-gold":m.role==="Elder"?"badge-red":"badge-silver"}`}>{m.role}</span></td>
               <td data-label="Action"><div style={{display:"flex",gap:6}}>
@@ -4823,7 +4824,7 @@ function AdjustCoinsModal({ ctx }) {
           {isElder && !isMaster && (
             <div style={{background:"rgba(201,151,42,0.1)",border:"1px solid rgba(201,151,42,0.35)",borderRadius:6,padding:"10px 14px",marginBottom:16,display:"flex",alignItems:"center",gap:8}}>
               <span style={{fontSize:16}}>⏳</span>
-              <span style={{fontSize:12,color:"#c8922a",fontFamily:"'Spectral',serif",fontWeight:600}}>As an Elder, your coin adjustments require Master approval before taking effect.</span>
+              <span style={{fontSize:12,color:"#c8922a",fontFamily:"'Inter',sans-serif",fontWeight:600}}>As an Elder, your coin adjustments require Master approval before taking effect.</span>
             </div>
           )}
           <div style={{textAlign:"center",marginBottom:20,fontFamily:"'Spectral',serif",fontWeight:800,fontSize:24,color:"var(--gold-light)"}}>Current: <span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={28}/>{fmt(member.coins)}</span></div>
@@ -4853,13 +4854,13 @@ function PendingRequestsModal({ ctx }) {
         </div>
         <div className="modal-body" style={{maxHeight:400,overflowY:"auto"}}>
           {pendingCoinRequests.length===0 && (
-            <div style={{textAlign:"center",padding:"32px 0",color:"var(--text-dim)",fontFamily:"'Spectral',serif",fontSize:14}}>No pending requests.</div>
+            <div style={{textAlign:"center",padding:"32px 0",color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",fontSize:14}}>No pending requests.</div>
           )}
           {pendingCoinRequests.map(req => (
             <div key={req.id} style={{background:"rgba(20,16,12,0.8)",border:"1px solid rgba(201,151,42,0.25)",borderRadius:6,padding:"14px 16px",marginBottom:10}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-                <span style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:14,color:"var(--gold-light)"}}>{req.memberName}</span>
-                <span style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:16,color:req.type==="add"?"#6dbf76":"#e07070"}}>{req.type==="add"?"+":"-"}{fmt(req.amount)} coins</span>
+                <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:14,color:"var(--gold-light)"}}>{req.memberName}</span>
+                <span style={{fontFamily:"'Inter',sans-serif",fontWeight:900,fontSize:16,color:req.type==="add"?"#6dbf76":"#e07070"}}>{req.type==="add"?"+":"-"}{fmt(req.amount)} coins</span>
               </div>
               <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:4}}>Reason: <span style={{color:"var(--text)"}}>{req.reason}</span></div>
               <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:10}}>Requested by <span style={{color:"#c8922a"}}>{req.requestedBy}</span> · {req.requestedAt}</div>
@@ -4954,7 +4955,7 @@ function RenameMemberModal({ ctx }) {
         </div>
         <div className="modal-body">
           {err && <div className="login-error" style={{marginBottom:14}}>{err}</div>}
-          <div style={{marginBottom:14,fontSize:12,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>
+          <div style={{marginBottom:14,fontSize:12,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
             Current name: <span style={{color:"var(--gold-light)",fontWeight:700}}>{target.name}</span>
           </div>
           <div className="form-group">
@@ -5051,12 +5052,12 @@ function DeleteAttendanceModal({ ctx }) {
           <button className="btn btn-ghost" onClick={()=>setModal(null)}>✕</button>
         </div>
         <div className="modal-body">
-          <div style={{marginBottom:14,fontFamily:"'Spectral',serif",fontSize:13,color:"var(--text)"}}>
+          <div style={{marginBottom:14,fontFamily:"'Inter',sans-serif",fontSize:13,color:"var(--text)"}}>
             This will permanently delete <span style={{color:"var(--gold-light)",fontWeight:700}}>{log.event}</span> ({formatLogDateTime(log)}) from the history and automatically deduct the coins it awarded from every participant — including any bonus it triggered.
           </div>
           <div style={{background:"rgba(122,26,26,0.12)",border:"1px solid rgba(224,112,112,0.3)",borderRadius:4,padding:"12px 14px",marginBottom:6}}>
             <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:6,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700}}>This will affect</div>
-            <div style={{fontFamily:"'Spectral',serif",fontSize:13,fontWeight:700,color:"#e07070"}}>{affected.length} member(s) · −{fmt(totalRefund)} coins total</div>
+            <div style={{fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:700,color:"#e07070"}}>{affected.length} member(s) · −{fmt(totalRefund)} coins total</div>
           </div>
         </div>
         <div className="modal-footer">
@@ -5154,7 +5155,7 @@ function AddMissingAttendanceModal({ ctx }) {
           <button className="btn btn-ghost" onClick={()=>setModal(null)}>✕</button>
         </div>
         <div className="modal-body">
-          <div style={{marginBottom:14,fontFamily:"'Spectral',serif",fontSize:12,color:"var(--text-dim)"}}>
+          <div style={{marginBottom:14,fontFamily:"'Inter',sans-serif",fontSize:12,color:"var(--text-dim)"}}>
             Backfill a History row for an attendance that was recorded outside the normal flow.
           </div>
           {err && <div className="login-error" style={{marginBottom:12}}>{err}</div>}
@@ -5164,7 +5165,7 @@ function AddMissingAttendanceModal({ ctx }) {
               <button type="button" className={`btn btn-sm ${payoutMode==="none"?"btn-gold":"btn-outline"}`} style={{flex:1}} onClick={()=>setPayoutMode("none")}>Coins Untouched</button>
               <button type="button" className={`btn btn-sm ${payoutMode==="distribute"?"btn-gold":"btn-outline"}`} style={{flex:1}} onClick={()=>setPayoutMode("distribute")}>Distribute Coins</button>
             </div>
-            <div style={{marginTop:8,fontSize:11,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>
+            <div style={{marginTop:8,fontSize:11,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
               {payoutMode==="distribute"
                 ? <>Pays out coins (and any qualifying bonus) to everyone selected below, exactly like a normal attendance submission — use this when the attendance never actually paid out at all.</>
                 : <>Creates the History row only — <strong style={{color:"var(--gold-light)"}}>no coins, attendance counts, or bonuses change.</strong> Use this when the payout already happened and only the row is missing.</>}
@@ -5188,7 +5189,7 @@ function AddMissingAttendanceModal({ ctx }) {
                 <div key={m.id} onClick={()=>toggle(m.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",cursor:"pointer",background:selected[m.id]?"rgba(201,151,42,0.1)":"transparent",borderBottom:"1px solid var(--border-dim)"}}>
                   <input type="checkbox" checked={!!selected[m.id]} onChange={()=>toggle(m.id)} onClick={e=>e.stopPropagation()} />
                   <ClassIcon cls={m.cls} size={22} />
-                  <span style={{flex:1,fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13}}>{m.name}</span>
+                  <span style={{flex:1,fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13}}>{m.name}</span>
                   {selected[m.id] && (
                     <select className="select" style={{width:"auto",padding:"3px 8px",fontSize:11}} value={qualifierMap[m.id]||"full"} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();setQualifierMap(p=>({...p,[m.id]:e.target.value}));}}>
                       <option value="full">Full</option><option value="late">Late</option><option value="afk">AFK</option>
