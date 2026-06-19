@@ -2320,6 +2320,7 @@ export default function App() {
       {modal?.type==="changePassword" && <ChangePasswordModal ctx={ctx} />}
       {modal?.type==="renameMember"   && <RenameMemberModal ctx={ctx} />}
       {modal?.type==="deleteAttendance" && <DeleteAttendanceModal ctx={ctx} />}
+      {modal?.type==="addMissingAttendance" && <AddMissingAttendanceModal ctx={ctx} />}
       <Toast toasts={toasts} remove={removeToast} />
     </>
   );
@@ -3063,6 +3064,104 @@ function getRankMultiplier(members, memberId) {
   if (rank >= 21 && rank <= 30) return 1.03;
   return 1.00; // rank 31–50+
 }
+// Monday-00:00 week start for an arbitrary reference date, used by
+// performAttendancePayout so a backdated attendance entry's bonus
+// eligibility is computed relative to ITS OWN week, not the current one.
+function getWeekStartFor(refDate) {
+  const now = new Date(refDate);
+  const day = now.getDay(); // 0=Sun
+  const diff = day===0 ? 6 : day-1;
+  const mon = new Date(now); mon.setHours(0,0,0,0); mon.setDate(now.getDate()-diff);
+  return mon;
+}
+// ─── SHARED ATTENDANCE PAYOUT LOGIC ───────────────────────────────────────────
+// Single source of truth for "what does attending this event pay out,
+// including bonuses" — used by both the live Attendance submit flow and the
+// Master's "Add Missing Record" backfill (when the Master chooses to
+// distribute coins rather than record-only). Keeping this in one place means
+// the backfill path can never drift out of sync with the real payout math.
+//
+// params: { ev: EVENTS entry, date: locale date string, ts: ms timestamp,
+//           present: [memberId], qualifierMap: {memberId: "full"|"late"|"afk"} }
+// Returns { updatedMembers, bonusToasts, presentNames } — caller is
+// responsible for calling setMembers(updatedMembers) and showing toasts.
+function performAttendancePayout(members, { ev, date, ts, present, qualifierMap }) {
+  const weekStart = getWeekStartFor(date);
+  const EVENT_REQUIRED = { CA: 2, STI: 2, WB: 3 };
+  const totalEvents = EVENTS.length;
+  function getAttendedIds(log) {
+    const weekLog = log.filter(e=>{ const d=new Date(e.date); return !isNaN(d)&&d>=weekStart; });
+    const counts = {};
+    weekLog.filter(e=>e.qualifier!=="afk").forEach(e=>{
+      const evObj=EVENTS.find(x=>x.name===e.event); if(evObj?.id){ counts[evObj.id]=(counts[evObj.id]||0)+1; }
+    });
+    const ids = new Set();
+    Object.entries(counts).forEach(([id,count])=>{ if(count>=(EVENT_REQUIRED[id]||1)) ids.add(id); });
+    return ids;
+  }
+  function alreadyReceivedThisWeek(txLog, bonusLabel) {
+    return (txLog||[]).some(tx=>tx.logType===bonusLabel && tx.date && new Date(tx.date)>=weekStart);
+  }
+  const presentNames = present.map(id => {
+    const m = members.find(x=>x.id===id);
+    const q = qualifierMap[id]||"full";
+    const mult=q==="full"?1:q==="late"?0.5:0;
+    const rankMult=getRankMultiplier(members,id);
+    const earned=Math.floor(ev.coins*mult*rankMult);
+    return {name:m?.name, qualifier:q, earned};
+  });
+  const bonusToasts = [];
+  const updatedMembers = members.map(m=>{
+    if(!present.includes(m.id)) return m;
+    const q=qualifierMap[m.id]||"full";
+    const mult=q==="full"?1:q==="late"?0.5:0;
+    const rankMult=getRankMultiplier(members,m.id);
+    const earned=Math.floor(ev.coins*mult*rankMult);
+    const newAttendLog=[...(m.attendLog||[]),{event:ev.name,coins:earned,date,qualifier:q,ts}];
+    let bonusCoins = 0;
+    const newTxLog = [...(m.txLog||[])];
+    // ── Major Events bonus (+300) ──
+    const prevAttended = getAttendedIds(m.attendLog||[]);
+    const newAttended  = getAttendedIds(newAttendLog);
+    if(newAttended.size>=totalEvents && prevAttended.size<totalEvents && !alreadyReceivedThisWeek(m.txLog,"Major Events Bonus")) {
+      bonusCoins += 300;
+      newTxLog.push({change:300,reason:"Attended all major events this week",date,logType:"Major Events Bonus",addedBy:"System",ts});
+      bonusToasts.push({name:m.name,bonus:"Major Events",coins:300});
+    }
+    // ── ISB Veteran bonus (+500) ──
+    const isbCountNew = newAttendLog.filter(e=>e.event==="Inter-Server Battle"&&e.qualifier!=="afk").length;
+    const isbCountOld = (m.attendLog||[]).filter(e=>e.event==="Inter-Server Battle"&&e.qualifier!=="afk").length;
+    if(isbCountNew>=10 && isbCountOld<10 && !alreadyReceivedThisWeek(m.txLog,"ISB Veteran Bonus")) {
+      bonusCoins += 500;
+      newTxLog.push({change:500,reason:"Reached 10 ISB events (ISB Veteran)",date,logType:"ISB Veteran Bonus",addedBy:"System",ts});
+      bonusToasts.push({name:m.name,bonus:"ISB Veteran",coins:500});
+    }
+    // ── Sindri Veteran bonus (+400) — 2 STI/week for 5 weeks ──
+    function getISOWeekSV(dateStr) {
+      const d = new Date(dateStr); if(isNaN(d)) return null;
+      const thu = new Date(d); thu.setDate(d.getDate() - ((d.getDay()+6)%7) + 3);
+      const jan4 = new Date(thu.getFullYear(),0,4);
+      return thu.getFullYear()+"W"+Math.ceil(((thu-jan4)/86400000+1)/7);
+    }
+    function countStiQualWeeks(log) {
+      const byWeek = {};
+      log.filter(e=>e.event==="Sindris Treasure Island"&&e.qualifier!=="afk").forEach(e=>{
+        const wk=getISOWeekSV(e.date); if(wk){ byWeek[wk]=(byWeek[wk]||0)+1; }
+      });
+      return Object.values(byWeek).filter(c=>c>=2).length;
+    }
+    const stiWeeksOld = countStiQualWeeks(m.attendLog||[]);
+    const stiWeeksNew = countStiQualWeeks(newAttendLog);
+    if(stiWeeksNew>=5 && stiWeeksOld<5 && !(m.txLog||[]).some(tx=>tx.logType==="Sindri Veteran Bonus")) {
+      bonusCoins += 400;
+      newTxLog.push({change:400,reason:"Attended 2 Sindri's per week for 5 weeks",date,logType:"Sindri Veteran Bonus",addedBy:"System",ts});
+      bonusToasts.push({name:m.name,bonus:"Sindri Veteran",coins:400});
+    }
+    return{...m,coins:m.coins+earned+bonusCoins,attendance:m.attendance+(q!=="afk"?1:0),
+      attendLog:newAttendLog,txLog:newTxLog};
+  });
+  return { updatedMembers, bonusToasts, presentNames };
+}
 
 // ─── ATTENDANCE ───────────────────────────────────────────────────────────────
 function Attendance({ ctx }) {
@@ -3092,87 +3191,23 @@ function Attendance({ ctx }) {
     if(present.length===0){addToast("No members selected.","red","Error");return;}
     const today = new Date().toLocaleDateString();
     const nowTs = Date.now();
-    const weekStart = getWeekStart();
-    const EVENT_REQUIRED = { CA: 2, STI: 2, WB: 3 };
-    const totalEvents = EVENTS.length;
-    // Helper: compute which bonus events a member has attended THIS week, given their projected attendLog
-    function getAttendedIds(log) {
-      const weekLog = log.filter(e=>{ const d=new Date(e.date); return !isNaN(d)&&d>=weekStart; });
-      const counts = {};
-      weekLog.filter(e=>e.qualifier!=="afk").forEach(e=>{
-        const evObj=EVENTS.find(ev=>ev.name===e.event); if(evObj?.id){ counts[evObj.id]=(counts[evObj.id]||0)+1; }
-      });
-      const ids = new Set();
-      Object.entries(counts).forEach(([id,count])=>{ if(count>=(EVENT_REQUIRED[id]||1)) ids.add(id); });
-      return ids;
-    }
-    // Helper: has member already received a specific bonus this week?
-    function alreadyReceivedThisWeek(txLog, bonusLabel) {
-      return (txLog||[]).some(tx=>tx.logType===bonusLabel && tx.date && new Date(tx.date)>=weekStart);
-    }
+    const qualifierMap = {...qualifier};
     const presentNames = present.map(id => {
       const m = members.find(x=>x.id===id);
-      const q = qualifier[id]||"full";
+      const q = qualifierMap[id]||"full";
       const mult=q==="full"?1:q==="late"?0.5:0;
       const rankMult=getRankMultiplier(members,id);
       const earned=Math.floor(ev.coins*mult*rankMult);
       return {name:m?.name, qualifier:q, earned};
     });
-    const bonusToasts = [];
-    setMembers(ms=>ms.map(m=>{
-      if(!present.includes(m.id)) return m;
-      const q=qualifier[m.id]||"full";
-      const mult=q==="full"?1:q==="late"?0.5:0;
-      const rankMult=getRankMultiplier(ms,m.id);
-      const earned=Math.floor(ev.coins*mult*rankMult);
-      // Build the projected attendLog after adding this attendance
-      const newAttendLog=[...(m.attendLog||[]),{event:ev.name,coins:earned,date:today,qualifier:q,ts:nowTs}];
-      let bonusCoins = 0;
-      const newTxLog = [...(m.txLog||[])];
-      // ── Major Events bonus (+500) ──
-      const prevAttended = getAttendedIds(m.attendLog||[]);
-      const newAttended  = getAttendedIds(newAttendLog);
-      if(newAttended.size>=totalEvents && prevAttended.size<totalEvents && !alreadyReceivedThisWeek(m.txLog,"Major Events Bonus")) {
-        bonusCoins += 300;
-        newTxLog.push({change:300,reason:"Attended all major events this week",date:today,logType:"Major Events Bonus",addedBy:"System",ts:nowTs});
-        bonusToasts.push({name:m.name,bonus:"Major Events",coins:300});
-      }
-      // ── ISB Veteran bonus (+1000) ──
-      const isbCountNew = newAttendLog.filter(e=>e.event==="Inter-Server Battle"&&e.qualifier!=="afk").length;
-      const isbCountOld = (m.attendLog||[]).filter(e=>e.event==="Inter-Server Battle"&&e.qualifier!=="afk").length;
-      if(isbCountNew>=10 && isbCountOld<10 && !alreadyReceivedThisWeek(m.txLog,"ISB Veteran Bonus")) {
-        bonusCoins += 500;
-        newTxLog.push({change:500,reason:"Reached 10 ISB events (ISB Veteran)",date:today,logType:"ISB Veteran Bonus",addedBy:"System",ts:nowTs});
-        bonusToasts.push({name:m.name,bonus:"ISB Veteran",coins:500});
-      }
-      // ── Sindri Veteran bonus (+400) — 2 STI/week for 5 weeks ──
-      function getISOWeekSV(dateStr) {
-        const d = new Date(dateStr); if(isNaN(d)) return null;
-        const thu = new Date(d); thu.setDate(d.getDate() - ((d.getDay()+6)%7) + 3);
-        const jan4 = new Date(thu.getFullYear(),0,4);
-        return thu.getFullYear()+"W"+Math.ceil(((thu-jan4)/86400000+1)/7);
-      }
-      function countStiQualWeeks(log) {
-        const byWeek = {};
-        log.filter(e=>e.event==="Sindris Treasure Island"&&e.qualifier!=="afk").forEach(e=>{
-          const wk=getISOWeekSV(e.date); if(wk){ byWeek[wk]=(byWeek[wk]||0)+1; }
-        });
-        return Object.values(byWeek).filter(c=>c>=2).length;
-      }
-      const stiWeeksOld = countStiQualWeeks(m.attendLog||[]);
-      const stiWeeksNew = countStiQualWeeks(newAttendLog);
-      if(stiWeeksNew>=5 && stiWeeksOld<5 && !(m.txLog||[]).some(tx=>tx.logType==="Sindri Veteran Bonus")) {
-        bonusCoins += 400;
-        newTxLog.push({change:400,reason:"Attended 2 Sindri's per week for 5 weeks",date:today,logType:"Sindri Veteran Bonus",addedBy:"System",ts:nowTs});
-        bonusToasts.push({name:m.name,bonus:"Sindri Veteran",coins:400});
-      }
-      return{...m,coins:m.coins+earned+bonusCoins,attendance:m.attendance+(q!=="afk"?1:0),
-        attendLog:newAttendLog,txLog:newTxLog};
-    }));
-    // Show bonus toasts after state update
-    setTimeout(()=>{
-      bonusToasts.forEach(t=>addToast(`🏆 ${t.name} earned +${t.coins} coins — ${t.bonus} Bonus!`,"gold","Bonus Awarded"));
-    }, 200);
+    setMembers(ms => {
+      const { updatedMembers, bonusToasts } = performAttendancePayout(ms, { ev, date: today, ts: nowTs, present, qualifierMap });
+      // Show bonus toasts after state update
+      setTimeout(()=>{
+        bonusToasts.forEach(t=>addToast(`🏆 ${t.name} earned +${t.coins} coins — ${t.bonus} Bonus!`,"gold","Bonus Awarded"));
+      }, 200);
+      return updatedMembers;
+    });
     const logEntry = {id:Date.now(),event:ev.name,date:today,ts:nowTs,members:present.length,recordedBy:currentUser.name,attendees:presentNames};
     setAttendanceLogs(p=>[logEntry,...p]);
     addToast(`Attendance recorded! ${present.length} members updated.`,"blue","Attendance Saved");
@@ -3308,6 +3343,12 @@ function Attendance({ ctx }) {
       )}
 
       {tab==="logs" && (
+        <>
+        {isMaster && (
+          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+            <button className="btn btn-outline btn-sm" onClick={()=>setModal({type:"addMissingAttendance"})}>+ Add Missing Record</button>
+          </div>
+        )}
         <div className="card" style={{padding:0}}>
           <div className="table-wrap">
             <table className="table-stack">
@@ -3361,6 +3402,7 @@ function Attendance({ ctx }) {
             </div>
           )}
         </div>
+        </>
       )}
 
       {tab==="bonuses" && (
@@ -4993,6 +5035,147 @@ function DeleteAttendanceModal({ ctx }) {
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={()=>setModal(null)}>Cancel</button>
           <button className="btn btn-red" onClick={confirmDelete}>✕ Remove &amp; Deduct</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ADD MISSING ATTENDANCE RECORD (Master only) ─────────────────────────────
+// For when attendance was already recorded — coins already paid out to
+// members — but the shared History row itself failed to save (e.g. a network
+// hiccup during the upsert). Creates ONLY a History row backfilled with the
+// event/date/attendees the Master specifies. Deliberately does NOT touch
+// members, coins, attendLog, or txLog in any way, so it can never cause a
+// double-payout — it just fixes the record to match what already happened.
+function AddMissingAttendanceModal({ ctx }) {
+  const { setModal, members, setMembers, addToast, setAttendanceLogs, currentUser } = ctx;
+  const [eventName, setEventName] = useState(EVENTS[0]?.name || "");
+  const [whenLocal, setWhenLocal] = useState(() => {
+    // Default to now, formatted for <input type="datetime-local">
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0,16);
+  });
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState({});
+  const [qualifierMap, setQualifierMap] = useState({});
+  const [payoutMode, setPayoutMode] = useState("none"); // "none" | "distribute"
+  const [err, setErr] = useState("");
+
+  const filtered = members.filter(m => m.name.toLowerCase().includes(search.toLowerCase()));
+  const selectedCount = Object.values(selected).filter(Boolean).length;
+  const ev = EVENTS.find(e => e.name === eventName);
+
+  function toggle(id) {
+    setSelected(p => ({...p, [id]: !p[id]}));
+    if (!qualifierMap[id]) setQualifierMap(p => ({...p, [id]: "full"}));
+  }
+
+  function submit() {
+    setErr("");
+    if (!eventName || !ev) { setErr("Pick an event."); return; }
+    if (!whenLocal) { setErr("Pick a date & time."); return; }
+    if (selectedCount === 0) { setErr("Select at least one member who attended."); return; }
+    const ts = new Date(whenLocal).getTime();
+    if (isNaN(ts)) { setErr("Invalid date/time."); return; }
+    const date = new Date(ts).toLocaleDateString();
+    const present = members.filter(m => selected[m.id]).map(m => m.id);
+
+    if (payoutMode === "distribute") {
+      // Reuses the exact same payout/bonus math as a live attendance
+      // submission — coins, rank multiplier, and Major Events/ISB
+      // Veteran/Sindri Veteran bonuses all apply normally, computed
+      // relative to THIS entry's own date/week, not today's.
+      const presentNames = present.map(id => {
+        const m = members.find(x=>x.id===id);
+        const q = qualifierMap[id]||"full";
+        const mult=q==="full"?1:q==="late"?0.5:0;
+        const rankMult=getRankMultiplier(members,id);
+        const earned=Math.floor(ev.coins*mult*rankMult);
+        return {name:m?.name, qualifier:q, earned};
+      });
+      setMembers(ms => {
+        const { updatedMembers, bonusToasts } = performAttendancePayout(ms, { ev, date, ts, present, qualifierMap });
+        setTimeout(()=>{
+          bonusToasts.forEach(t=>addToast(`🏆 ${t.name} earned +${t.coins} coins — ${t.bonus} Bonus!`,"gold","Bonus Awarded"));
+        }, 200);
+        return updatedMembers;
+      });
+      const logEntry = { id: Date.now(), event: eventName, date, ts, members: present.length, recordedBy: currentUser.name, attendees: presentNames };
+      setAttendanceLogs(p => [logEntry, ...p]);
+      addToast(`Backfilled "${eventName}" — coins distributed to ${present.length} member(s).`, "gold", "Record Added");
+    } else {
+      // Record-only: no coins, no attendLog/txLog changes — for when the
+      // payout already happened and only the History row is missing.
+      const attendees = present.map(id => {
+        const m = members.find(x=>x.id===id);
+        return { name: m?.name, qualifier: qualifierMap[id]||"full", earned: 0 };
+      });
+      const logEntry = { id: Date.now(), event: eventName, date, ts, members: attendees.length, recordedBy: currentUser.name, attendees };
+      setAttendanceLogs(p => [logEntry, ...p]);
+      addToast(`Backfilled "${eventName}" history record — no coins were changed.`, "blue", "Record Added");
+    }
+    setModal(null);
+  }
+
+  return (
+    <div className="modal-overlay" onClick={()=>setModal(null)}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title">Add Missing Record</div>
+          <button className="btn btn-ghost" onClick={()=>setModal(null)}>✕</button>
+        </div>
+        <div className="modal-body">
+          <div style={{marginBottom:14,fontFamily:"'Spectral',serif",fontSize:12,color:"var(--text-dim)"}}>
+            Backfill a History row for an attendance that was recorded outside the normal flow.
+          </div>
+          {err && <div className="login-error" style={{marginBottom:12}}>{err}</div>}
+          <div className="form-group">
+            <label className="form-label">Coins</label>
+            <div style={{display:"flex",gap:8}}>
+              <button type="button" className={`btn btn-sm ${payoutMode==="none"?"btn-gold":"btn-outline"}`} style={{flex:1}} onClick={()=>setPayoutMode("none")}>Coins Untouched</button>
+              <button type="button" className={`btn btn-sm ${payoutMode==="distribute"?"btn-gold":"btn-outline"}`} style={{flex:1}} onClick={()=>setPayoutMode("distribute")}>Distribute Coins</button>
+            </div>
+            <div style={{marginTop:8,fontSize:11,color:"var(--text-dim)",fontFamily:"'Spectral',serif"}}>
+              {payoutMode==="distribute"
+                ? <>Pays out coins (and any qualifying bonus) to everyone selected below, exactly like a normal attendance submission — use this when the attendance never actually paid out at all.</>
+                : <>Creates the History row only — <strong style={{color:"var(--gold-light)"}}>no coins, attendance counts, or bonuses change.</strong> Use this when the payout already happened and only the row is missing.</>}
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Event</label>
+            <select className="select" value={eventName} onChange={e=>setEventName(e.target.value)}>
+              {EVENTS.map(ev => <option key={ev.id} value={ev.name}>{ev.name}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Date &amp; Time</label>
+            <input className="input" type="datetime-local" value={whenLocal} onChange={e=>setWhenLocal(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Who attended? ({selectedCount} selected)</label>
+            <input className="input" placeholder="Search warrior…" value={search} onChange={e=>setSearch(e.target.value)} style={{marginBottom:8}} />
+            <div style={{maxHeight:220,overflowY:"auto",border:"1px solid var(--border-dim)",borderRadius:4}}>
+              {filtered.map(m => (
+                <div key={m.id} onClick={()=>toggle(m.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",cursor:"pointer",background:selected[m.id]?"rgba(201,151,42,0.1)":"transparent",borderBottom:"1px solid var(--border-dim)"}}>
+                  <input type="checkbox" checked={!!selected[m.id]} onChange={()=>toggle(m.id)} onClick={e=>e.stopPropagation()} />
+                  <ClassIcon cls={m.cls} size={22} />
+                  <span style={{flex:1,fontFamily:"'Spectral',serif",fontWeight:700,fontSize:13}}>{m.name}</span>
+                  {selected[m.id] && (
+                    <select className="select" style={{width:"auto",padding:"3px 8px",fontSize:11}} value={qualifierMap[m.id]||"full"} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();setQualifierMap(p=>({...p,[m.id]:e.target.value}));}}>
+                      <option value="full">Full</option><option value="late">Late</option><option value="afk">AFK</option>
+                    </select>
+                  )}
+                </div>
+              ))}
+              {filtered.length===0 && <div style={{padding:14,textAlign:"center",color:"var(--text-dim)",fontSize:12}}>No members found.</div>}
+            </div>
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-outline" onClick={()=>setModal(null)}>Cancel</button>
+          <button className="btn btn-gold" onClick={submit}>{payoutMode==="distribute" ? "Add Record & Pay Coins" : "Add Record"}</button>
         </div>
       </div>
     </div>
