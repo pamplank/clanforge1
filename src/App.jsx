@@ -35,6 +35,1038 @@ function possessive(name) {
   return /s$/i.test(name) ? `${name}'` : `${name}'s`;
 }
 
+// ─── i18n (English / Mandarin) ────────────────────────────────────────────────
+// A from-scratch, dependency-free translation system. Strings live in TRANSLATIONS
+// keyed by a short id; t(key) looks up the current language's string, falling
+// back to English if a key is ever missing in the Mandarin dictionary (so a
+// missed translation shows English text instead of a blank/broken label).
+//
+// Adding a new translatable string: pick a key, add it to BOTH the "en" and
+// "zh" objects below, then call t("yourKey") in the component instead of a
+// literal string.
+const TRANSLATIONS = {
+  en: {
+    // Login screen
+    username: "Username",
+    password: "Password",
+    enterUsername: "Enter username…",
+    enterPassword: "Enter password…",
+    enter: "Enter",
+    invalidLogin: "Invalid username or password.",
+    contactMaster: "Contact your Master to get access.",
+    // Nav
+    dashboard: "Dashboard",
+    leaderboards: "Leaderboards",
+    members: "Members",
+    attendance: "Attendance",
+    auctions: "Auctions",
+    reports: "Reports",
+    menu: "Menu",
+    logOut: "Log Out",
+    addMember: "+ Add Member",
+    discord: "Discord",
+    linkDiscord: "Link Discord",
+    changePasswordLabel: "Password",
+    approvals: "Approvals",
+    changePassword: "Change Password",
+    coinsLabel: "coins",
+    // Page titles
+    pageTitle_dashboard: "Clan HQ",
+    pageTitle_attendance: "Attendance",
+    pageTitle_members: "Members",
+    pageTitle_auctions: "Auction House",
+    pageTitle_leaderboard: "Hall of Fame",
+    pageTitle_export: "Export Data",
+    pageTitle_settings: "Settings",
+    // Nav sections
+    navSection_main: "Main",
+    navSection_management: "Management",
+    navSection_reports: "Reports",
+    // Nav sub-items
+    sub_clanStats: "Clan Stats",
+    sub_worldBoss: "World Boss",
+    sub_liveAuctions: "Live Auctions",
+    sub_weeklyTop: "Weekly Top",
+    sub_topPower: "Top Power",
+    sub_richest: "Richest",
+    sub_topAttendance: "Top Attendance",
+    sub_auctionWinners: "Auction Winners",
+    sub_memberRoster: "Member Roster",
+    sub_profiles: "Profiles",
+    sub_coinPowerAdjust: "Coin & Power Adjust",
+    sub_recordAttendance: "Record Attendance",
+    sub_history: "History",
+    sub_eventTracker: "Event Tracker",
+    sub_lootRoulette: "Loot Roulette",
+    sub_createAuction: "Create Auction",
+    // Dashboard
+    warriors: "Warriors",
+    liveAuctions: "Live Auctions",
+    noActiveAuctions: "No active auctions.",
+    topBidderLabel: "Top",
+    noBids: "No bids",
+    viewAllAuctions: "View All Auctions",
+    topAttendance: "Top Attendance",
+    topPower: "Top Power",
+    richest: "Richest",
+    recentWinners: "Recent Winners",
+    noRecentWinners: "No recent winners.",
+    eventPoints: "Event Points",
+    // Members page
+    searchWarrior: "Search warrior…",
+    allClasses: "All",
+    sortCoins: "Sort: Coins",
+    sortPower: "Sort: Power",
+    sortAttendance: "Sort: Attendance",
+    sortName: "Sort: Name",
+    tableView: "Table",
+    cardsView: "Cards",
+    colRank: "#",
+    colCharacter: "Character",
+    colPower: "Power",
+    colCoins: "Coins",
+    colAttend: "Attend.",
+    colWins: "Wins",
+    colRole: "Role",
+    colActions: "Actions",
+    joinedOn: "Joined",
+    remove: "Remove",
+    memberRemoved: "Member removed.",
+    removed: "Removed",
+    statCoins: "Coins",
+    statAttendance: "Attendance",
+    statWins: "Wins",
+    statJoined: "Joined",
+    powerLabel: "Power",
+    adjustCoins: "Adjust Coins",
+    adjustPower: "Adjust Power",
+    editDiscord: "Edit Discord",
+    rename: "✎ Rename",
+    changeRole: "Change Role",
+    toMember: "→ Member",
+    toElder: "→ Elder",
+    toMaster: "→ Master",
+    removeMember: "Remove Member",
+    setToMember: "set to Member.",
+    promotedToElder: "promoted to Elder.",
+    nowMaster: "is now Master!",
+    roleChanged: "Role Changed",
+    // Attendance page
+    tabRecordAttendance: "Record Attendance",
+    tabHistory: "History",
+    tabBonuses: "Bonuses",
+    tabMyLog: "My Points History",
+    tabGlobalLog: "Global Points Log",
+    elderOnlyAttendance: "Only Elders and Leaders can record attendance.",
+    coinRules: "Coin Rules",
+    full: "Full",
+    late: "Late",
+    afk: "AFK",
+    searchMember: "Search member...",
+    submitAttendance: "Submit Attendance",
+    clear: "Clear",
+    addMissingRecord: "+ Add Missing Record",
+    noAttendanceYet: "No attendance recorded yet.",
+    membersCountLabel: "members",
+    downloadCsvTitle: "Download this event's attendance as CSV",
+    removeAction: "✕ Remove",
+    attendeesLabel: "Attendees",
+    pageOf: "Page",
+    ofLabel: "of",
+    prevPage: "← Prev",
+    nextPage: "Next →",
+    noWarriorMatch: "No warrior matches your search.",
+    bonusRules: "Bonus Rules",
+    bonusRuleMajor: "Major Events — attend all 5 event types this week: ISB (×1), CA (×2), STI (×2), CS (×1), WB (×3):",
+    bonusCoins300: "+300 Coins",
+    bonusRuleSindri: "Sindri Veteran — attend 2× Sindri's Treasure Island per week for 5 weeks:",
+    bonusCoins400: "+400 Coins",
+    bonusOneTime: "(one-time)",
+    bonusRuleISB: "ISB Veteran — participate in 10 Inter-Server Battles (lifetime):",
+    bonusCoins500: "+500 Coins",
+    decayWarning: "Unused coins decay 10% every Sunday. Stay active!",
+    decayBadge: "-10% / week",
+    majorEvents: "Major Events",
+    earned: "✓ Earned",
+    sindriVeteran: "Sindri Veteran",
+    weeksLabel: "weeks",
+    sindriProgress: "weeks with 2× Sindri's",
+    isbVeteran: "ISB Veteran",
+    isbProgress: "ISB events",
+    myPointsHistoryTitle: "My Points History — Private",
+    myPointsHistoryDesc: "Attendance, bonuses, admin coin adjustments, auction wins, and weekly decay. Only you can see this record.",
+    noPointsHistory: "No points history recorded yet.",
+    noEntriesFilter: "No entries match this filter.",
+    globalPointsTitle: "Global Points History",
+    globalPointsDesc: "Admin manual adjustments, bonuses, and weekly decay — visible to everyone.",
+    noGlobalAdjustments: "No global point adjustments yet.",
+    colDateTime: "Date & Time",
+    colEvent: "Event",
+    colMembers: "Members",
+    colRecBy: "Rec. By",
+    colType: "Type",
+    colDetails: "Details",
+    colMember: "Member",
+    colAmount: "Amount",
+    colAddedBy: "Added By",
+    colReason: "Reason",
+    markMembers: "Mark Members",
+    hideAttendees: "▲ Hide",
+    showAttendees: "▼ Show",
+    weeklyCoinDecay: "Weekly Coin Decay",
+    // Stored transaction-type category labels (the underlying data stays in
+    // English in storage — these are only used to translate them for display).
+    type_Attendance: "Attendance",
+    type_MajorEventsBonus: "Major Events Bonus",
+    type_ISBVeteranBonus: "ISB Veteran Bonus",
+    type_SindriVeteranBonus: "Sindri Veteran Bonus",
+    type_BonusPoints: "Bonus Points",
+    type_ElderRequest: "Elder Request",
+    type_AdminManualAdd: "Admin Manual Add",
+    type_AuctionWin: "Auction Win",
+    type_WeeklyDecay: "Weekly Decay",
+    allMembersLabel: "All Members",
+    fileDownloaded: "downloaded!",
+    exportLabel: "Export",
+    selectEventError: "Please select an event.",
+    errorLabel: "Error",
+    noMembersSelected: "No members selected.",
+    attendanceRecorded: "Attendance recorded!",
+    membersUpdated: "members updated.",
+    attendanceSaved: "Attendance Saved",
+    earnedBonusText: "earned",
+    coinsText: "coins",
+    bonusText: "Bonus!",
+    bonusAwarded: "Bonus Awarded",
+    // Auctions page
+    tabLiveAuctions: "Live Auctions",
+    tabAuctionHistory: "History",
+    tabLootRoulette: "Loot Roulette",
+    tabCreateAuction: "Create Auction",
+    sortLabel: "Sort:",
+    viewLabel: "View:",
+    sortDefault: "Default",
+    sortBidHighLow: "Bid: High → Low",
+    sortBidLowHigh: "Bid: Low → High",
+    sortRarity: "Rarity",
+    sortHasBidder: "Has Bidder",
+    viewGrid: "⊞ Grid",
+    viewCompact: "≡ Compact",
+    noActiveAuctionsNow: "No active auctions right now.",
+    noBidsYet: "No bids yet",
+    bidButton: "Bid",
+    removeTitle: "Remove",
+    currentBidLabel: "Current Bid",
+    bidsLabel: "Bids",
+    winningBadge: "Winning",
+    removeAuctionBtn: "Remove Auction",
+    minBidPlaceholder: "Min",
+    noEndedAuctions: "No ended auctions.",
+    winnerLabel: "Winner",
+    noWinner: "No Winner",
+    // Bid toasts
+    minBidError: "Minimum bid is",
+    minBidErrorSuffix: "coins (current + 5).",
+    invalidBid: "Invalid Bid",
+    insufficientCoins: "Insufficient coins.",
+    noFunds: "No Funds",
+    alreadyHighestBid: "You already hold the highest bid.",
+    alreadyWinning: "Already Winning",
+    auctionEnded: "This auction has ended.",
+    auctionEndedTitle: "Auction Ended",
+    outbidMessage: "Someone just bid higher",
+    pleaseRetry: "Please try again.",
+    outbidTitle: "Outbid",
+    bidPlacedOn: "Bid of",
+    placedOn: "placed on",
+    snipeProtection: "⏱️ Timer extended 2 mins (snipe protection)",
+    bidPlacedTitle: "Bid Placed",
+    itemNameRequired: "Item name required.",
+    auctionStarted: "Auction started:",
+    auctionLive: "Auction Live",
+    rarityEpic: "Epic",
+    rarityRare: "Rare",
+    rarityKari: "Kari",
+    importFromAttendance: "Import from Attendance Log",
+    selectingLogHint: "Selecting a log auto-fills the event name, date, and marks all non-AFK attendees.",
+    eventNameLabel: "Event Name",
+    eventNamePlaceholder: "e.g. World Boss, ISB…",
+    dateLabel: "Date",
+    importedFrom: "Imported",
+    attendeesFrom: "attendees from",
+    autoImported: "Auto-Imported",
+    sessionInfo: "Session Info",
+    selectMembers: "Select Members",
+    selectAll: "Select All",
+    unselectAll: "Unselect All",
+    selectedCount: "selected",
+    itemNamePlaceholder: "Item name…",
+    addBtn: "+ Add",
+    noItemsAdded: "No items added yet.",
+    totalItemsLabel: "total items",
+    membersLabel2: "members",
+    rolling: "Rolling…",
+    rollTheLoot: "Roll the Loot!",
+    resetBtn: "Reset",
+    itemNameFieldLabel: "Item Name",
+    rarityLabel: "Rarity",
+    itemImageLabel: "Item Image",
+    descriptionLabel: "Description",
+    itemDescPlaceholder: "Item description…",
+    startingBidLabel: "Starting Bid (Coins)",
+    durationLabel: "Duration (minutes)",
+    previewLabel: "Preview",
+    itemNameDefault: "Item Name",
+    descriptionDefault: "Description…",
+    startAuction: "Start Auction",
+    itemNamePlaceholder2: "e.g. Dragon Scale Armor",
+    enterItemNameError: "Enter item name.",
+    addAtLeastOneItem: "Add at least one item.",
+    selectAtLeastOneMember: "Select at least one member.",
+    winningBadgeCompact: "✓ WINNING",
+    lootRouletteTitle: "Loot Roulette",
+    fairRandomDist: "Fair random loot distribution",
+    elderControlsActive: "Elder controls active",
+    viewResultsHistory: "View results & history",
+    historyBtn: "📜 History",
+    manageBtn: "Manage",
+    defaultEventLabel: "Loot Distribution",
+    lootJustRolled: "Loot Just Rolled!",
+    dismissBtn: "✕ Dismiss",
+    pieceCount: "pc",
+    nothingLabel: "Nothing",
+    autoRefreshes: "Auto-refreshes every 10s",
+    refreshNow: "↺ Refresh Now",
+    resultsRefreshed: "Results refreshed!",
+    refreshedTitle: "Refreshed",
+    allEventsLabel: "All Events",
+    newestFirst: "Newest First",
+    oldestFirst: "Oldest First",
+    sessionsLabel: "session",
+    sessionsPluralSuffix: "s",
+    historyAutoClears: "History auto-clears every week",
+    noSessionsMatch: "No sessions match this filter.",
+    hoursAgo: "h ago",
+    daysAgo: "d ago",
+    participantsLabel: "participants",
+    noLootLabel: "No loot:",
+    noRouletteHistory: "No roulette history yet.",
+    historyAutoClearsTidy: "History auto-clears every week to keep things tidy.",
+    selectAttendanceLogPlaceholder: "— Select an attendance log —",
+    selectParticipants: "Select Participants",
+    lootItemsTitle: "Loot Items",
+    createNewAuction: "Create New Auction",
+    // DiscordModal
+    linkDiscordTitle: "🎮 Link Discord —",
+    connectDiscord: "Connect your Discord",
+    discordLinkHint: "Link your Discord so clan mates can reach you.",
+    discordUsername: "Discord Username",
+    discordUsernamePlaceholder: "e.g. username#1234 or username",
+    currentLabel: "Current:",
+    unlink: "Unlink",
+    cancel: "Cancel",
+    saveDiscord: "Save Discord",
+    // AdjustPowerModal
+    adjustPowerTitle: "Adjust Power —",
+    currentPowerLabel: "Current:",
+    quickAdjust: "Quick Adjust",
+    setExactPower: "Set Exact Power",
+    changeLabel: "Change",
+    savePower: "Save Power",
+    // LBList
+    yourRank: "Your Rank",
+    behindLabel: "behind",
+    bpBehind: "BP behind",
+    attBehind: "att behind",
+    leadingLabel: "Leading!",
+    youSuffix: "(You)",
+    ofPagination: "of",
+    // Leaderboard
+    hallOfFame: "Hall of Fame",
+    mostPowerful: "Most Powerful",
+    richestWarriors: "Richest Warriors",
+    mostActive: "Most Active",
+    attSuffix: "att",
+    // Export
+    dataExportCenter: "📤 Data Export Center",
+    dataExportDesc: "Download clan data as CSV files for external analysis or record keeping.",
+    downloadCsvBtn: "Download CSV",
+    exportTitle_coinRankings: "Coin Rankings",
+    exportDesc_coinRankings: "Member coin balances sorted by rank.",
+    exportTitle_attendanceCoins: "Attendance Coin Totals",
+    exportDesc_attendanceCoins: "Total coins each member has earned from attendance, alongside their current balance.",
+    exportTitle_attendanceLogs: "Attendance Logs",
+    exportDesc_attendanceLogs: "All recorded attendance sessions.",
+    exportTitle_auctionHistory: "Auction History",
+    exportDesc_auctionHistory: "All auction results with winners.",
+    exportTitle_powerLeaderboard: "Power Leaderboard",
+    exportDesc_powerLeaderboard: "Members sorted by power level.",
+    exportTitle_fullReport: "Full Member Report",
+    exportDesc_fullReport: "Complete member database export.",
+    // Settings
+    masterOnly: "Master Only",
+    settingsRequireMaster: "Settings require Master privileges.",
+    coinDecayTitle: "Coin Decay",
+    coinDecayDesc: "Auto-triggers every Tuesday at 7:00 AM. Removes 5% of each member's coins. You can also trigger it manually below.",
+    avgCoinsLabel: "Avg coins:",
+    triggerWeeklyDecay: "Trigger Weekly Decay",
+    attendanceResetTitle: "Attendance Reset",
+    attendanceResetDesc: "Reset all member attendance counts for the new week.",
+    totalRecordsLabel: "Total records:",
+    resetWeeklyAttendance: "Reset Weekly Attendance",
+    eventCoinValues: "Event Coin Values",
+    colEventName: "Event",
+    colId: "ID",
+    elderManagement: "Elder Management",
+    colMemberName: "Member",
+    colClass: "Class",
+    colDiscordName: "Discord",
+    colActionName: "Action",
+    makeElder: "Make Elder",
+    demote: "Demote",
+    promotedToElderToast: "promoted to Elder.",
+    promotedTitle: "Promoted",
+    demotedToast: "demoted.",
+    demotedTitle: "Demoted",
+    autoDecayApplied: "Weekly 5% coin decay has been applied automatically.",
+    autoDecayTitle: "Auto Decay",
+    decayTriggeredToast: "Weekly coin decay applied: 5% removed.",
+    decayTriggeredTitle: "Decay Triggered",
+    attendanceResetToast: "Weekly attendance reset for all members.",
+    resetTitle: "Reset",
+    // AddMemberModal
+    nameUsernameRequired: "Name and username required.",
+    addMemberTitle: "Add Member",
+    characterName: "Character Name",
+    inGameNamePlaceholder: "In-game name…",
+    usernameLoginLabel: "Username (login)",
+    loginUsernamePlaceholder: "Login username…",
+    passwordLabel2: "Password",
+    initialPasswordPlaceholder: "Initial password…",
+    classLabel: "Class",
+    powerLevelLabel: "Power Level",
+    roleLabel: "Role",
+    addedToClan: "added to the clan!",
+    memberAddedTitle: "Member Added",
+    // AdjustCoinsModal
+    enterValidAmount: "Enter a valid amount.",
+    adjustCoinsTitle: "Adjust Coins —",
+    elderApprovalNotice: "As an Elder, your coin adjustments require Master approval before taking effect.",
+    amountLabel: "Amount",
+    reasonOptional: "Reason (optional)",
+    reasonPlaceholder: "e.g. Bonus, Penalty…",
+    requestRemove: "Request Remove",
+    removeAmount: "— Remove",
+    requestAdd: "Request Add",
+    addAmount: "+ Add",
+    addedCoinsToast: "Added",
+    removedCoinsToast: "Removed",
+    coinsToLabel: "coins to",
+    coinsFromLabel: "coins from",
+    coinsAdjustedTitle: "Coins Adjusted",
+    // PendingRequestsModal
+    pendingCoinRequestsTitle: "⏳ Pending Coin Requests",
+    noPendingRequests: "No pending requests.",
+    coinsSuffix: "coins",
+    reasonLabel2: "Reason:",
+    requestedByLabel: "Requested by",
+    approveBtn: "✓ Approve",
+    rejectBtn: "✕ Reject",
+    closeBtn: "Close",
+    // ChangePasswordModal
+    currentPasswordIncorrect: "Current password is incorrect.",
+    newPasswordEmpty: "New password cannot be empty.",
+    passwordsNoMatch: "Passwords do not match.",
+    passwordChangedSuccess: "Password changed successfully.",
+    passwordUpdatedTitle: "Password Updated",
+    changePasswordTitle: "Change Password",
+    currentPasswordLabel: "Current Password",
+    currentPasswordPlaceholder: "Your current password…",
+    newPasswordLabel: "New Password",
+    newPasswordPlaceholder: "Choose a new password…",
+    confirmNewPasswordLabel: "Confirm New Password",
+    repeatPasswordPlaceholder: "Repeat new password…",
+    savePasswordBtn: "Save Password",
+    // RenameMemberModal
+    nameEmptyError: "Name cannot be empty.",
+    renamedToast: "renamed to",
+    memberRenamedTitle: "Member Renamed",
+    renameMemberTitle: "Rename Member",
+    currentNameLabel: "Current name:",
+    newNameLabel: "New Name",
+    newNamePlaceholder: "Enter new in-game name…",
+    saveNameBtn: "Save Name",
+    // DeleteAttendanceModal
+    removeAttendanceTitle: "Remove Attendance Record",
+    permanentlyDeleteWarning: "This will permanently delete",
+    fromHistoryWarning: "from the history and automatically deduct the coins it awarded from every participant — including any bonus it triggered.",
+    thisWillAffect: "This will affect",
+    memberSuffix: "member(s)",
+    coinsTotalSuffix: "coins total",
+    removeDeductBtn: "✕ Remove & Deduct",
+    attendanceDeletedToast: "removed —",
+    deductedFromToast: "coins deducted from",
+    memberSuffix2: "member(s).",
+    attendanceDeletedTitle: "Attendance Deleted",
+    // AddMissingAttendanceModal
+    pickEventError: "Pick an event.",
+    pickDateTimeError: "Pick a date & time.",
+    selectAtLeastOneAttendee: "Select at least one member who attended.",
+    invalidDateTime: "Invalid date/time.",
+    backfilledDistributed: "— coins distributed to",
+    memberSuffix3: "member(s).",
+    recordAddedTitle: "Record Added",
+    backfilledHistoryOnly: "history record — no coins were changed.",
+    addMissingRecordTitle: "Add Missing Record",
+    backfillDesc: "Backfill a History row for an attendance that was recorded outside the normal flow.",
+    coinsFieldLabel: "Coins",
+    coinsUntouched: "Coins Untouched",
+    distributeCoins: "Distribute Coins",
+    distributeCoinsHint: "Pays out coins (and any qualifying bonus) to everyone selected below, exactly like a normal attendance submission — use this when the attendance never actually paid out at all.",
+    recordOnlyHintPrefix: "Creates the History row only —",
+    recordOnlyHintBold: "no coins, attendance counts, or bonuses change.",
+    recordOnlyHintSuffix: "Use this when the payout already happened and only the row is missing.",
+    eventFieldLabel: "Event",
+    dateTimeFieldLabel: "Date & Time",
+    whoAttendedLabel: "Who attended?",
+    selectedSuffix: "selected",
+    noMembersFound: "No members found.",
+    addRecordPayBtn: "Add Record & Pay Coins",
+    addRecordBtn: "Add Record",
+    mightiestWarriors: "Mightiest Warriors",
+  },
+  zh: {
+    // Login screen
+    username: "用户名",
+    password: "密码",
+    enterUsername: "请输入用户名…",
+    enterPassword: "请输入密码…",
+    enter: "进入",
+    invalidLogin: "用户名或密码无效。",
+    contactMaster: "请联系您的盟主以获取访问权限。",
+    // Nav
+    dashboard: "仪表盘",
+    leaderboards: "排行榜",
+    members: "成员",
+    attendance: "出勤",
+    auctions: "拍卖",
+    reports: "报告",
+    menu: "菜单",
+    logOut: "登出",
+    addMember: "+ 添加成员",
+    discord: "Discord",
+    linkDiscord: "关联 Discord",
+    changePasswordLabel: "密码",
+    approvals: "待审批",
+    changePassword: "修改密码",
+    coinsLabel: "金币",
+    // Page titles
+    pageTitle_dashboard: "公会总部",
+    pageTitle_attendance: "出勤",
+    pageTitle_members: "成员",
+    pageTitle_auctions: "拍卖行",
+    pageTitle_leaderboard: "名人堂",
+    pageTitle_export: "导出数据",
+    pageTitle_settings: "设置",
+    // Nav sections
+    navSection_main: "主菜单",
+    navSection_management: "管理",
+    navSection_reports: "报告",
+    // Nav sub-items
+    sub_clanStats: "公会统计",
+    sub_worldBoss: "世界首领",
+    sub_liveAuctions: "进行中的拍卖",
+    sub_weeklyTop: "本周排名",
+    sub_topPower: "战力排行",
+    sub_richest: "财富排行",
+    sub_topAttendance: "出勤排行",
+    sub_auctionWinners: "拍卖赢家",
+    sub_memberRoster: "成员名册",
+    sub_profiles: "个人资料",
+    sub_coinPowerAdjust: "金币与战力调整",
+    sub_recordAttendance: "记录出勤",
+    sub_history: "历史记录",
+    sub_eventTracker: "活动追踪",
+    sub_lootRoulette: "战利品轮盘",
+    sub_createAuction: "创建拍卖",
+    // Dashboard
+    warriors: "勇士",
+    liveAuctions: "进行中的拍卖",
+    noActiveAuctions: "暂无进行中的拍卖。",
+    topBidderLabel: "最高出价",
+    noBids: "暂无出价",
+    viewAllAuctions: "查看所有拍卖",
+    topAttendance: "出勤排行",
+    topPower: "战力排行",
+    richest: "财富排行",
+    recentWinners: "最近赢家",
+    noRecentWinners: "暂无最近赢家。",
+    eventPoints: "活动积分",
+    // Members page
+    searchWarrior: "搜索勇士…",
+    allClasses: "全部",
+    sortCoins: "排序：金币",
+    sortPower: "排序：战力",
+    sortAttendance: "排序：出勤",
+    sortName: "排序：名称",
+    tableView: "表格",
+    cardsView: "卡片",
+    colRank: "#",
+    colCharacter: "角色",
+    colPower: "战力",
+    colCoins: "金币",
+    colAttend: "出勤",
+    colWins: "胜场",
+    colRole: "职位",
+    colActions: "操作",
+    joinedOn: "加入于",
+    remove: "移除",
+    memberRemoved: "成员已移除。",
+    removed: "已移除",
+    statCoins: "金币",
+    statAttendance: "出勤",
+    statWins: "胜场",
+    statJoined: "加入日期",
+    powerLabel: "战力",
+    adjustCoins: "调整金币",
+    adjustPower: "调整战力",
+    editDiscord: "编辑 Discord",
+    rename: "✎ 重命名",
+    changeRole: "更改职位",
+    toMember: "→ 成员",
+    toElder: "→ 长老",
+    toMaster: "→ 盟主",
+    removeMember: "移除成员",
+    setToMember: "已设为成员。",
+    promotedToElder: "已晋升为长老。",
+    nowMaster: "现已成为盟主！",
+    roleChanged: "职位已更改",
+    // Attendance page
+    tabRecordAttendance: "记录出勤",
+    tabHistory: "历史记录",
+    tabBonuses: "奖励",
+    tabMyLog: "我的积分历史",
+    tabGlobalLog: "全局积分日志",
+    elderOnlyAttendance: "只有长老和首领可以记录出勤。",
+    coinRules: "金币规则",
+    full: "全勤",
+    late: "迟到",
+    afk: "缺席",
+    searchMember: "搜索成员...",
+    submitAttendance: "提交出勤",
+    clear: "清除",
+    addMissingRecord: "+ 添加缺失记录",
+    noAttendanceYet: "暂无出勤记录。",
+    membersCountLabel: "人",
+    downloadCsvTitle: "下载此活动的出勤数据为 CSV",
+    removeAction: "✕ 移除",
+    attendeesLabel: "出勤成员",
+    pageOf: "第",
+    ofLabel: "页，共",
+    prevPage: "← 上一页",
+    nextPage: "下一页 →",
+    noWarriorMatch: "没有符合搜索条件的勇士。",
+    bonusRules: "奖励规则",
+    bonusRuleMajor: "重大活动 — 本周参加全部5种活动类型：ISB(×1)、CA(×2)、STI(×2)、CS(×1)、WB(×3)：",
+    bonusCoins300: "+300 金币",
+    bonusRuleSindri: "辛德里老兵 — 每周参加2次辛德里的宝藏岛，连续5周：",
+    bonusCoins400: "+400 金币",
+    bonusOneTime: "（一次性）",
+    bonusRuleISB: "ISB老兵 — 参加10次跨服战（终身累计）：",
+    bonusCoins500: "+500 金币",
+    decayWarning: "未使用的金币每周日衰减10%。请保持活跃！",
+    decayBadge: "-10% / 周",
+    majorEvents: "重大活动",
+    earned: "✓ 已获得",
+    sindriVeteran: "辛德里老兵",
+    weeksLabel: "周",
+    sindriProgress: "周（每周2次辛德里）",
+    isbVeteran: "ISB老兵",
+    isbProgress: "次跨服战",
+    myPointsHistoryTitle: "我的积分历史 — 私密",
+    myPointsHistoryDesc: "出勤、奖励、管理员金币调整、拍卖获胜以及每周衰减。仅您本人可见此记录。",
+    noPointsHistory: "暂无积分历史记录。",
+    noEntriesFilter: "没有符合此筛选条件的记录。",
+    globalPointsTitle: "全局积分历史",
+    globalPointsDesc: "管理员手动调整、奖励以及每周衰减 — 所有人可见。",
+    noGlobalAdjustments: "暂无全局积分调整记录。",
+    colDateTime: "日期与时间",
+    colEvent: "活动",
+    colMembers: "成员",
+    colRecBy: "记录人",
+    colType: "类型",
+    colDetails: "详情",
+    colMember: "成员",
+    colAmount: "金额",
+    colAddedBy: "添加人",
+    colReason: "原因",
+    markMembers: "标记成员",
+    hideAttendees: "▲ 隐藏",
+    showAttendees: "▼ 显示",
+    weeklyCoinDecay: "每周金币衰减",
+    type_Attendance: "出勤",
+    type_MajorEventsBonus: "重大活动奖励",
+    type_ISBVeteranBonus: "ISB老兵奖励",
+    type_SindriVeteranBonus: "辛德里老兵奖励",
+    type_BonusPoints: "奖励积分",
+    type_ElderRequest: "长老申请",
+    type_AdminManualAdd: "管理员手动添加",
+    type_AuctionWin: "拍卖获胜",
+    type_WeeklyDecay: "每周衰减",
+    allMembersLabel: "全体成员",
+    fileDownloaded: "已下载！",
+    exportLabel: "导出",
+    selectEventError: "请选择一个活动。",
+    errorLabel: "错误",
+    noMembersSelected: "未选择任何成员。",
+    attendanceRecorded: "出勤已记录！",
+    membersUpdated: "名成员已更新。",
+    attendanceSaved: "出勤已保存",
+    earnedBonusText: "获得",
+    coinsText: "金币",
+    bonusText: "奖励！",
+    bonusAwarded: "奖励已发放",
+    tabLiveAuctions: "进行中的拍卖",
+    tabAuctionHistory: "历史记录",
+    tabLootRoulette: "战利品轮盘",
+    tabCreateAuction: "创建拍卖",
+    sortLabel: "排序：",
+    viewLabel: "视图：",
+    sortDefault: "默认",
+    sortBidHighLow: "出价：高 → 低",
+    sortBidLowHigh: "出价：低 → 高",
+    sortRarity: "稀有度",
+    sortHasBidder: "有出价者",
+    viewGrid: "⊞ 网格",
+    viewCompact: "≡ 紧凑",
+    noActiveAuctionsNow: "目前没有进行中的拍卖。",
+    noBidsYet: "暂无出价",
+    bidButton: "出价",
+    removeTitle: "移除",
+    currentBidLabel: "当前出价",
+    bidsLabel: "出价数",
+    winningBadge: "领先中",
+    removeAuctionBtn: "移除拍卖",
+    minBidPlaceholder: "最低",
+    noEndedAuctions: "没有已结束的拍卖。",
+    winnerLabel: "赢家",
+    noWinner: "无人中标",
+    minBidError: "最低出价为",
+    minBidErrorSuffix: "金币（当前出价+5）。",
+    invalidBid: "出价无效",
+    insufficientCoins: "金币不足。",
+    noFunds: "金币不足",
+    alreadyHighestBid: "您已是最高出价者。",
+    alreadyWinning: "已是领先者",
+    auctionEnded: "此拍卖已结束。",
+    auctionEndedTitle: "拍卖已结束",
+    outbidMessage: "已有人出价更高",
+    pleaseRetry: "请重试。",
+    outbidTitle: "已被超越",
+    bidPlacedOn: "出价",
+    placedOn: "成功，物品：",
+    snipeProtection: "⏱️ 计时已延长2分钟（防狙击保护）",
+    bidPlacedTitle: "出价成功",
+    itemNameRequired: "请输入物品名称。",
+    auctionStarted: "拍卖已开始：",
+    auctionLive: "拍卖进行中",
+    rarityEpic: "史诗",
+    rarityRare: "稀有",
+    rarityKari: "卡里",
+    importFromAttendance: "从出勤记录导入",
+    selectingLogHint: "选择一条记录将自动填写活动名称、日期，并标记所有未缺席的成员。",
+    eventNameLabel: "活动名称",
+    eventNamePlaceholder: "例如：世界首领、跨服战…",
+    dateLabel: "日期",
+    importedFrom: "已导入",
+    attendeesFrom: "名出勤成员，来自",
+    autoImported: "自动导入",
+    sessionInfo: "本次信息",
+    selectMembers: "选择成员",
+    selectAll: "全选",
+    unselectAll: "取消全选",
+    selectedCount: "已选",
+    itemNamePlaceholder: "物品名称…",
+    addBtn: "+ 添加",
+    noItemsAdded: "尚未添加物品。",
+    totalItemsLabel: "件物品总数",
+    membersLabel2: "名成员",
+    rolling: "正在抽取…",
+    rollTheLoot: "开始抽取战利品！",
+    resetBtn: "重置",
+    itemNameFieldLabel: "物品名称",
+    rarityLabel: "稀有度",
+    itemImageLabel: "物品图片",
+    descriptionLabel: "描述",
+    itemDescPlaceholder: "物品描述…",
+    startingBidLabel: "起拍价（金币）",
+    durationLabel: "持续时间（分钟）",
+    previewLabel: "预览",
+    itemNameDefault: "物品名称",
+    descriptionDefault: "描述…",
+    startAuction: "开始拍卖",
+    itemNamePlaceholder2: "例如：龙鳞护甲",
+    enterItemNameError: "请输入物品名称。",
+    addAtLeastOneItem: "请至少添加一个物品。",
+    selectAtLeastOneMember: "请至少选择一名成员。",
+    winningBadgeCompact: "✓ 领先中",
+    lootRouletteTitle: "战利品轮盘",
+    fairRandomDist: "公平随机分配战利品",
+    elderControlsActive: "长老控制已启用",
+    viewResultsHistory: "查看结果与历史记录",
+    historyBtn: "📜 历史记录",
+    manageBtn: "管理",
+    defaultEventLabel: "战利品分配",
+    lootJustRolled: "战利品刚刚开奖！",
+    dismissBtn: "✕ 关闭",
+    pieceCount: "件",
+    nothingLabel: "无",
+    autoRefreshes: "每10秒自动刷新",
+    refreshNow: "↺ 立即刷新",
+    resultsRefreshed: "结果已刷新！",
+    refreshedTitle: "已刷新",
+    allEventsLabel: "所有活动",
+    newestFirst: "最新优先",
+    oldestFirst: "最早优先",
+    sessionsLabel: "场",
+    sessionsPluralSuffix: "",
+    historyAutoClears: "历史记录每周自动清除",
+    noSessionsMatch: "没有符合此筛选条件的记录。",
+    hoursAgo: "小时前",
+    daysAgo: "天前",
+    participantsLabel: "名参与者",
+    noLootLabel: "未获得战利品：",
+    noRouletteHistory: "暂无轮盘历史记录。",
+    historyAutoClearsTidy: "历史记录每周自动清除，以保持整洁。",
+    selectAttendanceLogPlaceholder: "— 选择一条出勤记录 —",
+    selectParticipants: "选择参与者",
+    lootItemsTitle: "战利品物品",
+    createNewAuction: "创建新拍卖",
+    linkDiscordTitle: "🎮 关联 Discord —",
+    connectDiscord: "连接您的 Discord",
+    discordLinkHint: "关联您的 Discord，方便公会成员联系您。",
+    discordUsername: "Discord 用户名",
+    discordUsernamePlaceholder: "例如：username#1234 或 username",
+    currentLabel: "当前：",
+    unlink: "取消关联",
+    cancel: "取消",
+    saveDiscord: "保存 Discord",
+    adjustPowerTitle: "调整战力 —",
+    currentPowerLabel: "当前：",
+    quickAdjust: "快速调整",
+    setExactPower: "设置精确战力",
+    changeLabel: "变化",
+    savePower: "保存战力",
+    yourRank: "您的排名",
+    behindLabel: "落后于",
+    bpBehind: "战力点落后于",
+    attBehind: "次出勤落后于",
+    leadingLabel: "领先中！",
+    youSuffix: "（您）",
+    ofPagination: "/",
+    hallOfFame: "名人堂",
+    mostPowerful: "最强战力",
+    richestWarriors: "最富有勇士",
+    mostActive: "最活跃",
+    attSuffix: "次出勤",
+    dataExportCenter: "📤 数据导出中心",
+    dataExportDesc: "下载公会数据为 CSV 文件，用于外部分析或记录保存。",
+    downloadCsvBtn: "下载 CSV",
+    exportTitle_coinRankings: "金币排名",
+    exportDesc_coinRankings: "按排名排序的成员金币余额。",
+    exportTitle_attendanceCoins: "出勤金币总计",
+    exportDesc_attendanceCoins: "每位成员通过出勤获得的金币总数，以及当前余额。",
+    exportTitle_attendanceLogs: "出勤记录",
+    exportDesc_attendanceLogs: "所有已记录的出勤场次。",
+    exportTitle_auctionHistory: "拍卖历史",
+    exportDesc_auctionHistory: "所有拍卖结果及赢家。",
+    exportTitle_powerLeaderboard: "战力排行榜",
+    exportDesc_powerLeaderboard: "按战力等级排序的成员。",
+    exportTitle_fullReport: "完整成员报告",
+    exportDesc_fullReport: "完整的成员数据库导出。",
+    masterOnly: "仅限盟主",
+    settingsRequireMaster: "设置功能需要盟主权限。",
+    coinDecayTitle: "金币衰减",
+    coinDecayDesc: "每周二早上7:00自动触发。扣除每位成员5%的金币。您也可以在下方手动触发。",
+    avgCoinsLabel: "平均金币：",
+    triggerWeeklyDecay: "触发每周衰减",
+    attendanceResetTitle: "出勤重置",
+    attendanceResetDesc: "为新的一周重置所有成员的出勤次数。",
+    totalRecordsLabel: "总记录数：",
+    resetWeeklyAttendance: "重置每周出勤",
+    eventCoinValues: "活动金币数值",
+    colEventName: "活动",
+    colId: "编号",
+    elderManagement: "长老管理",
+    colMemberName: "成员",
+    colClass: "职业",
+    colDiscordName: "Discord",
+    colActionName: "操作",
+    makeElder: "任命为长老",
+    demote: "降级",
+    promotedToElderToast: "已晋升为长老。",
+    promotedTitle: "已晋升",
+    demotedToast: "已降级。",
+    demotedTitle: "已降级",
+    autoDecayApplied: "每周5%金币衰减已自动应用。",
+    autoDecayTitle: "自动衰减",
+    decayTriggeredToast: "每周金币衰减已应用：扣除5%。",
+    decayTriggeredTitle: "衰减已触发",
+    attendanceResetToast: "已为所有成员重置每周出勤。",
+    resetTitle: "已重置",
+    nameUsernameRequired: "姓名和用户名为必填项。",
+    addMemberTitle: "添加成员",
+    characterName: "角色名称",
+    inGameNamePlaceholder: "游戏内名称…",
+    usernameLoginLabel: "用户名（登录用）",
+    loginUsernamePlaceholder: "登录用户名…",
+    passwordLabel2: "密码",
+    initialPasswordPlaceholder: "初始密码…",
+    classLabel: "职业",
+    powerLevelLabel: "战力等级",
+    roleLabel: "职位",
+    addedToClan: "已加入公会！",
+    memberAddedTitle: "成员已添加",
+    enterValidAmount: "请输入有效金额。",
+    adjustCoinsTitle: "调整金币 —",
+    elderApprovalNotice: "作为长老，您的金币调整需要盟主批准才能生效。",
+    amountLabel: "金额",
+    reasonOptional: "原因（可选）",
+    reasonPlaceholder: "例如：奖励、惩罚…",
+    requestRemove: "申请扣除",
+    removeAmount: "— 扣除",
+    requestAdd: "申请添加",
+    addAmount: "+ 添加",
+    addedCoinsToast: "已添加",
+    removedCoinsToast: "已扣除",
+    coinsToLabel: "金币给",
+    coinsFromLabel: "金币，来自",
+    coinsAdjustedTitle: "金币已调整",
+    pendingCoinRequestsTitle: "⏳ 待处理金币请求",
+    noPendingRequests: "暂无待处理请求。",
+    coinsSuffix: "金币",
+    reasonLabel2: "原因：",
+    requestedByLabel: "申请人",
+    approveBtn: "✓ 批准",
+    rejectBtn: "✕ 拒绝",
+    closeBtn: "关闭",
+    currentPasswordIncorrect: "当前密码不正确。",
+    newPasswordEmpty: "新密码不能为空。",
+    passwordsNoMatch: "两次输入的密码不一致。",
+    passwordChangedSuccess: "密码已成功修改。",
+    passwordUpdatedTitle: "密码已更新",
+    changePasswordTitle: "修改密码",
+    currentPasswordLabel: "当前密码",
+    currentPasswordPlaceholder: "请输入当前密码…",
+    newPasswordLabel: "新密码",
+    newPasswordPlaceholder: "请设置新密码…",
+    confirmNewPasswordLabel: "确认新密码",
+    repeatPasswordPlaceholder: "请再次输入新密码…",
+    savePasswordBtn: "保存密码",
+    nameEmptyError: "姓名不能为空。",
+    renamedToast: "已重命名为",
+    memberRenamedTitle: "成员已重命名",
+    renameMemberTitle: "重命名成员",
+    currentNameLabel: "当前名称：",
+    newNameLabel: "新名称",
+    newNamePlaceholder: "请输入新的游戏内名称…",
+    saveNameBtn: "保存名称",
+    removeAttendanceTitle: "移除出勤记录",
+    permanentlyDeleteWarning: "这将永久删除",
+    fromHistoryWarning: "从历史记录中，并自动从每位参与者扣除该记录发放的金币——包括其触发的任何奖励。",
+    thisWillAffect: "这将影响",
+    memberSuffix: "名成员",
+    coinsTotalSuffix: "金币总计",
+    removeDeductBtn: "✕ 移除并扣除",
+    attendanceDeletedToast: "已移除 —",
+    deductedFromToast: "金币已从",
+    memberSuffix2: "名成员扣除。",
+    attendanceDeletedTitle: "出勤记录已删除",
+    pickEventError: "请选择一个活动。",
+    pickDateTimeError: "请选择日期与时间。",
+    selectAtLeastOneAttendee: "请至少选择一名出勤成员。",
+    invalidDateTime: "日期/时间无效。",
+    backfilledDistributed: "— 金币已分配给",
+    memberSuffix3: "名成员。",
+    recordAddedTitle: "记录已添加",
+    backfilledHistoryOnly: "历史记录 — 未变更任何金币。",
+    addMissingRecordTitle: "添加缺失记录",
+    backfillDesc: "为未按正常流程记录的出勤补充一条历史记录。",
+    coinsFieldLabel: "金币",
+    coinsUntouched: "金币不变",
+    distributeCoins: "分配金币",
+    distributeCoinsHint: "将金币（及任何符合条件的奖励）发放给下方所选的所有人，与正常出勤提交完全相同 — 适用于出勤从未实际发放金币的情况。",
+    recordOnlyHintPrefix: "仅创建历史记录 —",
+    recordOnlyHintBold: "不会更改任何金币、出勤次数或奖励。",
+    recordOnlyHintSuffix: "适用于已经发放过金币，仅缺少记录行的情况。",
+    eventFieldLabel: "活动",
+    dateTimeFieldLabel: "日期与时间",
+    whoAttendedLabel: "谁参加了？",
+    selectedSuffix: "已选",
+    noMembersFound: "未找到成员。",
+    addRecordPayBtn: "添加记录并发放金币",
+    addRecordBtn: "添加记录",
+    mightiestWarriors: "最强勇士",
+  },
+};
+
+const LANG_STORAGE_KEY = "cf_lang";
+function getInitialLang() {
+  try {
+    const saved = localStorage.getItem(LANG_STORAGE_KEY);
+    if (saved === "en" || saved === "zh") return saved;
+  } catch {}
+  return "en";
+}
+
+const LangContext = React.createContext({ lang: "en", setLang: () => {}, t: (k) => k });
+
+function LangProvider({ children }) {
+  const [lang, setLangState] = useState(getInitialLang);
+  const setLang = useCallback((next) => {
+    setLangState(next);
+    try { localStorage.setItem(LANG_STORAGE_KEY, next); } catch {}
+  }, []);
+  const t = useCallback((key) => {
+    return TRANSLATIONS[lang]?.[key] ?? TRANSLATIONS.en[key] ?? key;
+  }, [lang]);
+  const value = useMemo(() => ({ lang, setLang, t }), [lang, setLang, t]);
+  return <LangContext.Provider value={value}>{children}</LangContext.Provider>;
+}
+
+function useLang() {
+  return React.useContext(LangContext);
+}
+
+// Small pill toggle shown in the nav bar — switches between English and
+// Mandarin and persists the choice via LangProvider/localStorage.
+function LangSwitcher() {
+  const { lang, setLang } = useLang();
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:2,background:"rgba(0,0,0,0.25)",borderRadius:20,padding:2,border:"1px solid var(--border)"}}>
+      <button
+        onClick={()=>setLang("en")}
+        style={{
+          padding:"4px 10px",borderRadius:18,fontSize:11,fontWeight:700,letterSpacing:0.5,
+          border:"none",cursor:"pointer",
+          background: lang==="en" ? "var(--gold)" : "transparent",
+          color: lang==="en" ? "#1a1208" : "var(--text-dim)",
+        }}
+      >EN</button>
+      <button
+        onClick={()=>setLang("zh")}
+        style={{
+          padding:"4px 10px",borderRadius:18,fontSize:11,fontWeight:700,letterSpacing:0.5,
+          border:"none",cursor:"pointer",
+          background: lang==="zh" ? "var(--gold)" : "transparent",
+          color: lang==="zh" ? "#1a1208" : "var(--text-dim)",
+        }}
+      >中文</button>
+    </div>
+  );
+}
+
+
 // Wrap fetch with a timeout so a slow/hanging response (e.g. under high
 // concurrent load) can never leave the app stuck on the loading screen.
 async function fetchWithTimeout(url, opts = {}, timeoutMs = 8000) {
@@ -380,6 +1412,41 @@ function timeLeft(ms) {
   return h>0?`${h}h ${m}m`:m>0?`${m}m ${s}s`:`${s}s`;
 }
 function rankIcon(i){return `#${i+1}`;}
+
+// Maps a stored (always-English) transaction-type category name to its
+// translation key, for display only — the underlying stored data never
+// changes, so historical records stay consistent regardless of which
+// language is currently selected.
+const TYPE_LABEL_KEYS = {
+  "Attendance": "type_Attendance",
+  "Major Events Bonus": "type_MajorEventsBonus",
+  "ISB Veteran Bonus": "type_ISBVeteranBonus",
+  "Sindri Veteran Bonus": "type_SindriVeteranBonus",
+  "Bonus Points": "type_BonusPoints",
+  "Elder Request": "type_ElderRequest",
+  "Admin Manual Add": "type_AdminManualAdd",
+  "Auction Win": "type_AuctionWin",
+  "Weekly Decay": "type_WeeklyDecay",
+};
+function typeLabel(type, t) {
+  const key = TYPE_LABEL_KEYS[type];
+  return key ? t(key) : type;
+}
+
+// Maps a stored rarity key (always lowercase English: epic/rare/kari) to its
+// translated display label. The stored value never changes — only the
+// rendered text does.
+const RARITY_LABEL_KEYS = { epic: "rarityEpic", rare: "rarityRare", kari: "rarityKari" };
+function rarityLabel(rarity, t) {
+  const key = RARITY_LABEL_KEYS[rarity];
+  return (key ? t(key) : (rarity||"")).toUpperCase();
+}
+
+// "Loot Distribution" is the stored default event label when no custom name
+// was given to a roll — translate it for display without changing storage.
+function eventLabelDisplay(label, t) {
+  return label === "Loot Distribution" ? t("defaultEventLabel") : label;
+}
 
 // ─── GLOBAL CSS ───────────────────────────────────────────────────────────────
 const GLOBAL_CSS = `
@@ -1147,13 +2214,14 @@ function ItemImagePicker({ value, onChange, library, addImage }) {
 
 // ─── LOGIN ────────────────────────────────────────────────────────────────────
 function LoginScreen({ members, onLogin }) {
+  const { t } = useLang();
   const [form, setForm] = useState({ username:"", password:"" });
   const [error, setError] = useState("");
 
   function doLogin() {
     setError("");
     const m = members.find(m => m.username === form.username && m.password === form.password);
-    if (!m) { setError("Invalid username or password."); return; }
+    if (!m) { setError(t("invalidLogin")); return; }
     onLogin(m);
   }
 
@@ -1163,20 +2231,23 @@ function LoginScreen({ members, onLogin }) {
         <div className="login-quote">"{CLAN_QUOTE}"</div>
         <div className="login-hero-title">{CLAN_NAME.toUpperCase()}</div>
         <div className="login-hero-sub">{CLAN_SUBTITLE}</div>
+        <div style={{display:"flex",justifyContent:"center",marginBottom:14}}>
+          <LangSwitcher />
+        </div>
         <div className="login-card">
           {error && <div className="login-error">{error}</div>}
           <div className="form-group">
-            <label className="form-label">Username</label>
-            <input className="input" placeholder="Enter username…" value={form.username} onChange={e=>setForm(p=>({...p,username:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doLogin()} autoComplete="username" />
+            <label className="form-label">{t("username")}</label>
+            <input className="input" placeholder={t("enterUsername")} value={form.username} onChange={e=>setForm(p=>({...p,username:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doLogin()} autoComplete="username" />
           </div>
           <div className="form-group">
-            <label className="form-label">Password</label>
-            <input className="input" type="password" placeholder="Enter password…" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doLogin()} autoComplete="current-password" />
+            <label className="form-label">{t("password")}</label>
+            <input className="input" type="password" placeholder={t("enterPassword")} value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doLogin()} autoComplete="current-password" />
           </div>
-          <button className="btn btn-gold" style={{width:"100%",justifyContent:"center",padding:"12px 20px"}} onClick={doLogin}>Enter</button>
+          <button className="btn btn-gold" style={{width:"100%",justifyContent:"center",padding:"12px 20px"}} onClick={doLogin}>{t("enter")}</button>
         </div>
         <div style={{marginTop:16,textAlign:"center",fontSize:11,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",letterSpacing:0.5}}>
-          Contact your Master to get access.
+          {t("contactMaster")}
         </div>
       </div>
     </div>
@@ -1185,32 +2256,33 @@ function LoginScreen({ members, onLogin }) {
 
 // ─── DISCORD MODAL ────────────────────────────────────────────────────────────
 function DiscordModal({ member, onSave, onClose }) {
+  const { t } = useLang();
   const [val, setVal] = useState(member.discord || "");
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e=>e.stopPropagation()}>
         <div className="modal-header">
-          <div className="modal-title">🎮 Link Discord — {member.name}</div>
+          <div className="modal-title">{t("linkDiscordTitle")} {member.name}</div>
           <button className="btn btn-ghost" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body">
           <div style={{display:"flex",alignItems:"center",gap:14,padding:16,background:"rgba(71,82,196,0.08)",border:"1px solid rgba(114,137,218,0.25)",borderRadius:2,marginBottom:20}}>
             <span style={{fontSize:30}}>🎮</span>
             <div>
-              <div style={{fontWeight:700,fontSize:13,color:"var(--text-bright)",fontFamily:"'Inter',sans-serif"}}>Connect your Discord</div>
-              <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>Link your Discord so clan mates can reach you.</div>
+              <div style={{fontWeight:700,fontSize:13,color:"var(--text-bright)",fontFamily:"'Inter',sans-serif"}}>{t("connectDiscord")}</div>
+              <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>{t("discordLinkHint")}</div>
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label">Discord Username</label>
-            <input className="input" placeholder="e.g. username#1234 or username" value={val} onChange={e=>setVal(e.target.value)} />
+            <label className="form-label">{t("discordUsername")}</label>
+            <input className="input" placeholder={t("discordUsernamePlaceholder")} value={val} onChange={e=>setVal(e.target.value)} />
           </div>
-          {member.discord && <div style={{fontSize:12,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>Current: <span className="discord-tag">🎮 {member.discord}</span></div>}
+          {member.discord && <div style={{fontSize:12,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{t("currentLabel")} <span className="discord-tag">🎮 {member.discord}</span></div>}
         </div>
         <div className="modal-footer">
-          {member.discord && <button className="btn btn-red" onClick={()=>onSave("")}>Unlink</button>}
-          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
-          <button className="btn btn-discord" onClick={()=>onSave(val.trim())}>Save Discord</button>
+          {member.discord && <button className="btn btn-red" onClick={()=>onSave("")}>{t("unlink")}</button>}
+          <button className="btn btn-outline" onClick={onClose}>{t("cancel")}</button>
+          <button className="btn btn-discord" onClick={()=>onSave(val.trim())}>{t("saveDiscord")}</button>
         </div>
       </div>
     </div>
@@ -1219,20 +2291,21 @@ function DiscordModal({ member, onSave, onClose }) {
 
 // ─── ADJUST POWER MODAL ───────────────────────────────────────────────────────
 function AdjustPowerModal({ member, onSave, onClose }) {
+  const { t } = useLang();
   const [power, setPower] = useState(member.power);
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e=>e.stopPropagation()}>
         <div className="modal-header">
-          <div className="modal-title"><span style={{display:"inline-flex",alignItems:"center",gap:6}}><PowerIcon size={16} /> Adjust Power — {member.name}</span></div>
+          <div className="modal-title"><span style={{display:"inline-flex",alignItems:"center",gap:6}}><PowerIcon size={16} /> {t("adjustPowerTitle")} {member.name}</span></div>
           <button className="btn btn-ghost" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body">
           <div style={{textAlign:"center",marginBottom:20,fontFamily:"'Spectral',serif",fontWeight:800,fontSize:24,color:"var(--gold-light)"}}>
-            <span style={{display:"inline-flex",alignItems:"center",gap:6}}><PowerIcon size={20} />Current: {fmt(member.power)}</span>
+            <span style={{display:"inline-flex",alignItems:"center",gap:6}}><PowerIcon size={20} />{t("currentPowerLabel")} {fmt(member.power)}</span>
           </div>
           <div style={{marginBottom:16,padding:12,background:"rgba(10,11,15,0.7)",border:"1px solid var(--border)",borderRadius:2}}>
-            <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:2,textTransform:"uppercase",fontFamily:"'Inter',sans-serif",fontWeight:700,marginBottom:6}}>Quick Adjust</div>
+            <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:2,textTransform:"uppercase",fontFamily:"'Inter',sans-serif",fontWeight:700,marginBottom:6}}>{t("quickAdjust")}</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               {[-5000,-1000,-500,500,1000,5000].map(d => (
                 <button key={d} type="button" className={`btn btn-sm ${d<0?"btn-red":"btn-outline"}`}
@@ -1243,19 +2316,19 @@ function AdjustPowerModal({ member, onSave, onClose }) {
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label">Set Exact Power</label>
+            <label className="form-label">{t("setExactPower")}</label>
             <input className="input" type="number" min={0} value={power} onChange={e=>setPower(parseInt(e.target.value)||0)} />
           </div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"rgba(201,151,42,0.06)",border:"1px solid var(--border)",borderRadius:2}}>
-            <span style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:"var(--text-dim)",fontWeight:600}}>Change</span>
+            <span style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:"var(--text-dim)",fontWeight:600}}>{t("changeLabel")}</span>
             <span style={{fontFamily:"'Inter',sans-serif",fontSize:14,fontWeight:800,color:power>member.power?"#58d68d":power<member.power?"#e07070":"var(--text-dim)"}}>
               {power>member.power?"+":""}{fmt(power-member.power)}
             </span>
           </div>
         </div>
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
-          <button className="btn btn-gold" onClick={()=>onSave(power)}>Save Power</button>
+          <button className="btn btn-outline" onClick={onClose}>{t("cancel")}</button>
+          <button className="btn btn-gold" onClick={()=>onSave(power)}>{t("savePower")}</button>
         </div>
       </div>
     </div>
@@ -1656,7 +2729,8 @@ function LootRoulette({ ctx }) {
 }
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
-export default function App() {
+function AppInner() {
+  const { t } = useLang();
   // ── Browser tab title + favicon ──────────────────────────────────────────────
   useEffect(() => {
     document.title = CLAN_NAME;
@@ -2241,7 +3315,7 @@ export default function App() {
   const ctx = { members, setMembers, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
     currentUser, setCurrentUser, addToast, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed };
 
-  const PAGE_TITLES = {dashboard:"Clan HQ",attendance:"Attendance",members:"Members",auctions:"Auction House",leaderboard:"Hall of Fame",export:"Export Data",settings:"Settings"};
+  const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings")};
 
   // ── Connection error screen (DB unreachable — do NOT show empty/seed state) ─
   if (dbError) return (
@@ -2282,20 +3356,20 @@ export default function App() {
   const _isElder  = currentUser.role==="Elder";
   const _isMaster = currentUser.role==="Master";
   const _reportPages = [];
-  if (_isLeader || _isElder || _isMaster) _reportPages.push({id:"export",label:"Export Data"});
-  if (_isLeader || _isMaster) _reportPages.push({id:"settings",label:"Settings"});
+  if (_isLeader || _isElder || _isMaster) _reportPages.push({id:"export",label:t("pageTitle_export")});
+  if (_isLeader || _isMaster) _reportPages.push({id:"settings",label:t("pageTitle_settings")});
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
   const NAV = [
-    { section:"Main", items:[
-        {id:"dashboard",icon:<StatIcon src={WARRIORS_ICON} size={16}/>,label:"Dashboard",sub:["Clan Stats","World Boss","Live Auctions","Weekly Top"]},
-        {id:"leaderboard",icon:<LBIcon src={LEADERBOARD_ICON} size={14}/>,label:"Leaderboards",sub:["Top Power","Richest","Top Attendance","Auction Winners"]},
+    { section:t("navSection_main"), items:[
+        {id:"dashboard",icon:<StatIcon src={WARRIORS_ICON} size={16}/>,label:t("pageTitle_dashboard"),sub:[t("sub_clanStats"),t("sub_worldBoss"),t("sub_liveAuctions"),t("sub_weeklyTop")]},
+        {id:"leaderboard",icon:<LBIcon src={LEADERBOARD_ICON} size={14}/>,label:t("leaderboards"),sub:[t("sub_topPower"),t("sub_richest"),t("sub_topAttendance"),t("sub_auctionWinners")]},
       ]},
-    { section:"Management", items:[
-        {id:"members",icon:<StatIcon src={WARRIORS_ICON} size={16}/>,label:"Members",sub:["Member Roster","Profiles","Coin & Power Adjust"]},
-        {id:"attendance",icon:<StatIcon src={ATTENDANCE_ICON} size={16}/>,label:"Attendance",sub:["Record Attendance","History","Event Tracker"]},
-        {id:"auctions",icon:<StatIcon src={AUCTION_ICON} size={16}/>,label:"Auctions",sub:["Live Auctions","History","Loot Roulette",...(isAdmin?["Create Auction"]:[])]},
+    { section:t("navSection_management"), items:[
+        {id:"members",icon:<StatIcon src={WARRIORS_ICON} size={16}/>,label:t("members"),sub:[t("sub_memberRoster"),t("sub_profiles"),t("sub_coinPowerAdjust")]},
+        {id:"attendance",icon:<StatIcon src={ATTENDANCE_ICON} size={16}/>,label:t("attendance"),sub:[t("sub_recordAttendance"),t("sub_history"),t("sub_eventTracker")]},
+        {id:"auctions",icon:<StatIcon src={AUCTION_ICON} size={16}/>,label:t("auctions"),sub:[t("sub_liveAuctions"),t("sub_history"),t("sub_lootRoulette"),...(isAdmin?[t("sub_createAuction")]:[])]},
       ]},
-    ...(_reportPages.length>0?[{ section:"Reports", items:[{id:"reports",icon:"📊",label:"Reports",subPages:_reportPages}]}]:[]),
+    ...(_reportPages.length>0?[{ section:t("navSection_reports"), items:[{id:"reports",icon:"📊",label:t("reports"),subPages:_reportPages}]}]:[]),
   ];
 
   return (
@@ -2350,19 +3424,19 @@ export default function App() {
           <div className="sidebar-user">
             <div className="user-avatar"><ClassIcon cls={currentUser.cls} size={22} /></div>
             <div className={`user-menu${openUserMenu?" dd-open":""}`} onMouseLeave={()=>setOpenUserMenu(false)}>
-              <button className="user-menu-btn" onClick={()=>setOpenUserMenu(v=>!v)}>▾ Menu</button>
+              <button className="user-menu-btn" onClick={()=>setOpenUserMenu(v=>!v)}>▾ {t("menu")}</button>
               <div className="user-dropdown">
                 <div className="user-dropdown-inner">
                   <div className="nav-dd-label">{currentUser.name}</div>
                   <div className="nav-dd-sep"/>
                   <div className="user-dd-item" style={{fontSize:10,color:"var(--gold)",pointerEvents:"none"}}>
-                    <StatIcon src={COINS_ICON} size={22}/>{fmt(currentUser.coins)} coins
+                    <StatIcon src={COINS_ICON} size={22}/>{fmt(currentUser.coins)} {t("coinsLabel")}
                   </div>
                   <div className="nav-dd-sep"/>
                   <div className="user-dd-item" onClick={()=>{setModal({type:"changePassword",data:currentUser});setOpenUserMenu(false);setOpenDropdown(null);}}>
-                    Change Password
+                    {t("changePassword")}
                   </div>
-                  <div className="user-dd-item danger" onClick={handleLogout}>Log Out</div>
+                  <div className="user-dd-item danger" onClick={handleLogout}>{t("logOut")}</div>
                 </div>
               </div>
             </div>
@@ -2412,12 +3486,12 @@ export default function App() {
               </div>
               <div className="drawer-user-actions">
                 <button className="btn btn-discord btn-sm" onClick={()=>{setModal({type:"discord",data:currentUser});setDrawerOpen(false);}}>
-                  {currentUser.discord?"Discord":"Link Discord"}
+                  {currentUser.discord?t("discord"):t("linkDiscord")}
                 </button>
                 <button className="btn btn-outline btn-sm" onClick={()=>{setModal({type:"changePassword",data:currentUser});setDrawerOpen(false);}}>
-                  Password
+                  {t("changePasswordLabel")}
                 </button>
-                <button className="btn btn-ghost btn-sm" onClick={handleLogout}>Log Out</button>
+                <button className="btn btn-ghost btn-sm" onClick={handleLogout}>{t("logOut")}</button>
               </div>
             </div>
           </div>
@@ -2430,16 +3504,17 @@ export default function App() {
               <div className="page-sub">{currentUser.name} · {currentUser.role}</div>
             </div>
             <div style={{display:"flex",gap:10,alignItems:"center"}}>
+              <LangSwitcher />
               {(currentUser.role==="Master"||currentUser.role==="Elder") && (
-                <button className="btn btn-gold btn-sm" onClick={()=>setModal({type:"addMember"})}>+ Add Member</button>
+                <button className="btn btn-gold btn-sm" onClick={()=>setModal({type:"addMember"})}>{t("addMember")}</button>
               )}
               {currentUser.role==="Master" && pendingCoinRequests.length>0 && (
                 <button className="btn btn-red btn-sm" style={{position:"relative"}} onClick={()=>setModal({type:"pendingRequests"})}>
-                  ⏳ Approvals
+                  ⏳ {t("approvals")}
                   <span style={{position:"absolute",top:-6,right:-6,background:"#e85d3a",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:9,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>{pendingCoinRequests.length}</span>
                 </button>
               )}
-              <button className="btn btn-ghost btn-sm topbar-logout-mobile" onClick={handleLogout} style={{borderColor:"rgba(200,80,80,0.4)",color:"#e07070"}}>Log Out</button>
+              <button className="btn btn-ghost btn-sm topbar-logout-mobile" onClick={handleLogout} style={{borderColor:"rgba(200,80,80,0.4)",color:"#e07070"}}>{t("logOut")}</button>
             </div>
           </div>
           <div className="content">
@@ -2466,6 +3541,14 @@ export default function App() {
       {modal?.type==="addMissingAttendance" && <AddMissingAttendanceModal ctx={ctx} />}
       <Toast toasts={toasts} remove={removeToast} />
     </>
+  );
+}
+
+export default function App() {
+  return (
+    <LangProvider>
+      <AppInner />
+    </LangProvider>
   );
 }
 
@@ -2889,6 +3972,7 @@ function UpdateNotes() {
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function Dashboard({ ctx, setPage }) {
   const { members, auctions, currentUser } = ctx;
+  const { t } = useLang();
   const [wtMode, setWtMode] = useState("attendance");
   const activeAuctions = auctions.filter(a=>a.status==="active");
   const recentWinners = auctions.filter(a=>a.status==="ended"&&a.topBidder).slice(0,3);
@@ -2940,11 +4024,11 @@ function Dashboard({ ctx, setPage }) {
                 <span style={{fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",
                   background:"rgba(122,26,26,0.35)",border:"1px solid rgba(200,80,80,0.3)",
                   borderRadius:20,padding:"3px 12px",color:"#e07070"
-                }}><span style={{display:"inline-flex",alignItems:"center",gap:5}}><SwordsIcon size={11}/>{members.length} Warriors</span></span>
+                }}><span style={{display:"inline-flex",alignItems:"center",gap:5}}><SwordsIcon size={11}/>{members.length} {t("warriors")}</span></span>
                 <span style={{fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",
                   background:"rgba(201,151,42,0.15)",border:"1px solid rgba(201,151,42,0.3)",
                   borderRadius:20,padding:"3px 12px",color:"var(--gold-light)"
-                }}><span style={{display:"inline-flex",alignItems:"center",gap:5}}><ColumnIcon size={11}/>{auctions.filter(a=>a.status==="active").length} Live Auctions</span></span>
+                }}><span style={{display:"inline-flex",alignItems:"center",gap:5}}><ColumnIcon size={11}/>{auctions.filter(a=>a.status==="active").length} {t("liveAuctions")}</span></span>
               </div>
               {/* Divider */}
               <div style={{height:1,background:"linear-gradient(90deg,rgba(200,146,42,0.25),transparent)",marginBottom:16,width:"80%"}} />
@@ -2983,8 +4067,8 @@ function Dashboard({ ctx, setPage }) {
       <div style={{display:"flex",flexWrap:"wrap",gap:16,marginBottom:16}}>
         {/* Live Auctions Preview */}
         <div className="card" style={{flex:"1 1 280px",minWidth:0}}>
-          <SectionTitle><span style={{display:"inline-flex",alignItems:"center",gap:6}}><StatIcon src={AUCTION_ICON} size={32}/>Live Auctions</span></SectionTitle>
-          {activeAuctions.length===0&&<div style={{color:"var(--text-dim)",fontSize:13,fontFamily:"'Inter',sans-serif"}}>No active auctions.</div>}
+          <SectionTitle><span style={{display:"inline-flex",alignItems:"center",gap:6}}><StatIcon src={AUCTION_ICON} size={32}/>{t("liveAuctions")}</span></SectionTitle>
+          {activeAuctions.length===0&&<div style={{color:"var(--text-dim)",fontSize:13,fontFamily:"'Inter',sans-serif"}}>{t("noActiveAuctions")}</div>}
           {[...activeAuctions].sort((a,b)=>b.currentBid-a.currentBid).slice(0,3).map(a=>(
             <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid var(--border-dim)"}}>
               <div style={{width:42,height:42,borderRadius:2,overflow:"hidden",background:a.rarity==="epic"?"rgba(122,26,26,0.3)":"rgba(26,90,138,0.3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
@@ -2992,7 +4076,7 @@ function Dashboard({ ctx, setPage }) {
               </div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</div>
-                <div style={{fontSize:11,color:"var(--text-dim)",fontWeight:500}}>Top: {a.topBidder||"No bids"}</div>
+                <div style={{fontSize:11,color:"var(--text-dim)",fontWeight:500}}>{t("topBidderLabel")}: {a.topBidder||t("noBids")}</div>
               </div>
               <div style={{textAlign:"right",flexShrink:0}}>
                 <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:15,color:"var(--gold-light)",display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={24}/>{fmt(a.currentBid)}</div>
@@ -3000,13 +4084,13 @@ function Dashboard({ ctx, setPage }) {
               </div>
             </div>
           ))}
-          <button className="btn btn-outline btn-sm" style={{marginTop:14,width:"100%"}} onClick={()=>setPage("auctions")}>View All Auctions</button>
+          <button className="btn btn-outline btn-sm" style={{marginTop:14,width:"100%"}} onClick={()=>setPage("auctions")}>{t("viewAllAuctions")}</button>
         </div>
 
         {/* Mini Leaderboard Switcher */}
         <div className="card" style={{flex:"1 1 280px",minWidth:0}}>
           {(()=>{
-            const WT_MODES=[{id:"attendance",label:"Top Attendance"},{id:"power",label:"Top Power"},{id:"coins",label:"Richest"}];
+            const WT_MODES=[{id:"attendance",label:t("topAttendance")},{id:"power",label:t("topPower")},{id:"coins",label:t("richest")}];
             const sorted=[...members].sort((a,b)=>b[wtMode]-a[wtMode]).slice(0,5);
             const valFn=m=>wtMode==="attendance"?`${m.attendance} att`:wtMode==="power"?fmt(m.power):fmt(m.coins);
             const valColor=wtMode==="attendance"?"#60aadd":wtMode==="power"?"#a8b8c8":"var(--gold-light)";
@@ -3039,8 +4123,8 @@ function Dashboard({ ctx, setPage }) {
       {/* ── Recent Winners + Event Points ── */}
       <div style={{display:"flex",flexWrap:"wrap",gap:16}}>
         <div className="card card-gold" style={{flex:"1 1 280px",minWidth:0}}>
-          <SectionTitle>Recent Winners</SectionTitle>
-          {recentWinners.length===0&&<div style={{color:"var(--text-dim)",fontSize:13,fontFamily:"'Inter',sans-serif"}}>No recent winners.</div>}
+          <SectionTitle>{t("recentWinners")}</SectionTitle>
+          {recentWinners.length===0&&<div style={{color:"var(--text-dim)",fontSize:13,fontFamily:"'Inter',sans-serif"}}>{t("noRecentWinners")}</div>}
           {recentWinners.map(a=>(
             <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid var(--border-dim)"}}>
               <div style={{width:36,height:36,borderRadius:2,overflow:"hidden",background:"var(--bg-mid)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
@@ -3055,7 +4139,7 @@ function Dashboard({ ctx, setPage }) {
           ))}
         </div>
         <div className="card card-blue" style={{flex:"1 1 280px",minWidth:0}}>
-          <SectionTitle>Event Points</SectionTitle>
+          <SectionTitle>{t("eventPoints")}</SectionTitle>
           {EVENTS.map(ev=>(
             <div key={ev.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid rgba(26,90,138,0.12)"}}>
               <div style={{width:7,height:7,borderRadius:"50%",background:ev.color,flexShrink:0,boxShadow:`0 0 6px ${ev.color}`}}/>
@@ -3073,6 +4157,7 @@ function Dashboard({ ctx, setPage }) {
 // ─── MEMBERS ──────────────────────────────────────────────────────────────────
 function Members({ ctx }) {
   const { members, setMembers, currentUser, addToast, setModal } = ctx;
+  const { t } = useLang();
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState("All");
   const [sortBy, setSortBy] = useState("coins");
@@ -3095,26 +4180,26 @@ function Members({ ctx }) {
     if(!isAdmin) return;
     setMembers(ms=>ms.filter(m=>m.id!==id));
     dbDelete("members", {id});
-    addToast("Member removed.","red","Removed");
+    addToast(t("memberRemoved"),"red",t("removed"));
     setSelectedMember(null);
   }
 
   return (
     <div>
       <div style={{display:"flex",gap:12,marginBottom:20,flexWrap:"wrap"}}>
-        <input className="input" style={{maxWidth:240}} placeholder="Search warrior…" value={search} onChange={e=>setSearch(e.target.value)} />
+        <input className="input" style={{maxWidth:240}} placeholder={t("searchWarrior")} value={search} onChange={e=>setSearch(e.target.value)} />
         <select className="select" style={{maxWidth:160}} value={classFilter} onChange={e=>setClassFilter(e.target.value)}>
-          <option>All</option>{CLASSES.map(c=><option key={c}>{c}</option>)}
+          <option value="All">{t("allClasses")}</option>{CLASSES.map(c=><option key={c}>{c}</option>)}
         </select>
         <select className="select" style={{maxWidth:160}} value={sortBy} onChange={e=>setSortBy(e.target.value)}>
-          <option value="coins">Sort: Coins</option><option value="power">Sort: Power</option>
-          <option value="attendance">Sort: Attendance</option><option value="name">Sort: Name</option>
+          <option value="coins">{t("sortCoins")}</option><option value="power">{t("sortPower")}</option>
+          <option value="attendance">{t("sortAttendance")}</option><option value="name">{t("sortName")}</option>
         </select>
         <div className="view-toggle" style={{display:"flex",marginLeft:isAdmin?0:"auto"}}>
-          <button className={`btn btn-sm ${viewMode==="table"?"btn-gold":"btn-outline"}`} style={{borderRadius:"2px 0 0 2px"}} onClick={()=>setViewMode("table")}>☰ Table</button>
-          <button className={`btn btn-sm ${viewMode==="cards"?"btn-gold":"btn-outline"}`} style={{borderRadius:"0 2px 2px 0",marginLeft:-1}} onClick={()=>setViewMode("cards")}>▦ Cards</button>
+          <button className={`btn btn-sm ${viewMode==="table"?"btn-gold":"btn-outline"}`} style={{borderRadius:"2px 0 0 2px"}} onClick={()=>setViewMode("table")}>☰ {t("tableView")}</button>
+          <button className={`btn btn-sm ${viewMode==="cards"?"btn-gold":"btn-outline"}`} style={{borderRadius:"0 2px 2px 0",marginLeft:-1}} onClick={()=>setViewMode("cards")}>▦ {t("cardsView")}</button>
         </div>
-        {isAdmin && <button className="btn btn-gold" style={{marginLeft:isAdmin?"auto":0}} onClick={()=>setModal({type:"addMember"})}>+ Add Member</button>}
+        {isAdmin && <button className="btn btn-gold" style={{marginLeft:isAdmin?"auto":0}} onClick={()=>setModal({type:"addMember"})}>{t("addMember")}</button>}
       </div>
 
       <div className="members-layout">
@@ -3146,7 +4231,7 @@ function Members({ ctx }) {
           <div className="card" style={{padding:0,overflow:"hidden"}}>
             <div className="table-wrap members-table-wrap">
               <table className="table-stack members-table">
-                <thead><tr><th>#</th><th>Character</th><th>Power</th><th>Coins</th><th>Attend.</th><th>Wins</th><th>Role</th>{isAdmin&&<th>Actions</th>}</tr></thead>
+                <thead><tr><th>{t("colRank")}</th><th>{t("colCharacter")}</th><th>{t("colPower")}</th><th>{t("colCoins")}</th><th>{t("colAttend")}</th><th>{t("colWins")}</th><th>{t("colRole")}</th>{isAdmin&&<th>{t("colActions")}</th>}</tr></thead>
                 <tbody>
                   {filtered.map((m,i) => (
                     <>
@@ -3157,7 +4242,7 @@ function Members({ ctx }) {
                           <ClassIcon cls={m.cls} size={40} />
                           <div>
                             <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",textAlign:"left"}}>{m.name}</div>
-                            <div style={{fontSize:10,color:"var(--text-dim)",fontWeight:500}}>Joined {m.joinDate}</div>
+                            <div style={{fontSize:10,color:"var(--text-dim)",fontWeight:500}}>{t("joinedOn")} {m.joinDate}</div>
                           </div>
                         </div>
                       </td>
@@ -3166,7 +4251,7 @@ function Members({ ctx }) {
                       <td data-label="Attend." style={{color:"#60aadd",fontWeight:700}}>{m.attendance}</td>
                       <td data-label="Wins" style={{color:"var(--gold)",fontWeight:700}}>{m.auctionWins}×</td>
                       <td data-label="Role"><span className={`badge ${m.role==="Master"?"badge-gold":m.role==="Elder"?"badge-red":"badge-silver"}`}>{m.role}</span></td>
-                      {isAdmin && <td data-label="Action"><button className="btn btn-ghost btn-sm" onClick={e=>{e.stopPropagation();removeMember(m.id);}}>Remove</button></td>}
+                      {isAdmin && <td data-label="Action"><button className="btn btn-ghost btn-sm" onClick={e=>{e.stopPropagation();removeMember(m.id);}}>{t("remove")}</button></td>}
                     </tr>
                     </>
                   ))}
@@ -3187,35 +4272,35 @@ function Members({ ctx }) {
             </div>
             {selectedMember.discord && <div style={{textAlign:"center",marginBottom:10}}><span className="discord-tag">🎮 {selectedMember.discord}</span></div>}
             <div className="divider" />
-            {[["Coins",fmt(selectedMember.coins)],["Attendance",selectedMember.attendance],["Wins",selectedMember.auctionWins],["Joined",selectedMember.joinDate]].map(([k,v]) => (
+            {[[t("statCoins"),fmt(selectedMember.coins)],[t("statAttendance"),selectedMember.attendance],[t("statWins"),selectedMember.auctionWins],[t("statJoined"),selectedMember.joinDate]].map(([k,v]) => (
               <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--border-dim)",fontSize:12}}>
                 <span style={{color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",fontWeight:500}}>{k}</span>
                 <span style={{color:"var(--text-bright)",fontFamily:"'Inter',sans-serif",fontWeight:700}}>{v}</span>
               </div>
             ))}
             <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--border-dim)",fontSize:12}}>
-              <span style={{display:"inline-flex",alignItems:"center",gap:5,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",fontWeight:500}}><PowerIcon size={13} /> Power</span>
+              <span style={{display:"inline-flex",alignItems:"center",gap:5,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",fontWeight:500}}><PowerIcon size={13} /> {t("powerLabel")}</span>
               <span style={{color:"var(--text-bright)",fontFamily:"'Inter',sans-serif",fontWeight:700}}>{fmt(selectedMember.power)}</span>
             </div>
             {isAdmin && (
               <div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
-                <button className="btn btn-outline btn-sm" onClick={()=>setModal({type:"adjustCoins",data:selectedMember})}>Adjust Coins</button>
-                <button className="btn btn-blue btn-sm" onClick={()=>setModal({type:"adjustPower",data:selectedMember})}><span style={{display:"inline-flex",alignItems:"center",gap:5}}><PowerIcon size={12} />Adjust Power</span></button>
-                <button className="btn btn-discord btn-sm" onClick={()=>setModal({type:"discord",data:selectedMember})}>{selectedMember.discord?"Edit Discord":"Link Discord"}</button>
+                <button className="btn btn-outline btn-sm" onClick={()=>setModal({type:"adjustCoins",data:selectedMember})}>{t("adjustCoins")}</button>
+                <button className="btn btn-blue btn-sm" onClick={()=>setModal({type:"adjustPower",data:selectedMember})}><span style={{display:"inline-flex",alignItems:"center",gap:5}}><PowerIcon size={12} />{t("adjustPower")}</span></button>
+                <button className="btn btn-discord btn-sm" onClick={()=>setModal({type:"discord",data:selectedMember})}>{selectedMember.discord?t("editDiscord"):t("linkDiscord")}</button>
                 {currentUser.role==="Master" && (
-                  <button className="btn btn-outline btn-sm" onClick={()=>setModal({type:"renameMember",data:selectedMember})}>✎ Rename</button>
+                  <button className="btn btn-outline btn-sm" onClick={()=>setModal({type:"renameMember",data:selectedMember})}>{t("rename")}</button>
                 )}
                 {currentUser.role==="Master" && selectedMember.id!==currentUser.id && (
                   <div style={{borderTop:"1px solid var(--border-dim)",paddingTop:8}}>
-                    <div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:2,textTransform:"uppercase",fontFamily:"'Inter',sans-serif",marginBottom:6}}>Change Role</div>
+                    <div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:2,textTransform:"uppercase",fontFamily:"'Inter',sans-serif",marginBottom:6}}>{t("changeRole")}</div>
                     <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                      {selectedMember.role!=="Member"&&<button className="btn btn-ghost btn-sm" onClick={()=>{setMembers(ms=>ms.map(x=>x.id===selectedMember.id?{...x,role:"Member"}:x));setSelectedMember(p=>({...p,role:"Member"}));addToast(`${selectedMember.name} set to Member.`,"gold","Role Changed");}}>→ Member</button>}
-                      {selectedMember.role!=="Elder"&&<button className="btn btn-outline btn-sm" onClick={()=>{setMembers(ms=>ms.map(x=>x.id===selectedMember.id?{...x,role:"Elder"}:x));setSelectedMember(p=>({...p,role:"Elder"}));addToast(`${selectedMember.name} promoted to Elder.`,"gold","Role Changed");}}>→ Elder</button>}
-                      {selectedMember.role!=="Master"&&<button className="btn btn-gold btn-sm" onClick={()=>{setMembers(ms=>ms.map(x=>x.id===selectedMember.id?{...x,role:"Master"}:x));setSelectedMember(p=>({...p,role:"Master"}));addToast(`${selectedMember.name} is now Master!`,"gold","Role Changed");}}>→ Master</button>}
+                      {selectedMember.role!=="Member"&&<button className="btn btn-ghost btn-sm" onClick={()=>{setMembers(ms=>ms.map(x=>x.id===selectedMember.id?{...x,role:"Member"}:x));setSelectedMember(p=>({...p,role:"Member"}));addToast(`${selectedMember.name} ${t("setToMember")}`,"gold",t("roleChanged"));}}>{t("toMember")}</button>}
+                      {selectedMember.role!=="Elder"&&<button className="btn btn-outline btn-sm" onClick={()=>{setMembers(ms=>ms.map(x=>x.id===selectedMember.id?{...x,role:"Elder"}:x));setSelectedMember(p=>({...p,role:"Elder"}));addToast(`${selectedMember.name} ${t("promotedToElder")}`,"gold",t("roleChanged"));}}>{t("toElder")}</button>}
+                      {selectedMember.role!=="Master"&&<button className="btn btn-gold btn-sm" onClick={()=>{setMembers(ms=>ms.map(x=>x.id===selectedMember.id?{...x,role:"Master"}:x));setSelectedMember(p=>({...p,role:"Master"}));addToast(`${selectedMember.name} ${t("nowMaster")}`,"gold",t("roleChanged"));}}>{t("toMaster")}</button>}
                     </div>
                   </div>
                 )}
-                <button className="btn btn-red btn-sm" onClick={()=>removeMember(selectedMember.id)}>Remove Member</button>
+                <button className="btn btn-red btn-sm" onClick={()=>removeMember(selectedMember.id)}>{t("removeMember")}</button>
               </div>
             )}
           </div>
@@ -3338,6 +4423,7 @@ function performAttendancePayout(members, { ev, date, ts, present, qualifierMap 
 
 // ─── ATTENDANCE ───────────────────────────────────────────────────────────────
 function Attendance({ ctx }) {
+  const { t } = useLang();
   const [memberSearch, setMemberSearch] = useState("");
   const { members, setMembers, addToast, currentUser, attendanceLogs, setAttendanceLogs, setModal } = ctx;
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -3371,7 +4457,7 @@ function Attendance({ ctx }) {
     const link = document.createElement("a");
     link.href = url; link.download = filename; link.click();
     URL.revokeObjectURL(url);
-    addToast(`${filename} downloaded!`,"green","Export");
+    addToast(`${filename} ${t("fileDownloaded")}`,"green",t("exportLabel"));
   }
 
   function toggleMember(id) {
@@ -3380,10 +4466,10 @@ function Attendance({ ctx }) {
   }
 
   function submitAttendance() {
-    if(!selectedEvent){addToast("Please select an event.","red","Error");return;}
+    if(!selectedEvent){addToast(t("selectEventError"),"red",t("errorLabel"));return;}
     const ev=EVENTS.find(e=>e.id===selectedEvent);
     const present=Object.entries(selectedMembers).filter(([,v])=>v).map(([id])=>parseInt(id));
-    if(present.length===0){addToast("No members selected.","red","Error");return;}
+    if(present.length===0){addToast(t("noMembersSelected"),"red",t("errorLabel"));return;}
     const today = new Date().toLocaleDateString();
     const nowTs = Date.now();
     const qualifierMap = {...qualifier};
@@ -3399,13 +4485,13 @@ function Attendance({ ctx }) {
       const { updatedMembers, bonusToasts } = performAttendancePayout(ms, { ev, date: today, ts: nowTs, present, qualifierMap });
       // Show bonus toasts after state update
       setTimeout(()=>{
-        bonusToasts.forEach(t=>addToast(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><TrophyIcon size={14}/>{t.name} earned +{t.coins} coins — {t.bonus} Bonus!</span>,"gold","Bonus Awarded"));
+        bonusToasts.forEach(bonus=>addToast(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><TrophyIcon size={14}/>{bonus.name} {t("earnedBonusText")} +{bonus.coins} {t("coinsText")} — {bonus.bonus} {t("bonusText")}</span>,"gold",t("bonusAwarded")));
       }, 200);
       return updatedMembers;
     });
     const logEntry = {id:Date.now(),event:ev.name,date:today,ts:nowTs,members:present.length,recordedBy:currentUser.name,attendees:presentNames};
     setAttendanceLogs(p=>[logEntry,...p]);
-    addToast(`Attendance recorded! ${present.length} members updated.`,"blue","Attendance Saved");
+    addToast(`${t("attendanceRecorded")} ${present.length} ${t("membersUpdated")}`,"blue",t("attendanceSaved"));
     setSelectedMembers({});setQualifier({});setSelectedEvent(null);
     setLogPage(0);
   }
@@ -3468,16 +4554,16 @@ function Attendance({ ctx }) {
   return (
     <div>
       <div className="tabs">
-        <div className={`tab${tab==="record"?" active":""}`} onClick={()=>setTab("record")}>Record Attendance</div>
-        <div className={`tab${tab==="logs"?" active":""}`} onClick={()=>setTab("logs")}>History</div>
-        <div className={`tab${tab==="bonuses"?" active":""}`} onClick={()=>setTab("bonuses")}>Bonuses</div>
-        <div className={`tab${tab==="mylog"?" active":""}`} onClick={()=>setTab("mylog")}>My Points History</div>
-        <div className={`tab${tab==="globallog"?" active":""}`} onClick={()=>setTab("globallog")}>Global Points Log</div>
+        <div className={`tab${tab==="record"?" active":""}`} onClick={()=>setTab("record")}>{t("tabRecordAttendance")}</div>
+        <div className={`tab${tab==="logs"?" active":""}`} onClick={()=>setTab("logs")}>{t("tabHistory")}</div>
+        <div className={`tab${tab==="bonuses"?" active":""}`} onClick={()=>setTab("bonuses")}>{t("tabBonuses")}</div>
+        <div className={`tab${tab==="mylog"?" active":""}`} onClick={()=>setTab("mylog")}>{t("tabMyLog")}</div>
+        <div className={`tab${tab==="globallog"?" active":""}`} onClick={()=>setTab("globallog")}>{t("tabGlobalLog")}</div>
       </div>
 
       {tab==="record" && (
         <div>
-          {!isAdmin && <div className="card" style={{color:"var(--text-dim)",textAlign:"center",padding:32,fontFamily:"'Inter',sans-serif"}}>Only Elders and Leaders can record attendance.</div>}
+          {!isAdmin && <div className="card" style={{color:"var(--text-dim)",textAlign:"center",padding:32,fontFamily:"'Inter',sans-serif"}}>{t("elderOnlyAttendance")}</div>}
           {isAdmin && (
             <div className="grid-2">
               <div>
@@ -3496,19 +4582,19 @@ function Attendance({ ctx }) {
                 </div>
                 {selectedEvent && (
                   <div className="card card-blue">
-                    <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>Coin Rules</div>
-                    <div style={{fontSize:13,marginBottom:4,fontFamily:"'Inter',sans-serif"}}>Full: <strong style={{color:"var(--gold)"}}>{EVENTS.find(e=>e.id===selectedEvent)?.coins}</strong></div>
-                    <div style={{fontSize:13,marginBottom:4,fontFamily:"'Inter',sans-serif"}}>Late: <strong style={{color:"var(--gold)"}}>{Math.floor(EVENTS.find(e=>e.id===selectedEvent)?.coins*0.5)}</strong></div>
-                    <div style={{fontSize:13,fontFamily:"'Inter',sans-serif"}}>AFK: <strong style={{color:"var(--text-dim)"}}>0</strong></div>
+                    <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>{t("coinRules")}</div>
+                    <div style={{fontSize:13,marginBottom:4,fontFamily:"'Inter',sans-serif"}}>{t("full")}: <strong style={{color:"var(--gold)"}}>{EVENTS.find(e=>e.id===selectedEvent)?.coins}</strong></div>
+                    <div style={{fontSize:13,marginBottom:4,fontFamily:"'Inter',sans-serif"}}>{t("late")}: <strong style={{color:"var(--gold)"}}>{Math.floor(EVENTS.find(e=>e.id===selectedEvent)?.coins*0.5)}</strong></div>
+                    <div style={{fontSize:13,fontFamily:"'Inter',sans-serif"}}>{t("afk")}: <strong style={{color:"var(--text-dim)"}}>0</strong></div>
                   </div>
                 )}
               </div>
               <div className="card">
-                <SectionTitle>Mark Members</SectionTitle>
+                <SectionTitle>{t("markMembers")}</SectionTitle>
                 <input
                   className="input"
                   type="text"
-                  placeholder="Search member..."
+                  placeholder={t("searchMember")}
                   value={memberSearch}
                   onChange={e=>setMemberSearch(e.target.value)}
                   style={{marginBottom:10,width:"100%"}}
@@ -3521,15 +4607,15 @@ function Attendance({ ctx }) {
                       <span style={{flex:1,fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:"var(--text-bright)"}}>{m.name}</span>
                       {selectedMembers[m.id] && (
                         <select className="select" style={{width:"auto",padding:"3px 8px",fontSize:11}} value={qualifier[m.id]||"full"} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();setQualifier(p=>({...p,[m.id]:e.target.value}));}}>
-                          <option value="full">Full</option><option value="late">Late</option><option value="afk">AFK</option>
+                          <option value="full">{t("full")}</option><option value="late">{t("late")}</option><option value="afk">{t("afk")}</option>
                         </select>
                       )}
                     </div>
                   ))}
                 </div>
                 <div style={{marginTop:16,display:"flex",gap:10}}>
-                  <button className="btn btn-gold" style={{flex:1}} onClick={submitAttendance}>Submit Attendance</button>
-                  <button className="btn btn-outline" onClick={()=>{setSelectedMembers({});setQualifier({});}}>Clear</button>
+                  <button className="btn btn-gold" style={{flex:1}} onClick={submitAttendance}>{t("submitAttendance")}</button>
+                  <button className="btn btn-outline" onClick={()=>{setSelectedMembers({});setQualifier({});}}>{t("clear")}</button>
                 </div>
               </div>
             </div>
@@ -3541,29 +4627,29 @@ function Attendance({ ctx }) {
         <>
         {isAdmin && (
           <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
-            <button className="btn btn-outline btn-sm" onClick={()=>setModal({type:"addMissingAttendance"})}>+ Add Missing Record</button>
+            <button className="btn btn-outline btn-sm" onClick={()=>setModal({type:"addMissingAttendance"})}>{t("addMissingRecord")}</button>
           </div>
         )}
         <div className="card" style={{padding:0}}>
           <div className="table-wrap">
             <table className="table-stack">
-              <thead><tr><th>Date &amp; Time</th><th>Event</th><th>Members</th><th>Recorded By</th><th>Attendees</th>{isMaster&&<th>Actions</th>}</tr></thead>
+              <thead><tr><th>{t("colDateTime")}</th><th>{t("colEvent")}</th><th>{t("colMembers")}</th><th>{t("colRecBy")}</th><th>{t("attendeesLabel")}</th>{isMaster&&<th>{t("colActions")}</th>}</tr></thead>
               <tbody>
-                {attendanceLogs.length===0 && <tr><td colSpan={isMaster?6:5} style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>No attendance recorded yet.</td></tr>}
+                {attendanceLogs.length===0 && <tr><td colSpan={isMaster?6:5} style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noAttendanceYet")}</td></tr>}
                 {pagedLogs.map(l=>(
                   <>
                     <tr key={l.id}>
                       <td data-label="Date & Time" style={{fontWeight:500,whiteSpace:"nowrap"}}>{formatLogDateTime(l)}</td>
                       <td data-label="Event" style={{fontFamily:"'Inter',sans-serif",fontWeight:700}}>{l.event}</td>
-                      <td data-label="Members"><span className="badge badge-blue">{l.members} members</span></td>
+                      <td data-label="Members"><span className="badge badge-blue">{l.members} {t("membersCountLabel")}</span></td>
                       <td data-label="Rec. By" style={{color:"var(--gold-light)",fontWeight:700}}>{l.recordedBy}</td>
                       <td data-label="Attendees">
                         <div style={{display:"flex",gap:6}}>
                           <button className="btn btn-ghost btn-sm" onClick={()=>setExpandedLog(expandedLog===l.id?null:l.id)}>
-                            {expandedLog===l.id?"▲ Hide":"▼ Show"}
+                            {expandedLog===l.id?t("hideAttendees"):t("showAttendees")}
                           </button>
                           {isAdmin && (
-                            <button className="btn btn-ghost btn-sm" title="Download this event's attendance as CSV" onClick={()=>downloadLogCSV(l)}>
+                            <button className="btn btn-ghost btn-sm" title={t("downloadCsvTitle")} onClick={()=>downloadLogCSV(l)}>
                               ⬇ CSV
                             </button>
                           )}
@@ -3571,14 +4657,14 @@ function Attendance({ ctx }) {
                       </td>
                       {isMaster && (
                         <td data-label="Actions">
-                          <button className="btn btn-red btn-sm" onClick={()=>setModal({type:"deleteAttendance",data:l})}>✕ Remove</button>
+                          <button className="btn btn-red btn-sm" onClick={()=>setModal({type:"deleteAttendance",data:l})}>{t("removeAction")}</button>
                         </td>
                       )}
                     </tr>
                     {expandedLog===l.id && (
                       <tr key={`${l.id}-expand`}>
                         <td colSpan={isMaster?6:5} style={{padding:"10px 18px",background:"rgba(10,11,15,0.7)"}}>
-                          <div style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:"var(--gold-dim)",fontWeight:700,letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Attendees</div>
+                          <div style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:"var(--gold-dim)",fontWeight:700,letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>{t("attendeesLabel")}</div>
                           <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
                             {(l.attendees||[]).map((a,i)=>(
                               <div key={i} style={{display:"flex",alignItems:"center",gap:6,background:"rgba(201,151,42,0.08)",border:"1px solid var(--border)",borderRadius:2,padding:"4px 10px"}}>
@@ -3598,9 +4684,9 @@ function Attendance({ ctx }) {
           </div>
           {totalPages>1 && (
             <div style={{display:"flex",alignItems:"center",gap:10,padding:"14px 18px",borderTop:"1px solid var(--border)",justifyContent:"flex-end"}}>
-              <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:"var(--text-dim)"}}>Page {logPage+1} of {totalPages}</span>
-              <button className="btn btn-outline btn-sm" disabled={logPage===0} onClick={()=>setLogPage(p=>p-1)} style={{opacity:logPage===0?0.4:1}}>← Prev</button>
-              <button className="btn btn-outline btn-sm" disabled={logPage>=totalPages-1} onClick={()=>setLogPage(p=>p+1)} style={{opacity:logPage>=totalPages-1?0.4:1}}>Next →</button>
+              <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:"var(--text-dim)"}}>{t("pageOf")} {logPage+1} {t("ofLabel")} {totalPages}</span>
+              <button className="btn btn-outline btn-sm" disabled={logPage===0} onClick={()=>setLogPage(p=>p-1)} style={{opacity:logPage===0?0.4:1}}>{t("prevPage")}</button>
+              <button className="btn btn-outline btn-sm" disabled={logPage>=totalPages-1} onClick={()=>setLogPage(p=>p+1)} style={{opacity:logPage>=totalPages-1?0.4:1}}>{t("nextPage")}</button>
             </div>
           )}
         </div>
@@ -3610,7 +4696,7 @@ function Attendance({ ctx }) {
       {tab==="bonuses" && (
         <div>
           <div style={{marginBottom:16}}>
-            <input className="input" placeholder="Search warrior…" value={bonusSearch} onChange={e=>setBonusSearch(e.target.value)} style={{maxWidth:300}} />
+            <input className="input" placeholder={t("searchWarrior")} value={bonusSearch} onChange={e=>setBonusSearch(e.target.value)} style={{maxWidth:300}} />
           </div>
           <div className="grid-3" style={{marginBottom:24}}>
             {members.filter(m=>m.name.toLowerCase().includes(bonusSearch.toLowerCase())).map(m=>{
@@ -3627,7 +4713,7 @@ function Attendance({ ctx }) {
                   {/* Major Events */}
                   <div style={{marginBottom:10}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                      <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:b.attendedAll?"var(--gold-light)":"var(--text-dim)"}}>Major Events</span>
+                      <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:b.attendedAll?"var(--gold-light)":"var(--text-dim)"}}>{t("majorEvents")}</span>
                       {b.attendedAll?<span className="badge badge-gold">+300</span>:<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{b.attendedNames.size}/{b.totalEvents}</span>}
                     </div>
                     <div style={{height:4,background:"rgba(255,255,255,0.07)",borderRadius:2}}>
@@ -3638,44 +4724,44 @@ function Attendance({ ctx }) {
                   {/* Sindri Veteran */}
                   <div style={{marginBottom:10}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                      <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:b.sindriVet?"var(--gold-light)":"var(--text-dim)"}}>Sindri Veteran</span>
-                      {b.sindriVet?<span className="badge badge-gold">✓ Earned</span>:<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{b.stiQualWeeks}/5 weeks</span>}
+                      <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:b.sindriVet?"var(--gold-light)":"var(--text-dim)"}}>{t("sindriVeteran")}</span>
+                      {b.sindriVet?<span className="badge badge-gold">{t("earned")}</span>:<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{b.stiQualWeeks}/5 {t("weeksLabel")}</span>}
                     </div>
                     <div style={{height:4,background:"rgba(255,255,255,0.07)",borderRadius:2}}>
                       <div style={{height:4,borderRadius:2,background:"linear-gradient(90deg,#6c1e6c,#9b59b6)",width:`${Math.min(100,(b.stiQualWeeks/5)*100)}%`,transition:"width 0.4s"}} />
                     </div>
-                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>{b.stiQualWeeks}/5 weeks with 2× Sindri's</div>
+                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>{b.stiQualWeeks}/5 {t("sindriProgress")}</div>
                   </div>
                   {/* ISB Veteran */}
                   <div>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                      <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:b.isbVet?"var(--gold-light)":"var(--text-dim)"}}>ISB Veteran</span>
+                      <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:b.isbVet?"var(--gold-light)":"var(--text-dim)"}}>{t("isbVeteran")}</span>
                       {b.isbVet && <span className="badge badge-gold">+500</span>}
                     </div>
                     <div style={{height:4,background:"rgba(255,255,255,0.07)",borderRadius:2}}>
                       <div style={{height:4,borderRadius:2,background:"linear-gradient(90deg,#6c1e6c,#8e44ad)",width:`${Math.min(100,(b.isbCount/10)*100)}%`,transition:"width 0.4s"}} />
                     </div>
-                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>{b.isbCount}/10 ISB events</div>
+                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>{b.isbCount}/10 {t("isbProgress")}</div>
                   </div>
                 </div>
               );
             })}
             {members.filter(m=>m.name.toLowerCase().includes(bonusSearch.toLowerCase())).length===0&&(
-              <div style={{gridColumn:"1/-1",textAlign:"center",padding:32,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>No warrior matches your search.</div>
+              <div style={{gridColumn:"1/-1",textAlign:"center",padding:32,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{t("noWarriorMatch")}</div>
             )}
           </div>
           <div className="card card-gold" style={{marginBottom:16}}>
-            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:"var(--gold-light)",marginBottom:6}}>Bonus Rules</div>
+            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:"var(--gold-light)",marginBottom:6}}>{t("bonusRules")}</div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
-              <div style={{fontSize:12,color:"var(--text-dim)"}}>Major Events — attend all 5 event types this week: ISB (×1), CA (×2), STI (×2), CS (×1), WB (×3): <strong style={{color:"var(--gold)"}}>+300 Coins</strong></div>
-              <div style={{fontSize:12,color:"var(--text-dim)"}}>Sindri Veteran — attend 2× Sindri's Treasure Island per week for 5 weeks: <strong style={{color:"var(--gold)"}}>+400 Coins</strong> (one-time)</div>
-              <div style={{fontSize:12,color:"var(--text-dim)"}}>ISB Veteran — participate in 10 Inter-Server Battles (lifetime): <strong style={{color:"var(--gold)"}}>+500 Coins</strong> (one-time)</div>
+              <div style={{fontSize:12,color:"var(--text-dim)"}}>{t("bonusRuleMajor")} <strong style={{color:"var(--gold)"}}>{t("bonusCoins300")}</strong></div>
+              <div style={{fontSize:12,color:"var(--text-dim)"}}>{t("bonusRuleSindri")} <strong style={{color:"var(--gold)"}}>{t("bonusCoins400")}</strong> {t("bonusOneTime")}</div>
+              <div style={{fontSize:12,color:"var(--text-dim)"}}>{t("bonusRuleISB")} <strong style={{color:"var(--gold)"}}>{t("bonusCoins500")}</strong> {t("bonusOneTime")}</div>
             </div>
           </div>
           <div className="card card-red">
-            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:"#e07070",marginBottom:6}}>Weekly Coin Decay</div>
-            <div style={{fontSize:12,color:"var(--text-dim)",lineHeight:1.7}}>Unused coins decay 10% every Sunday. Stay active!</div>
-            <span className="badge badge-red" style={{marginTop:8,display:"inline-block"}}>-10% / week</span>
+            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:"#e07070",marginBottom:6}}>{t("weeklyCoinDecay")}</div>
+            <div style={{fontSize:12,color:"var(--text-dim)",lineHeight:1.7}}>{t("decayWarning")}</div>
+            <span className="badge badge-red" style={{marginTop:8,display:"inline-block"}}>{t("decayBadge")}</span>
           </div>
         </div>
       )}
@@ -3683,8 +4769,8 @@ function Attendance({ ctx }) {
       {tab==="mylog" && (
         <div className="card" style={{padding:0}}>
           <div style={{padding:"16px 20px",borderBottom:"1px solid var(--border)"}}>
-            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:15,color:"var(--gold-light)"}}>My Points History — Private</div>
-            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3}}>Attendance, bonuses, admin coin adjustments, auction wins, and weekly decay. Only you can see this record.</div>
+            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:15,color:"var(--gold-light)"}}>{t("myPointsHistoryTitle")}</div>
+            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3}}>{t("myPointsHistoryDesc")}</div>
           </div>
           {(()=>{
             // Attendance entries
@@ -3722,24 +4808,24 @@ function Attendance({ ctx }) {
               <>
                 {presentTypes.length>0 && (
                   <div style={{display:"flex",gap:6,flexWrap:"wrap",padding:"12px 20px",borderBottom:"1px solid var(--border)"}}>
-                    {["All",...presentTypes].map(t=>(
-                      <button key={t} className={`btn btn-sm ${historyFilter===t?"btn-gold":"btn-outline"}`} onClick={()=>setHistoryFilter(t)}>{t}</button>
+                    {["All",...presentTypes].map(filterType=>(
+                      <button key={filterType} className={`btn btn-sm ${historyFilter===filterType?"btn-gold":"btn-outline"}`} onClick={()=>setHistoryFilter(filterType)}>{filterType}</button>
                     ))}
                   </div>
                 )}
                 {rawEntries.length===0 ? (
-                  <div style={{padding:32,textAlign:"center",color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>No points history recorded yet.</div>
+                  <div style={{padding:32,textAlign:"center",color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{t("noPointsHistory")}</div>
                 ) : filteredEntries.length===0 ? (
-                  <div style={{padding:32,textAlign:"center",color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>No entries match this filter.</div>
+                  <div style={{padding:32,textAlign:"center",color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{t("noEntriesFilter")}</div>
                 ) : (
                   <div className="table-wrap">
                     <table className="table-stack">
-                      <thead><tr><th>Date &amp; Time</th><th>Type</th><th>Details</th><th>Coins</th></tr></thead>
+                      <thead><tr><th>{t("colDateTime")}</th><th>{t("colType")}</th><th>{t("colDetails")}</th><th>{t("colCoins")}</th></tr></thead>
                       <tbody>
                         {filteredEntries.map((e,i)=>(
                           <tr key={i}>
                             <td data-label="Date & Time" style={{fontWeight:500,whiteSpace:"nowrap"}}>{formatLogDateTime(e)}</td>
-                            <td data-label="Type"><span className={`badge ${badgeClass(e)}`}>{e.type}</span></td>
+                            <td data-label="Type"><span className={`badge ${badgeClass(e)}`}>{typeLabel(e.type,t)}</span></td>
                             <td data-label="Details" style={{fontFamily:"'Inter',sans-serif",fontWeight:600}}>{e.details}</td>
                             <td data-label="Coins" style={{fontFamily:"'Inter',sans-serif",fontWeight:800,color:e.coins>=0?"var(--gold-light)":"#e07070"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={22}/>{e.coins>0?`+${e.coins}`:e.coins}</span></td>
                           </tr>
@@ -3757,12 +4843,12 @@ function Attendance({ ctx }) {
       {tab==="globallog" && (
         <div className="card" style={{padding:0}}>
           <div style={{padding:"16px 20px",borderBottom:"1px solid var(--border)"}}>
-            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:15,color:"var(--gold-light)"}}>Global Points History</div>
-            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3}}>Admin manual adjustments, bonuses, and weekly decay — visible to everyone.</div>
+            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:15,color:"var(--gold-light)"}}>{t("globalPointsTitle")}</div>
+            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3}}>{t("globalPointsDesc")}</div>
           </div>
           <div className="table-wrap">
             <table className="table-stack">
-              <thead><tr><th>Date &amp; Time</th><th>Member</th><th>Type</th><th>Amount</th><th>Added By</th><th>Reason</th></tr></thead>
+              <thead><tr><th>{t("colDateTime")}</th><th>{t("colMember")}</th><th>{t("colType")}</th><th>{t("colAmount")}</th><th>{t("colAddedBy")}</th><th>{t("colReason")}</th></tr></thead>
               <tbody>
                 {(()=>{
                   // Show admin manual adds and all bonus entries
@@ -3770,16 +4856,16 @@ function Attendance({ ctx }) {
                   const allEntries = members.flatMap(m=>
                     (m.txLog||[])
                       .filter(t=>t.logType==="Admin Manual Add" || BONUS_TYPES.has(t.logType) || (!t.logType && t.addedBy && t.addedBy!=="System"))
-                      .map(t=>({date:t.date,ts:t.ts,member:t.logType==="Weekly Decay"?"All Members":m.name,type:t.logType||"Admin Manual Add",amount:t.change,addedBy:t.addedBy||"—",reason:t.reason||"—",cls:m.cls}))
+                      .map(t=>({date:t.date,ts:t.ts,member:t.logType==="Weekly Decay"?t("allMembersLabel"):m.name,type:t.logType||"Admin Manual Add",amount:t.change,addedBy:t.addedBy||"—",reason:t.reason||"—",cls:m.cls}))
                   ).sort((a,b)=>logSortKey(b)-logSortKey(a)).slice(0,100);
                   if(allEntries.length===0) return(
-                    <tr><td colSpan={5} style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>No global point adjustments yet.</td></tr>
+                    <tr><td colSpan={5} style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noGlobalAdjustments")}</td></tr>
                   );
                   return allEntries.map((entry,i)=>(
                     <tr key={i}>
                       <td data-label="Date & Time" style={{fontWeight:500,whiteSpace:"nowrap"}}>{formatLogDateTime(entry)}</td>
                       <td data-label="Member" style={{fontFamily:"'Inter',sans-serif",fontWeight:700,color:"var(--text-bright)"}}>{entry.member}</td>
-                      <td data-label="Type"><span className={`badge ${entry.amount>0?"badge-gold":"badge-red"}`}>{entry.type}</span></td>
+                      <td data-label="Type"><span className={`badge ${entry.amount>0?"badge-gold":"badge-red"}`}>{typeLabel(entry.type,t)}</span></td>
                       <td data-label="Amount" style={{fontFamily:"'Inter',sans-serif",fontWeight:800,color:entry.amount>=0?"var(--gold-light)":"#e07070"}}>{entry.amount>=0?`+${entry.amount}`:entry.amount}</td>
                       <td data-label="Added By" style={{fontFamily:"'Inter',sans-serif",fontWeight:600,color:"var(--gold)",fontSize:12}}>{entry.addedBy}</td>
                       <td data-label="Reason" style={{fontSize:11,color:"var(--text-dim)"}}>{entry.reason}</td>
@@ -3862,6 +4948,7 @@ function BidMarquee({ feed, auctions }) {
 // ─── AUCTIONS ─────────────────────────────────────────────────────────────────
 function Auctions({ ctx }) {
   const { auctions, setAuctions, members, setMembers, currentUser, addToast, tick, imageLibrary, addImage, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed } = ctx;
+  const { t } = useLang();
   const [tab, setTab] = useState("active");
   const [bidAmounts, setBidAmounts] = useState({});
   const [bidSubmitting, setBidSubmitting] = useState({});
@@ -3897,9 +4984,9 @@ function Auctions({ ctx }) {
     const amount=parseInt(bidAmounts[auctionId]||0);
     const me=members.find(m=>m.name===currentUser.name);
     if(!a||a.status!=="active") return;
-    if(amount<a.currentBid+5){addToast(`Minimum bid is ${fmt(a.currentBid+5)} coins (current + 5).`,"red","Invalid Bid");return;}
-    if(!me||me.coins<amount){addToast("Insufficient coins.","red","No Funds");return;}
-    if(a.topBidder===currentUser.name){addToast("You already hold the highest bid.","gold","Already Winning");return;}
+    if(amount<a.currentBid+5){addToast(`${t("minBidError")} ${fmt(a.currentBid+5)} ${t("minBidErrorSuffix")}`,"red",t("invalidBid"));return;}
+    if(!me||me.coins<amount){addToast(t("insufficientCoins"),"red",t("noFunds"));return;}
+    if(a.topBidder===currentUser.name){addToast(t("alreadyHighestBid"),"gold",t("alreadyWinning"));return;}
 
     // Re-check against the live DB value to catch another user's bid that
     // landed between polls (race condition under concurrent bidding).
@@ -3910,15 +4997,15 @@ function Auctions({ ctx }) {
     if (freshRow) {
       const freshBid = Number(freshRow.current_bid) || 0;
       if (freshRow.status !== "active") {
-        addToast("This auction has ended.","red","Auction Ended");
+        addToast(t("auctionEnded"),"red",t("auctionEndedTitle"));
         return;
       }
       if (freshBid >= amount) {
-        addToast(`Someone just bid higher (${fmt(freshBid)}). Please try again.`,"red","Outbid");
+        addToast(`${t("outbidMessage")} (${fmt(freshBid)}). ${t("pleaseRetry")}`,"red",t("outbidTitle"));
         return;
       }
       if (freshRow.top_bidder===currentUser.name) {
-        addToast("You already hold the highest bid.","gold","Already Winning");
+        addToast(t("alreadyHighestBid"),"gold",t("alreadyWinning"));
         return;
       }
     }
@@ -3980,7 +5067,7 @@ function Auctions({ ctx }) {
     const endsAtChanged = newEndsAt !== a.endsAt;
 
     setAuctions(prev=>prev.map(x=>x.id===auctionId?{...x,currentBid:amount,topBidder:currentUser.name,endsAt:newEndsAt,bids:[...(x.bids||[]),{bidder:currentUser.name,amount,time:Date.now()}]}:x));
-    addToast(`Bid of ${fmt(amount)} placed on ${a.name}!${endsAtChanged?" ⏱️ Timer extended 2 mins (snipe protection)":""}`, "gold","Bid Placed");
+    addToast(`${t("bidPlacedOn")} ${fmt(amount)} ${t("placedOn")} ${a.name}!${endsAtChanged?" "+t("snipeProtection"):""}`, "gold",t("bidPlacedTitle"));
     setBidAmounts(prev=>({...prev,[auctionId]:""}));
     // Write to bid_events so all other users get a global announcement
     const bidEventId = `${auctionId}_${Date.now()}`;
@@ -3992,7 +5079,7 @@ function Auctions({ ctx }) {
 
 
   function createAuction() {
-    if(!newAuction.name){addToast("Item name required.","red","Error");return;}
+    if(!newAuction.name){addToast(t("itemNameRequired"),"red",t("errorLabel"));return;}
     const now = Date.now();
     const minBid = parseInt(newAuction.startBid)||100;
     const a={
@@ -4013,14 +5100,14 @@ function Auctions({ ctx }) {
       bids: [],
     };
     setAuctions(prev=>[...prev,a]);
-    addToast(`Auction started: ${a.name}`,"gold","Auction Live");
+    addToast(`${t("auctionStarted")} ${a.name}`,"gold",t("auctionLive"));
     setNewAuction({name:"",image:null,rarity:"epic",desc:"",startBid:100,duration:30});
   }
 
   const RARITY_OPTS=[
-    {value:"epic",label:"Epic",color:"#ff8080",bg:"rgba(122,26,26,0.25)",border:"rgba(192,57,43,0.55)"},
-    {value:"rare",label:"Rare",color:"#60aadd",bg:"rgba(26,90,138,0.2)",border:"rgba(46,134,193,0.5)"},
-    {value:"kari",label:"Kari",color:"#a0d8ff",bg:"rgba(0,80,160,0.35)",border:"rgba(100,200,255,0.6)"},
+    {value:"epic",label:t("rarityEpic"),color:"#ff8080",bg:"rgba(122,26,26,0.25)",border:"rgba(192,57,43,0.55)"},
+    {value:"rare",label:t("rarityRare"),color:"#60aadd",bg:"rgba(26,90,138,0.2)",border:"rgba(46,134,193,0.5)"},
+    {value:"kari",label:t("rarityKari"),color:"#a0d8ff",bg:"rgba(0,80,160,0.35)",border:"rgba(100,200,255,0.6)"},
   ];
 
   // Loot Roulette state (lifted into Auctions)
@@ -4059,7 +5146,7 @@ function Auctions({ ctx }) {
 
   function lrAddItem(){
     const name=lrNewItem.trim();
-    if(!name){addToast("Enter item name.","red","Error");return;}
+    if(!name){addToast(t("enterItemNameError"),"red",t("errorLabel"));return;}
     const qty=Math.max(1,parseInt(lrNewQty)||1);
     setLrItems(p=>{const ex=p.findIndex(i=>i.name.toLowerCase()===name.toLowerCase());
       if(ex>=0)return p.map((i,idx)=>idx===ex?{...i,qty:i.qty+qty}:i);
@@ -4070,8 +5157,8 @@ function Auctions({ ctx }) {
   function lrUpdateQty(id,qty){if(qty<1)return;setLrItems(p=>p.map(i=>i.id===id?{...i,qty}:i));}
 
   function lrDistribute(){
-    if(!lrItems.length){addToast("Add at least one item.","red","Error");return;}
-    if(!lrPresentList.length){addToast("Select at least one member.","red","Error");return;}
+    if(!lrItems.length){addToast(t("addAtLeastOneItem"),"red",t("errorLabel"));return;}
+    if(!lrPresentList.length){addToast(t("selectAtLeastOneMember"),"red",t("errorLabel"));return;}
     setLrSpinning(true);setLrRevealed(false);setLrDist(null);
     const totalSpin=1440+Math.random()*720;let start=null;const dur=2800;
     function animate(ts){
@@ -4129,10 +5216,10 @@ function Auctions({ ctx }) {
   return (
     <div>
       <div className="tabs">
-        <div className={`tab${tab==="active"?" active":""}`} onClick={()=>setTab("active")}>Live Auctions ({active.length})</div>
-        <div className={`tab${tab==="ended"?" active":""}`} onClick={()=>setTab("ended")}>History</div>
-        <div className={`tab${tab==="roulette"?" active":""}`} onClick={()=>setTab("roulette")}>Loot Roulette</div>
-        {isAdmin&&<div className={`tab${tab==="create"?" active":""}`} onClick={()=>setTab("create")}>Create Auction</div>}
+        <div className={`tab${tab==="active"?" active":""}`} onClick={()=>setTab("active")}>{t("tabLiveAuctions")} ({active.length})</div>
+        <div className={`tab${tab==="ended"?" active":""}`} onClick={()=>setTab("ended")}>{t("tabAuctionHistory")}</div>
+        <div className={`tab${tab==="roulette"?" active":""}`} onClick={()=>setTab("roulette")}>{t("tabLootRoulette")}</div>
+        {isAdmin&&<div className={`tab${tab==="create"?" active":""}`} onClick={()=>setTab("create")}>{t("tabCreateAuction")}</div>}
       </div>
 
       <BidMarquee feed={bidFeed} auctions={auctions} />
@@ -4140,20 +5227,20 @@ function Auctions({ ctx }) {
       {(tab==="active"||tab==="ended") && (
         <div style={{display:"flex",alignItems:"center",gap:10,margin:"14px 0 4px",flexWrap:"wrap",justifyContent:"flex-end"}}>
           <div style={{display:"flex",alignItems:"center",gap:6}}>
-            <span style={{fontSize:11,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700,fontFamily:"'Inter',sans-serif"}}>Sort:</span>
+            <span style={{fontSize:11,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700,fontFamily:"'Inter',sans-serif"}}>{t("sortLabel")}</span>
             <select className="select" style={{width:"auto",fontSize:11,padding:"4px 10px",cursor:"pointer"}} value={sortBy} onChange={e=>setSortBy(e.target.value)}>
-              <option value="default">Default</option>
-              <option value="bid-desc">Bid: High → Low</option>
-              <option value="bid-asc">Bid: Low → High</option>
-              <option value="rarity">Rarity</option>
-              <option value="has-bidder">Has Bidder</option>
+              <option value="default">{t("sortDefault")}</option>
+              <option value="bid-desc">{t("sortBidHighLow")}</option>
+              <option value="bid-asc">{t("sortBidLowHigh")}</option>
+              <option value="rarity">{t("sortRarity")}</option>
+              <option value="has-bidder">{t("sortHasBidder")}</option>
             </select>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:6}}>
-            <span style={{fontSize:11,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700,fontFamily:"'Inter',sans-serif"}}>View:</span>
+            <span style={{fontSize:11,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700,fontFamily:"'Inter',sans-serif"}}>{t("viewLabel")}</span>
             <select className="select" style={{width:"auto",fontSize:11,padding:"4px 10px",cursor:"pointer"}} value={viewMode} onChange={e=>setViewMode(e.target.value)}>
-              <option value="grid">⊞ Grid</option>
-              <option value="compact">≡ Compact</option>
+              <option value="grid">{t("viewGrid")}</option>
+              <option value="compact">{t("viewCompact")}</option>
             </select>
           </div>
         </div>
@@ -4161,7 +5248,7 @@ function Auctions({ ctx }) {
 
       {tab==="active" && (
         <div className={viewMode==="grid"?"grid-3":""} style={viewMode==="compact"?{display:"flex",flexDirection:"column",gap:6}:{}}>
-          {active.length===0&&<div style={{color:"var(--text-dim)",gridColumn:"1/-1",textAlign:"center",padding:48,fontFamily:"'Inter',sans-serif"}}>No active auctions right now.</div>}
+          {active.length===0&&<div style={{color:"var(--text-dim)",gridColumn:"1/-1",textAlign:"center",padding:48,fontFamily:"'Inter',sans-serif"}}>{t("noActiveAuctionsNow")}</div>}
           {active.map(a=>{
             const isWinning=a.topBidder===currentUser.name;
             const minBid=a.currentBid+5;
@@ -4186,12 +5273,12 @@ function Auctions({ ctx }) {
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginBottom:3}}>
                       <span style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:130}}>{a.name}</span>
-                      <span style={{fontSize:8,fontWeight:700,padding:"2px 5px",background:rc2.bg,border:`1px solid ${rc2.border}`,color:rc2.color,letterSpacing:1,borderRadius:2,flexShrink:0}}>{(a.rarity||"epic").toUpperCase()}</span>
-                      {isWinning&&<span style={{fontSize:8,fontWeight:700,padding:"2px 5px",background:"rgba(39,174,96,0.2)",border:"1px solid rgba(39,174,96,0.5)",color:"#6ee89a",borderRadius:2,flexShrink:0}}>✓ WINNING</span>}
+                      <span style={{fontSize:8,fontWeight:700,padding:"2px 5px",background:rc2.bg,border:`1px solid ${rc2.border}`,color:rc2.color,letterSpacing:1,borderRadius:2,flexShrink:0}}>{rarityLabel(a.rarity||"epic",t)}</span>
+                      {isWinning&&<span style={{fontSize:8,fontWeight:700,padding:"2px 5px",background:"rgba(39,174,96,0.2)",border:"1px solid rgba(39,174,96,0.5)",color:"#6ee89a",borderRadius:2,flexShrink:0}}>{t("winningBadgeCompact")}</span>}
                     </div>
                     {a.topBidder
                       ? <div style={{display:"flex",alignItems:"center",gap:3}}><TrophyIcon size={11} style={{color:"#6ee89a",filter:"drop-shadow(0 0 3px rgba(110,232,154,0.4))"}}/><span style={{fontSize:11,color:"#6ee89a",fontWeight:700,fontFamily:"'Inter',sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:110}}>{a.topBidder}</span></div>
-                      : <div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic"}}>No bids yet</div>
+                      : <div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic"}}>{t("noBidsYet")}</div>
                     }
                   </div>
                   {/* Stats: bid + timer */}
@@ -4205,14 +5292,14 @@ function Auctions({ ctx }) {
                 </div>
                 {/* ROW 2: bid input + buttons */}
                 <div style={{display:"flex",gap:6,padding:"0 12px 10px",alignItems:"center"}}>
-                  <input className="input" type="number" min={minBid} placeholder={`Min ${fmt(minBid)}`}
+                  <input className="input" type="number" min={minBid} placeholder={`${t("minBidPlaceholder")} ${fmt(minBid)}`}
                     value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p,[a.id]:e.target.value}))}
                     style={{flex:1,minWidth:0,fontSize:12,padding:"5px 8px"}} />
                   <button className="btn btn-gold btn-sm" onClick={()=>placeBid(a.id)} disabled={!!bidSubmitting[a.id]} style={{flexShrink:0,padding:"5px 14px"}}>
-                    {bidSubmitting[a.id]?"…":"Bid"}
+                    {bidSubmitting[a.id]?"…":t("bidButton")}
                   </button>
 
-                  {isMaster&&<button className="btn btn-red btn-sm" onClick={()=>removeAuction(a.id)} title="Remove" style={{flexShrink:0,padding:"5px 10px"}}>✕</button>}
+                  {isMaster&&<button className="btn btn-red btn-sm" onClick={()=>removeAuction(a.id)} title={t("removeTitle")} style={{flexShrink:0,padding:"5px 10px"}}>✕</button>}
                 </div>
               </div>
             );
@@ -4221,15 +5308,15 @@ function Auctions({ ctx }) {
                 <div className={`auction-img rarity-${a.rarity||"epic"}`} style={a.rarity==="kari"?{backgroundImage:`url(${KARI_BG})`}:{}}>
                   {a.image?<AuctionImage auction={a} alt={a.name} style={{width:"80%",height:"80%",objectFit:"contain",position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",filter:"drop-shadow(0 4px 16px rgba(0,0,0,0.7))"}} fallback={<StatIcon src={AUCTION_ICON} size={56}/>}/>:<StatIcon src={AUCTION_ICON} size={56}/>}
                   <div className="auction-timer pulse">{timeLeft(a.endsAt)}</div>
-                  {(()=>{const r=rc2;return(<div style={{position:"absolute",top:8,left:8,zIndex:10,background:r.bg,fontFamily:"'Inter',sans-serif",fontSize:10,fontWeight:700,padding:"3px 8px",border:`1px solid ${r.border}`,letterSpacing:1,color:r.color}}>{(a.rarity||"epic").toUpperCase()}</div>);})()}
-                  {isWinning&&<div style={{position:"absolute",bottom:8,right:8,background:"rgba(39,174,96,0.85)",color:"#fff",fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:9,padding:"3px 8px",letterSpacing:1.5,textTransform:"uppercase"}}>Winning</div>}
+                  {(()=>{const r=rc2;return(<div style={{position:"absolute",top:8,left:8,zIndex:10,background:r.bg,fontFamily:"'Inter',sans-serif",fontSize:10,fontWeight:700,padding:"3px 8px",border:`1px solid ${r.border}`,letterSpacing:1,color:r.color}}>{rarityLabel(a.rarity||"epic",t)}</div>);})()}
+                  {isWinning&&<div style={{position:"absolute",bottom:8,right:8,background:"rgba(39,174,96,0.85)",color:"#fff",fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:9,padding:"3px 8px",letterSpacing:1.5,textTransform:"uppercase"}}>{t("winningBadge")}</div>}
                 </div>
                 <div className="auction-body">
                   <div className="auction-name">{a.name}</div>
                   <div className="auction-desc">{a.desc}</div>
                   <div className="auction-bid-row">
                     <div style={{textAlign:"left"}}>
-                      <div className="bid-label">Current Bid</div>
+                      <div className="bid-label">{t("currentBidLabel")}</div>
                       <div className="current-bid"><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={28}/>{fmt(a.currentBid)}</span></div>
                       {a.topBidder ? (
                         <div style={{display:"inline-flex",alignItems:"center",gap:5,marginTop:5,background:"rgba(39,174,96,0.15)",border:"1px solid rgba(39,174,96,0.45)",padding:"3px 8px",borderRadius:2}}>
@@ -4237,20 +5324,20 @@ function Auctions({ ctx }) {
                           <span style={{fontSize:12,color:"#6ee89a",fontWeight:800,fontFamily:"'Inter',sans-serif",letterSpacing:0.5}}>{a.topBidder}</span>
                         </div>
                       ) : (
-                        <div style={{marginTop:5,fontSize:11,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Inter',sans-serif"}}>No bids yet</div>
+                        <div style={{marginTop:5,fontSize:11,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Inter',sans-serif"}}>{t("noBidsYet")}</div>
                       )}
                     </div>
                     <div style={{textAlign:"right"}}>
-                      <div className="bid-label">Bids</div>
+                      <div className="bid-label">{t("bidsLabel")}</div>
                       <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:20,color:"#a8b8c8"}}>{(a.bids||[]).length || (a.topBidder ? 1 : 0)}</div>
                     </div>
                   </div>
                   <div style={{marginTop:12,display:"flex",gap:8}}>
-                    <input className="input" type="number" min={minBid} placeholder={`Min ${fmt(minBid)}`} value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p,[a.id]:e.target.value}))} style={{flex:1}} />
-                    <button className="btn btn-gold" onClick={()=>placeBid(a.id)} disabled={!!bidSubmitting[a.id]}>{bidSubmitting[a.id]?"…":"Bid"}</button>
+                    <input className="input" type="number" min={minBid} placeholder={`${t("minBidPlaceholder")} ${fmt(minBid)}`} value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p,[a.id]:e.target.value}))} style={{flex:1}} />
+                    <button className="btn btn-gold" onClick={()=>placeBid(a.id)} disabled={!!bidSubmitting[a.id]}>{bidSubmitting[a.id]?"…":t("bidButton")}</button>
                   </div>
 
-                  {isMaster&&<button className="btn btn-red btn-sm" style={{width:"100%",marginTop:6}} onClick={()=>removeAuction(a.id)}>Remove Auction</button>}
+                  {isMaster&&<button className="btn btn-red btn-sm" style={{width:"100%",marginTop:6}} onClick={()=>removeAuction(a.id)}>{t("removeAuctionBtn")}</button>}
                   {((a.bids||[]).length>0 || a.topBidder)&&(
                     <div style={{marginTop:10,fontSize:11,color:"var(--text-dim)",borderTop:"1px solid var(--border-dim)",paddingTop:8}}>
                       {(a.bids||[]).length>0
@@ -4276,7 +5363,7 @@ function Auctions({ ctx }) {
 
       {tab==="ended" && (
         <div>
-          {ended.length===0&&<div style={{color:"var(--text-dim)",textAlign:"center",padding:48,fontFamily:"'Inter',sans-serif"}}>No ended auctions.</div>}
+          {ended.length===0&&<div style={{color:"var(--text-dim)",textAlign:"center",padding:48,fontFamily:"'Inter',sans-serif"}}>{t("noEndedAuctions")}</div>}
           {ended.map(a=>{
             const rc={epic:{bg:"rgba(122,26,26,0.92)",color:"#ff8080",border:"rgba(192,57,43,0.5)"},rare:{bg:"rgba(26,90,138,0.92)",color:"#60aadd",border:"rgba(46,134,193,0.5)"},kari:{bg:"rgba(0,60,130,0.92)",color:"#a0d8ff",border:"rgba(100,200,255,0.6)"}};
             const rc2=rc[a.rarity]||rc.epic;
@@ -4288,18 +5375,18 @@ function Auctions({ ctx }) {
               <div style={{flex:1}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
                   <span style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:"var(--text-bright)"}}>{a.name}</span>
-                  <span className={`badge badge-${a.rarity||"epic"}`}>{a.rarity||"epic"}</span>
+                  <span className={`badge badge-${a.rarity||"epic"}`}>{rarityLabel(a.rarity||"epic",t).toLowerCase()}</span>
                 </div>
                 <div style={{fontSize:12,color:"var(--text-dim)"}}>{a.desc}</div>
               </div>
               {a.topBidder?(
                 <div className="winner-banner" style={{minWidth:150,padding:"10px 16px"}}>
-                  <div style={{fontSize:9,color:"var(--gold-dim)",letterSpacing:3,fontWeight:700,textTransform:"uppercase"}}>Winner</div>
+                  <div style={{fontSize:9,color:"var(--gold-dim)",letterSpacing:3,fontWeight:700,textTransform:"uppercase"}}>{t("winnerLabel")}</div>
                   <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:15,color:"var(--gold-light)"}}>{a.topBidder}</div>
                   <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:"var(--gold)"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={28}/>{fmt(a.currentBid)}</span></div>
                 </div>
               ):(
-                <span className="badge badge-silver">No Winner</span>
+                <span className="badge badge-silver">{t("noWinner")}</span>
               )}
             </div>
             );
@@ -4314,12 +5401,12 @@ function Auctions({ ctx }) {
             <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
               <div style={{width:46,height:46,borderRadius:6,background:"linear-gradient(135deg,#3d0000,var(--blood-light))",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:"0 0 20px rgba(168,50,40,0.5)"}}><SwordsIcon size={24} style={{color:"#fff"}}/></div>
               <div style={{flex:1}}>
-                <div style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:18,color:"#f4e8cc",letterSpacing:1}}>Loot Roulette</div>
-                <div style={{fontSize:11,color:"var(--text-dim)",marginTop:2}}>Fair random loot distribution · {isAdmin?"Elder controls active":"View results & history"}</div>
+                <div style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:18,color:"#f4e8cc",letterSpacing:1}}>{t("lootRouletteTitle")}</div>
+                <div style={{fontSize:11,color:"var(--text-dim)",marginTop:2}}>{t("fairRandomDist")} · {isAdmin?t("elderControlsActive"):t("viewResultsHistory")}</div>
               </div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"flex-end",flexShrink:0}}>
-                <button className={`btn btn-sm${lrTab==="history"?" btn-red":" btn-ghost"}`} onClick={()=>setLrTab("history")}>📜 History</button>
-                {isAdmin&&<button className={`btn btn-sm${lrTab==="manage"?" btn-gold":" btn-outline"}`} onClick={()=>setLrTab("manage")}><span style={{display:"inline-flex",alignItems:"center",gap:6}}><GearIcon size={11}/>Manage</span></button>}
+                <button className={`btn btn-sm${lrTab==="history"?" btn-red":" btn-ghost"}`} onClick={()=>setLrTab("history")}>{t("historyBtn")}</button>
+                {isAdmin&&<button className={`btn btn-sm${lrTab==="manage"?" btn-gold":" btn-outline"}`} onClick={()=>setLrTab("manage")}><span style={{display:"inline-flex",alignItems:"center",gap:6}}><GearIcon size={11}/>{t("manageBtn")}</span></button>}
               </div>
             </div>
           </div>
@@ -4337,9 +5424,9 @@ function Auctions({ ctx }) {
                     <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,var(--gold),transparent)"}} />
                     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
                       <div style={{width:8,height:8,borderRadius:"50%",background:"#27ae60",boxShadow:"0 0 8px #27ae60",animation:"pulse 1s infinite",flexShrink:0}} />
-                      <span style={{fontFamily:"'Inter',sans-serif",fontWeight:900,fontSize:15,color:"var(--gold-light)",letterSpacing:1,display:"inline-flex",alignItems:"center",gap:6}}><SwordsIcon size={14}/>Loot Just Rolled!</span>
-                      <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{latest.eventLabel} · {latest.date}</span>
-                      <button className="btn btn-ghost btn-sm" style={{marginLeft:"auto",fontSize:10}} onClick={()=>setLrLatestId(null)}>✕ Dismiss</button>
+                      <span style={{fontFamily:"'Inter',sans-serif",fontWeight:900,fontSize:15,color:"var(--gold-light)",letterSpacing:1,display:"inline-flex",alignItems:"center",gap:6}}><SwordsIcon size={14}/>{t("lootJustRolled")}</span>
+                      <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{eventLabelDisplay(latest.eventLabel,t)} · {latest.date}</span>
+                      <button className="btn btn-ghost btn-sm" style={{marginLeft:"auto",fontSize:10}} onClick={()=>setLrLatestId(null)}>{t("dismissBtn")}</button>
                     </div>
                     <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
                       {latest.results.map((r,ri)=>{
@@ -4348,10 +5435,10 @@ function Auctions({ ctx }) {
                           <div key={ri} style={{background:"rgba(10,8,6,0.7)",border:"1px solid rgba(200,146,42,0.25)",borderRadius:5,padding:"8px 12px",minWidth:130}}>
                             <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:12,color:r.items.length?"var(--gold-light)":"var(--text-dim)",marginBottom:4,display:"flex",justifyContent:"space-between",gap:6}}>
                               <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.memberName}</span>
-                              <span style={{fontSize:9,color:"rgba(200,146,42,0.5)",flexShrink:0}}>{r.items.length}pc</span>
+                              <span style={{fontSize:9,color:"rgba(200,146,42,0.5)",flexShrink:0}}>{r.items.length}{t("pieceCount")}</span>
                             </div>
                             {r.items.length===0
-                              ? <div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing</div>
+                              ? <div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic"}}>{t("nothingLabel")}</div>
                               : Object.entries(grp).map(([name,qty],j)=>(
                                   <div key={j} style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--text-dim)"}}>
                                     <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</span>
@@ -4370,15 +5457,15 @@ function Auctions({ ctx }) {
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <div style={{width:7,height:7,borderRadius:"50%",background:"#27ae60",boxShadow:"0 0 6px #27ae60",animation:"pulse 2s infinite"}}/>
-                  <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>Auto-refreshes every 10s</span>
+                  <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{t("autoRefreshes")}</span>
                 </div>
                 <button className="btn btn-ghost btn-sm" onClick={async ()=>{
                   const rows=await dbLoad("loot_results");
                   if(Array.isArray(rows)&&rows.length>0){
                     setLootResults(rows.map(r=>({id:r.id,timestamp:Number(r.timestamp)||0,date:r.date||"",eventLabel:r.event_label||"Loot Distribution",results:(()=>{try{return typeof r.results==="string"?JSON.parse(r.results):(r.results||[]);}catch{return[];}})()})).filter(r=>Date.now()-r.timestamp<7*24*60*60*1000).sort((a,b)=>b.timestamp-a.timestamp));
-                    addToast("Results refreshed!","blue","Refreshed");
+                    addToast(t("resultsRefreshed"),"blue",t("refreshedTitle"));
                   }
-                }}>↺ Refresh Now</button>
+                }}>{t("refreshNow")}</button>
               </div>
               {/* Filter + Sort toolbar */}
               {lrHistory.length>0&&(()=>{
@@ -4395,29 +5482,29 @@ function Auctions({ ctx }) {
                           <button key={label} onClick={()=>setLrHistFilter(label)}
                             className={`btn btn-sm${lrHistFilter===label?" btn-red":" btn-ghost"}`}
                             style={{fontSize:10,padding:"3px 12px",textTransform:label==="all"?"uppercase":"none",letterSpacing:label==="all"?1:0}}>
-                            {label==="all"?"All Events":label}
+                            {label==="all"?t("allEventsLabel"):eventLabelDisplay(label,t)}
                             {label!=="all"&&<span style={{marginLeft:5,opacity:0.6,fontSize:9}}>({lrHistory.filter(e=>(e.eventLabel||"Loot Distribution")===label).length})</span>}
                           </button>
                         ))}
                       </div>
                       {/* Sort dropdown */}
                       <select className="select" style={{width:"auto",padding:"4px 10px",fontSize:11}} value={lrHistSort} onChange={e=>setLrHistSort(e.target.value)}>
-                        <option value="newest">Newest First</option>
-                        <option value="oldest">Oldest First</option>
+                        <option value="newest">{t("newestFirst")}</option>
+                        <option value="oldest">{t("oldestFirst")}</option>
                       </select>
                     </div>
                     <div style={{fontSize:10,color:"var(--text-dim)",marginBottom:12,fontFamily:"'Inter',sans-serif",fontStyle:"italic"}}>
-                      {filtered.length} session{filtered.length!==1?"s":""} · History auto-clears every week
+                      {filtered.length} {t("sessionsLabel")}{filtered.length!==1?t("sessionsPluralSuffix"):""} · {t("historyAutoClears")}
                     </div>
                     {filtered.length===0&&(
                       <div className="card" style={{textAlign:"center",padding:32,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
-                        No sessions match this filter.
+                        {t("noSessionsMatch")}
                       </div>
                     )}
                     {filtered.map((entry,ei)=>{
                       const daysAgo=Math.round((Date.now()-entry.timestamp)/86400000);
                       const hoursAgo=Math.round((Date.now()-entry.timestamp)/3600000);
-                      const timeAgo=hoursAgo<24?hoursAgo+"h ago":daysAgo+"d ago";
+                      const timeAgo=hoursAgo<24?hoursAgo+t("hoursAgo"):daysAgo+t("daysAgo");
                       const EVENT_COLOR_MAP={
                         "World Boss":"#27ae60","Inter-Server Battle":"#e74c3c",
                         "Clan Sanctuary":"#3498db","Clan Annihilation":"#e67e22",
@@ -4430,11 +5517,11 @@ function Auctions({ ctx }) {
                           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
                             <div style={{display:"flex",alignItems:"center",gap:10}}>
                               <div style={{width:8,height:8,borderRadius:"50%",background:evColor,boxShadow:`0 0 6px ${evColor}`,flexShrink:0}} />
-                              <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:14,color:"var(--gold-light)"}}>{entry.eventLabel||"Loot Distribution"}</div>
+                              <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:14,color:"var(--gold-light)"}}>{eventLabelDisplay(entry.eventLabel||"Loot Distribution",t)}</div>
                               <span style={{fontSize:10,color:"rgba(200,146,42,0.6)",fontFamily:"'Inter',sans-serif"}}>{entry.date}</span>
                             </div>
                             <div style={{display:"flex",alignItems:"center",gap:10}}>
-                              <span style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1}}>{entry.results.length} participants</span>
+                              <span style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1}}>{entry.results.length} {t("participantsLabel")}</span>
                               <span style={{fontSize:9,background:"rgba(200,146,42,0.1)",border:"1px solid rgba(200,146,42,0.2)",borderRadius:10,padding:"2px 8px",color:"rgba(200,146,42,0.7)",fontWeight:700}}>{timeAgo}</span>
                             </div>
                           </div>
@@ -4445,7 +5532,7 @@ function Auctions({ ctx }) {
                                 <div key={ri} style={{background:"rgba(10,8,6,0.6)",border:"1px solid var(--border-dim)",borderRadius:6,padding:"8px 12px",minWidth:140,maxWidth:220}}>
                                   <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:12,color:"var(--gold-light)",marginBottom:4,display:"flex",justifyContent:"space-between",alignItems:"center",gap:6}}>
                                     <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.memberName}</span>
-                                    <span style={{fontSize:9,color:"rgba(200,146,42,0.55)",fontWeight:700,flexShrink:0}}>{r.items.length}pc</span>
+                                    <span style={{fontSize:9,color:"rgba(200,146,42,0.55)",fontWeight:700,flexShrink:0}}>{r.items.length}{t("pieceCount")}</span>
                                   </div>
                                   {Object.entries(grp).map(([name,qty],j)=>(
                                     <div key={j} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:6,fontSize:11,color:"var(--text-dim)",padding:"1px 0"}}>
@@ -4458,7 +5545,7 @@ function Auctions({ ctx }) {
                             })}
                             {entry.results.filter(r=>r.items.length===0).length>0&&(
                               <div style={{alignSelf:"center",fontSize:10,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Inter',sans-serif"}}>
-                                No loot: {entry.results.filter(r=>r.items.length===0).map(r=>r.memberName).join(", ")}
+                                {t("noLootLabel")} {entry.results.filter(r=>r.items.length===0).map(r=>r.memberName).join(", ")}
                               </div>
                             )}
                           </div>
@@ -4471,8 +5558,8 @@ function Auctions({ ctx }) {
               {lrHistory.length===0&&(
                 <div className="card" style={{textAlign:"center",padding:48,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
                   <div style={{fontSize:36,marginBottom:10}}>📜</div>
-                  <div>No roulette history yet.</div>
-                  <div style={{fontSize:11,marginTop:6}}>History auto-clears every week to keep things tidy.</div>
+                  <div>{t("noRouletteHistory")}</div>
+                  <div style={{fontSize:11,marginTop:6}}>{t("historyAutoClearsTidy")}</div>
                 </div>
               )}
             </div>
@@ -4486,12 +5573,12 @@ function Auctions({ ctx }) {
                 {/* ── Event & Date Panel ── */}
                 <div className="card" style={{marginBottom:16,position:"relative",overflow:"hidden"}}>
                   <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,rgba(200,146,42,0.6),transparent)"}} />
-                  <SectionTitle><span style={{display:"inline-flex",alignItems:"center",gap:6}}><SwordsIcon size={13}/>Session Info</span></SectionTitle>
+                  <SectionTitle><span style={{display:"inline-flex",alignItems:"center",gap:6}}><SwordsIcon size={13}/>{t("sessionInfo")}</span></SectionTitle>
 
                   {/* Auto-import from attendance log */}
                   {attendanceLogs.length>0&&(
                     <div style={{marginBottom:14}}>
-                      <label style={{fontSize:10,color:"var(--gold-dim)",letterSpacing:2,textTransform:"uppercase",fontWeight:700,fontFamily:"'Inter',sans-serif",display:"block",marginBottom:6}}>Import from Attendance Log</label>
+                      <label style={{fontSize:10,color:"var(--gold-dim)",letterSpacing:2,textTransform:"uppercase",fontWeight:700,fontFamily:"'Inter',sans-serif",display:"block",marginBottom:6}}>{t("importFromAttendance")}</label>
                       <div style={{display:"flex",gap:8,alignItems:"center"}}>
                         <select className="select" style={{flex:1,fontSize:12}}
                           value={lrSelectedLog}
@@ -4509,25 +5596,25 @@ function Auctions({ ctx }) {
                             const newPresent={};
                             members.forEach(m=>{if(attendedNames.has(m.name))newPresent[m.id]=true;});
                             setLrPresent(newPresent);
-                            addToast(`Imported ${Object.keys(newPresent).length} attendees from ${log.event}.`,"gold","Auto-Imported");
+                            addToast(`${t("importedFrom")} ${Object.keys(newPresent).length} ${t("attendeesFrom")} ${log.event}.`,"gold",t("autoImported"));
                           }}>
-                          <option value="">— Select an attendance log —</option>
+                          <option value="">{t("selectAttendanceLogPlaceholder")}</option>
                           {attendanceLogs.slice(0,20).map(l=>(
-                            <option key={l.id} value={l.id}>{l.event} · {l.date} ({l.members} members)</option>
+                            <option key={l.id} value={l.id}>{l.event} · {l.date} ({l.members} {t("membersLabel2")})</option>
                           ))}
                         </select>
                       </div>
-                      <div style={{fontSize:10,color:"var(--text-dim)",marginTop:5,fontFamily:"'Inter',sans-serif",fontStyle:"italic"}}>Selecting a log auto-fills the event name, date, and marks all non-AFK attendees.</div>
+                      <div style={{fontSize:10,color:"var(--text-dim)",marginTop:5,fontFamily:"'Inter',sans-serif",fontStyle:"italic"}}>{t("selectingLogHint")}</div>
                     </div>
                   )}
 
                   <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
                     <div style={{flex:"1 1 160px"}}>
-                      <label style={{fontSize:10,color:"var(--gold-dim)",letterSpacing:2,textTransform:"uppercase",fontWeight:700,fontFamily:"'Inter',sans-serif",display:"block",marginBottom:5}}>Event Name</label>
-                      <input className="input" placeholder="e.g. World Boss, ISB…" value={lrEventLabel} onChange={e=>setLrEventLabel(e.target.value)} style={{width:"100%"}} />
+                      <label style={{fontSize:10,color:"var(--gold-dim)",letterSpacing:2,textTransform:"uppercase",fontWeight:700,fontFamily:"'Inter',sans-serif",display:"block",marginBottom:5}}>{t("eventNameLabel")}</label>
+                      <input className="input" placeholder={t("eventNamePlaceholder")} value={lrEventLabel} onChange={e=>setLrEventLabel(e.target.value)} style={{width:"100%"}} />
                     </div>
                     <div style={{flex:"0 1 140px"}}>
-                      <label style={{fontSize:10,color:"var(--gold-dim)",letterSpacing:2,textTransform:"uppercase",fontWeight:700,fontFamily:"'Inter',sans-serif",display:"block",marginBottom:5}}>Date</label>
+                      <label style={{fontSize:10,color:"var(--gold-dim)",letterSpacing:2,textTransform:"uppercase",fontWeight:700,fontFamily:"'Inter',sans-serif",display:"block",marginBottom:5}}>{t("dateLabel")}</label>
                       <input className="input" type="date" value={lrEventDate} onChange={e=>setLrEventDate(e.target.value)} style={{width:"100%"}} />
                     </div>
                   </div>
@@ -4547,14 +5634,14 @@ function Auctions({ ctx }) {
 
                 {/* ── Participant Selection ── */}
                 <div className="card">
-                  <SectionTitle>Select Participants</SectionTitle>
+                  <SectionTitle>{t("selectParticipants")}</SectionTitle>
                   <div style={{display:"flex",gap:6,marginBottom:8,alignItems:"center",flexWrap:"wrap"}}>
-                    <input className="input" placeholder="Search members…" value={lrMemberSearch||""} onChange={e=>setLrMemberSearch(e.target.value)} style={{flex:1,minWidth:0}} />
+                    <input className="input" placeholder={t("searchWarrior")} value={lrMemberSearch||""} onChange={e=>setLrMemberSearch(e.target.value)} style={{flex:1,minWidth:0}} />
                   </div>
                   <div style={{display:"flex",gap:6,marginBottom:10}}>
-                    <button className="btn btn-outline btn-sm" onClick={()=>setLrPresent(Object.fromEntries(members.map(m=>[m.id,true])))}>Select All</button>
-                    <button className="btn btn-ghost btn-sm" onClick={()=>setLrPresent({})}>Unselect All</button>
-                    <span style={{marginLeft:"auto",fontFamily:"'Inter',sans-serif",fontSize:11,color:"var(--gold)",fontWeight:700}}>{lrPresentList.length} selected</span>
+                    <button className="btn btn-outline btn-sm" onClick={()=>setLrPresent(Object.fromEntries(members.map(m=>[m.id,true])))}>{t("selectAll")}</button>
+                    <button className="btn btn-ghost btn-sm" onClick={()=>setLrPresent({})}>{t("unselectAll")}</button>
+                    <span style={{marginLeft:"auto",fontFamily:"'Inter',sans-serif",fontSize:11,color:"var(--gold)",fontWeight:700}}>{lrPresentList.length} {t("selectedCount")}</span>
                   </div>
                   <div style={{maxHeight:280,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
                     {members.filter(m=>m.name.toLowerCase().includes((lrMemberSearch||"").toLowerCase())).map(m=>(
@@ -4580,13 +5667,13 @@ function Auctions({ ctx }) {
               {/* Right: loot list + spin */}
               <div>
                 <div className="card" style={{marginBottom:16}}>
-                  <SectionTitle>Loot Items</SectionTitle>
+                  <SectionTitle>{t("lootItemsTitle")}</SectionTitle>
                   <div style={{display:"flex",gap:8,marginBottom:12}}>
-                    <input className="input" placeholder="Item name…" value={lrNewItem} onChange={e=>setLrNewItem(e.target.value)} onKeyDown={e=>e.key==="Enter"&&lrAddItem()} style={{flex:1}}/>
+                    <input className="input" placeholder={t("itemNamePlaceholder")} value={lrNewItem} onChange={e=>setLrNewItem(e.target.value)} onKeyDown={e=>e.key==="Enter"&&lrAddItem()} style={{flex:1}}/>
                     <input className="input" type="number" min={1} value={lrNewQty} onChange={e=>setLrNewQty(e.target.value)} style={{width:64}}/>
-                    <button className="btn btn-gold btn-sm" onClick={lrAddItem}>+ Add</button>
+                    <button className="btn btn-gold btn-sm" onClick={lrAddItem}>{t("addBtn")}</button>
                   </div>
-                  {lrItems.length===0&&<div style={{color:"var(--text-dim)",fontSize:12,fontFamily:"'Inter',sans-serif",textAlign:"center",padding:"16px 0"}}>No items added yet.</div>}
+                  {lrItems.length===0&&<div style={{color:"var(--text-dim)",fontSize:12,fontFamily:"'Inter',sans-serif",textAlign:"center",padding:"16px 0"}}>{t("noItemsAdded")}</div>}
                   {lrItems.map(item=>(
                     <div key={item.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid var(--border-dim)"}}>
                       <div style={{flex:1,fontFamily:"'Inter',sans-serif",fontSize:12,color:"var(--text)"}}>{item.name}</div>
@@ -4594,13 +5681,13 @@ function Auctions({ ctx }) {
                       <button className="btn btn-ghost btn-sm" onClick={()=>lrRemoveItem(item.id)}>✕</button>
                     </div>
                   ))}
-                  {lrItems.length>0&&<div style={{marginTop:8,fontSize:11,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{lrTotalQty} total items · {lrPresentList.length} members</div>}
+                  {lrItems.length>0&&<div style={{marginTop:8,fontSize:11,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{lrTotalQty} {t("totalItemsLabel")} · {lrPresentList.length} {t("membersLabel2")}</div>}
                 </div>
                 <div className="card card-red">
                   <button className="btn btn-red" style={{width:"100%",fontSize:15,padding:"14px 0",letterSpacing:2,justifyContent:"center",display:"flex",alignItems:"center",gap:8}} onClick={()=>{lrDistribute();}} disabled={lrSpinning}>
-                    {lrSpinning?"Rolling…":<span style={{display:"inline-flex",alignItems:"center",gap:7}}><SwordsIcon size={13}/>Roll the Loot!</span>}
+                    {lrSpinning?t("rolling"):<span style={{display:"inline-flex",alignItems:"center",gap:7}}><SwordsIcon size={13}/>{t("rollTheLoot")}</span>}
                   </button>
-                  {lrDist&&<button className="btn btn-ghost btn-sm" style={{width:"100%",marginTop:8}} onClick={lrReset}>Reset</button>}
+                  {lrDist&&<button className="btn btn-ghost btn-sm" style={{width:"100%",marginTop:8}} onClick={lrReset}>{t("resetBtn")}</button>}
                 </div>
               </div>
             </div>
@@ -4610,13 +5697,13 @@ function Auctions({ ctx }) {
 
       {tab==="create"&&isAdmin&&(
         <div className="card" style={{maxWidth:560}}>
-          <SectionTitle>Create New Auction</SectionTitle>
+          <SectionTitle>{t("createNewAuction")}</SectionTitle>
           <div className="form-group">
-            <label className="form-label">Item Name</label>
-            <input className="input" placeholder="e.g. Dragon Scale Armor" value={newAuction.name} onChange={e=>setNewAuction(p=>({...p,name:e.target.value}))} />
+            <label className="form-label">{t("itemNameFieldLabel")}</label>
+            <input className="input" placeholder={t("itemNamePlaceholder2")} value={newAuction.name} onChange={e=>setNewAuction(p=>({...p,name:e.target.value}))} />
           </div>
           <div className="form-group">
-            <label className="form-label">Rarity</label>
+            <label className="form-label">{t("rarityLabel")}</label>
             <div style={{display:"flex",gap:10}}>
               {RARITY_OPTS.map(r=>(
                 <div key={r.value} onClick={()=>setNewAuction(p=>({...p,rarity:r.value}))}
@@ -4632,40 +5719,40 @@ function Auctions({ ctx }) {
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label">Item Image</label>
+            <label className="form-label">{t("itemImageLabel")}</label>
             <ItemImagePicker value={newAuction.image} onChange={img=>setNewAuction(p=>({...p,image:img}))} library={imageLibrary} addImage={addImage} />
           </div>
           <div className="form-group">
-            <label className="form-label">Description</label>
-            <input className="input" placeholder="Item description…" value={newAuction.desc} onChange={e=>setNewAuction(p=>({...p,desc:e.target.value}))} />
+            <label className="form-label">{t("descriptionLabel")}</label>
+            <input className="input" placeholder={t("itemDescPlaceholder")} value={newAuction.desc} onChange={e=>setNewAuction(p=>({...p,desc:e.target.value}))} />
           </div>
           <div className="grid-2">
             <div className="form-group">
-              <label className="form-label">Starting Bid (Coins)</label>
+              <label className="form-label">{t("startingBidLabel")}</label>
               <input className="input" type="number" min={1} value={newAuction.startBid} onChange={e=>setNewAuction(p=>({...p,startBid:e.target.value}))} />
             </div>
             <div className="form-group">
-              <label className="form-label">Duration (minutes)</label>
+              <label className="form-label">{t("durationLabel")}</label>
               <input className="input" type="number" min={1} value={newAuction.duration} onChange={e=>setNewAuction(p=>({...p,duration:e.target.value}))} />
             </div>
           </div>
           {/* Preview */}
           <div style={{marginBottom:20,padding:14,background:"rgba(10,11,15,0.7)",border:"1px solid var(--border)",borderRadius:2}}>
-            <div style={{fontSize:9,color:"var(--text-dim)",fontWeight:700,letterSpacing:2,marginBottom:10,textTransform:"uppercase"}}>Preview</div>
+            <div style={{fontSize:9,color:"var(--text-dim)",fontWeight:700,letterSpacing:2,marginBottom:10,textTransform:"uppercase"}}>{t("previewLabel")}</div>
             <div style={{display:"flex",alignItems:"center",gap:12}}>
               <div style={{width:52,height:52,borderRadius:2,overflow:"hidden",background:newAuction.rarity==="epic"?"rgba(122,26,26,0.3)":"rgba(26,90,138,0.3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
                 {newAuction.image?<img src={newAuction.image.dataUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} />:<StatIcon src={AUCTION_ICON} size={30}/>}
               </div>
               <div>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                  <span style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:"var(--text-bright)"}}>{newAuction.name||"Item Name"}</span>
-                  <span className={`badge badge-${newAuction.rarity}`}>{newAuction.rarity}</span>
+                  <span style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:"var(--text-bright)"}}>{newAuction.name||t("itemNameDefault")}</span>
+                  <span className={`badge badge-${newAuction.rarity}`}>{rarityLabel(newAuction.rarity,t).toLowerCase()}</span>
                 </div>
-                <div style={{fontSize:12,color:"var(--text-dim)"}}>{newAuction.desc||"Description…"}</div>
+                <div style={{fontSize:12,color:"var(--text-dim)"}}>{newAuction.desc||t("descriptionDefault")}</div>
               </div>
             </div>
           </div>
-          <button className="btn btn-gold" onClick={createAuction} style={{width:"100%",justifyContent:"center"}}><span style={{display:"inline-flex",alignItems:"center",gap:6}}><StatIcon src={AUCTION_ICON} size={28}/>Start Auction</span></button>
+          <button className="btn btn-gold" onClick={createAuction} style={{width:"100%",justifyContent:"center"}}><span style={{display:"inline-flex",alignItems:"center",gap:6}}><StatIcon src={AUCTION_ICON} size={28}/>{t("startAuction")}</span></button>
         </div>
       )}
     </div>
@@ -4676,6 +5763,7 @@ function Auctions({ ctx }) {
 const LB_PAGE = 10;
 
 function LBList({ data, valueKey, label, format, color, currentUser }) {
+  const { t } = useLang();
   const [page, setPage] = React.useState(0);
   const max=data[0]?.[valueKey]||1;
   const totalPages = Math.ceil(data.length/LB_PAGE);
@@ -4695,17 +5783,17 @@ function LBList({ data, valueKey, label, format, color, currentUser }) {
             borderRadius:4,padding:"8px 12px",marginBottom:14,
             display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"
           }}>
-            <span style={{fontSize:10,color:"rgba(200,146,42,0.7)",fontFamily:"'Inter',sans-serif",fontWeight:700,letterSpacing:2,textTransform:"uppercase",flexShrink:0}}>Your Rank</span>
+            <span style={{fontSize:10,color:"rgba(200,146,42,0.7)",fontFamily:"'Inter',sans-serif",fontWeight:700,letterSpacing:2,textTransform:"uppercase",flexShrink:0}}>{t("yourRank")}</span>
             <span style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:18,color:"var(--gold-light)",flexShrink:0}}>#{myRank+1}</span>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
                 {format?format(myEntry[valueKey]):myEntry[valueKey]}
                 {myRank>0&&<span style={{marginLeft:8,fontSize:10,color:"rgba(200,146,42,0.5)"}}>
-                  {valueKey==="coins"?`${fmt(data[myRank-1][valueKey]-myEntry[valueKey])} behind #${myRank}`:
-                   valueKey==="power"?`${fmt(data[myRank-1][valueKey]-myEntry[valueKey])} BP behind #${myRank}`:
-                   `${data[myRank-1][valueKey]-myEntry[valueKey]} att behind #${myRank}`}
+                  {valueKey==="coins"?`${fmt(data[myRank-1][valueKey]-myEntry[valueKey])} ${t("behindLabel")} #${myRank}`:
+                   valueKey==="power"?`${fmt(data[myRank-1][valueKey]-myEntry[valueKey])} ${t("bpBehind")} #${myRank}`:
+                   `${data[myRank-1][valueKey]-myEntry[valueKey]} ${t("attBehind")} #${myRank}`}
                 </span>}
-                {myRank===0&&<span style={{marginLeft:8,fontSize:10,color:"var(--gold)",display:"inline-flex",alignItems:"center",gap:4}}><CrownIcon size={11}/>Leading!</span>}
+                {myRank===0&&<span style={{marginLeft:8,fontSize:10,color:"var(--gold)",display:"inline-flex",alignItems:"center",gap:4}}><CrownIcon size={11}/>{t("leadingLabel")}</span>}
               </div>
             </div>
 
@@ -4721,7 +5809,7 @@ function LBList({ data, valueKey, label, format, color, currentUser }) {
               <div className="lb-rank" style={{color:globalRank===0?"#f2d98a":globalRank===1?"#a8b8c8":globalRank===2?"#c87533":"var(--text-dim)"}}>{rankIcon(globalRank)}</div>
               <div style={{flexShrink:0}}><ClassIcon cls={m.cls} size={28}/></div>
               <div style={{flex:1,minWidth:0}}>
-                <div className="lb-name" style={{color:isMe?"var(--gold-light)":"var(--text-bright)",textAlign:"left"}}>{m.name}{isMe&&<span style={{fontSize:9,color:"var(--gold)",marginLeft:5,fontWeight:700}}>(You)</span>}</div>
+                <div className="lb-name" style={{color:isMe?"var(--gold-light)":"var(--text-bright)",textAlign:"left"}}>{m.name}{isMe&&<span style={{fontSize:9,color:"var(--gold)",marginLeft:5,fontWeight:700}}>{t("youSuffix")}</span>}</div>
                 <div style={{fontSize:9,color:"var(--text-dim)",fontWeight:600,letterSpacing:1,textTransform:"uppercase",textAlign:"left"}}>{m.role||m.cls}</div>
                 <div className="lb-bar-bg">
                   <div className="lb-bar" style={{width:`${(m[valueKey]/max)*100}%`,background:color||"linear-gradient(90deg,var(--gold-dim),var(--gold-light))"}}/>
@@ -4736,11 +5824,11 @@ function LBList({ data, valueKey, label, format, color, currentUser }) {
         {totalPages>1&&(
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:12,paddingTop:10,borderTop:"1px solid var(--border-dim)",flexWrap:"wrap",gap:8}}>
             <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
-              {page*LB_PAGE+1}–{Math.min((page+1)*LB_PAGE,data.length)} of {data.length}
+              {page*LB_PAGE+1}–{Math.min((page+1)*LB_PAGE,data.length)} {t("ofPagination")} {data.length}
             </span>
             <div style={{display:"flex",gap:6}}>
-              <button className="btn btn-outline btn-sm" disabled={page===0} onClick={()=>setPage(p=>p-1)} style={{opacity:page===0?0.4:1,fontSize:10,padding:"3px 10px"}}>← Prev</button>
-              <button className="btn btn-outline btn-sm" disabled={page>=totalPages-1} onClick={()=>setPage(p=>p+1)} style={{opacity:page>=totalPages-1?0.4:1,fontSize:10,padding:"3px 10px"}}>Next →</button>
+              <button className="btn btn-outline btn-sm" disabled={page===0} onClick={()=>setPage(p=>p-1)} style={{opacity:page===0?0.4:1,fontSize:10,padding:"3px 10px"}}>{t("prevPage")}</button>
+              <button className="btn btn-outline btn-sm" disabled={page>=totalPages-1} onClick={()=>setPage(p=>p+1)} style={{opacity:page>=totalPages-1?0.4:1,fontSize:10,padding:"3px 10px"}}>{t("nextPage")}</button>
             </div>
           </div>
         )}
@@ -4750,6 +5838,7 @@ function LBList({ data, valueKey, label, format, color, currentUser }) {
 
 function Leaderboard({ ctx }) {
   const { members, currentUser } = ctx;
+  const { t } = useLang();
   const byCoins=[...members].sort((a,b)=>b.coins-a.coins);
   const byPower=[...members].sort((a,b)=>b.power-a.power);
   const byAttend=[...members].sort((a,b)=>b.attendance-a.attendance);
@@ -4762,13 +5851,13 @@ function Leaderboard({ ctx }) {
       }}>
         <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,var(--gold-dim),transparent)"}} />
         <div style={{fontSize:42,marginBottom:10}}><LBIcon src={LEADERBOARD_ICON} size={56} /></div>
-        <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:28,color:"var(--gold-light)",letterSpacing:2}}>Hall of Fame</div>
-        <div style={{color:"var(--text-dim)",marginTop:6,fontSize:13,fontWeight:500,letterSpacing:2}}>{possessive(CLAN_NAME)} Mightiest Warriors</div>
+        <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:28,color:"var(--gold-light)",letterSpacing:2}}>{t("hallOfFame")}</div>
+        <div style={{color:"var(--text-dim)",marginTop:6,fontSize:13,fontWeight:500,letterSpacing:2}}>{possessive(CLAN_NAME)} {t("mightiestWarriors")}</div>
       </div>
       <div className="lb-grid">
-        <LBList data={byPower} valueKey="power" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={POWER_ICON} size={22} />Most Powerful</span>} format={v=>fmt(v)} color="linear-gradient(90deg,#071824,#2e86c1)" currentUser={currentUser} />
-        <LBList data={byCoins} valueKey="coins" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={RICHEST_ICON} size={22} />Richest Warriors</span>} format={v=>`${fmt(v)}`} currentUser={currentUser} />
-        <LBList data={byAttend} valueKey="attendance" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={MOSTACTIVE_ICON} size={22} />Most Active</span>} format={v=>`${v} att`} color="linear-gradient(90deg,#071a0f,#27ae60)" currentUser={currentUser} />
+        <LBList data={byPower} valueKey="power" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={POWER_ICON} size={22} />{t("mostPowerful")}</span>} format={v=>fmt(v)} color="linear-gradient(90deg,#071824,#2e86c1)" currentUser={currentUser} />
+        <LBList data={byCoins} valueKey="coins" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={RICHEST_ICON} size={22} />{t("richestWarriors")}</span>} format={v=>`${fmt(v)}`} currentUser={currentUser} />
+        <LBList data={byAttend} valueKey="attendance" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={MOSTACTIVE_ICON} size={22} />{t("mostActive")}</span>} format={v=>`${v} ${t("attSuffix")}`} color="linear-gradient(90deg,#071a0f,#27ae60)" currentUser={currentUser} />
       </div>
     </div>
   );
@@ -4777,12 +5866,13 @@ function Leaderboard({ ctx }) {
 // ─── EXPORT ───────────────────────────────────────────────────────────────────
 function Export({ ctx }) {
   const { members, auctions, attendanceLogs, addToast } = ctx;
+  const { t } = useLang();
   function downloadCSV(rows, filename, headers) {
     const csv=[headers.join(","),...rows.map(r=>headers.map(h=>JSON.stringify(r[h]||"")).join(","))].join("\n");
     const blob=new Blob([csv],{type:"text/csv"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");a.href=url;a.download=filename;a.click();
-    addToast(`${filename} downloaded!`,"green","Export");
+    addToast(`${filename} ${t("fileDownloaded")}`,"green",t("exportLabel"));
   }
   // Per-member totals: how much each player has earned from attendance overall,
   // plus their current coin balance alongside it so it's easy to cross-check.
@@ -4805,21 +5895,21 @@ function Export({ ctx }) {
     const blob = new Blob([csv],{type:"text/csv"});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href=url; a.download="attendance_coins_per_member.csv"; a.click();
-    addToast("attendance_coins_per_member.csv downloaded!","green","Export");
+    addToast(`attendance_coins_per_member.csv ${t("fileDownloaded")}`,"green",t("exportLabel"));
   }
   const exports=[
-    {title:"Coin Rankings",icon:<StatIcon src={COINS_ICON} size={32}/>,desc:"Member coin balances sorted by rank.",action:()=>downloadCSV([...members].sort((a,b)=>b.coins-a.coins).map((m,i)=>({Rank:i+1,Name:m.name,Class:m.cls,Coins:m.coins,Power:m.power})),"coin_rankings.csv",["Rank","Name","Class","Coins","Power"])},
-    {title:"Attendance Coin Totals",icon:<StatIcon src={COINS_ICON} size={32}/>,desc:"Total coins each member has earned from attendance, alongside their current balance.",action:downloadAttendanceCoinsCSV},
-    {title:"Attendance Logs",icon:<StatIcon src={ATTENDANCE_ICON} size={32}/>,desc:"All recorded attendance sessions.",action:()=>downloadCSV(attendanceLogs.map(l=>({Date:l.date,Event:l.event,Members:l.members,RecordedBy:l.recordedBy})),"attendance_logs.csv",["Date","Event","Members","RecordedBy"])},
-    {title:"Auction History",icon:<StatIcon src={AUCTION_ICON} size={32}/>,desc:"All auction results with winners.",action:()=>downloadCSV(auctions.map(a=>({Name:a.name,Winner:a.topBidder||"None",FinalBid:a.currentBid,Status:a.status,TotalBids:(a.bids||[]).length,Rarity:a.rarity})),"auction_history.csv",["Name","Winner","FinalBid","Status","TotalBids","Rarity"])},
-    {title:"Power Leaderboard",icon:"⚡",desc:"Members sorted by power level.",action:()=>downloadCSV([...members].sort((a,b)=>b.power-a.power).map((m,i)=>({Rank:i+1,Name:m.name,Class:m.cls,Power:m.power,Attendance:m.attendance})),"power_leaderboard.csv",["Rank","Name","Class","Power","Attendance"])},
-    {title:"Full Member Report",icon:<StatIcon src={WARRIORS_ICON} size={32}/>,desc:"Complete member database export.",action:()=>downloadCSV(members.map(m=>({Name:m.name,Class:m.cls,Role:m.role,Coins:m.coins,Power:m.power,Attendance:m.attendance,AuctionWins:m.auctionWins,JoinDate:m.joinDate,Discord:m.discord||""})),"full_members.csv",["Name","Class","Role","Coins","Power","Attendance","AuctionWins","JoinDate","Discord"])},
+    {title:t("exportTitle_coinRankings"),icon:<StatIcon src={COINS_ICON} size={32}/>,desc:t("exportDesc_coinRankings"),action:()=>downloadCSV([...members].sort((a,b)=>b.coins-a.coins).map((m,i)=>({Rank:i+1,Name:m.name,Class:m.cls,Coins:m.coins,Power:m.power})),"coin_rankings.csv",["Rank","Name","Class","Coins","Power"])},
+    {title:t("exportTitle_attendanceCoins"),icon:<StatIcon src={COINS_ICON} size={32}/>,desc:t("exportDesc_attendanceCoins"),action:downloadAttendanceCoinsCSV},
+    {title:t("exportTitle_attendanceLogs"),icon:<StatIcon src={ATTENDANCE_ICON} size={32}/>,desc:t("exportDesc_attendanceLogs"),action:()=>downloadCSV(attendanceLogs.map(l=>({Date:l.date,Event:l.event,Members:l.members,RecordedBy:l.recordedBy})),"attendance_logs.csv",["Date","Event","Members","RecordedBy"])},
+    {title:t("exportTitle_auctionHistory"),icon:<StatIcon src={AUCTION_ICON} size={32}/>,desc:t("exportDesc_auctionHistory"),action:()=>downloadCSV(auctions.map(a=>({Name:a.name,Winner:a.topBidder||"None",FinalBid:a.currentBid,Status:a.status,TotalBids:(a.bids||[]).length,Rarity:a.rarity})),"auction_history.csv",["Name","Winner","FinalBid","Status","TotalBids","Rarity"])},
+    {title:t("exportTitle_powerLeaderboard"),icon:"⚡",desc:t("exportDesc_powerLeaderboard"),action:()=>downloadCSV([...members].sort((a,b)=>b.power-a.power).map((m,i)=>({Rank:i+1,Name:m.name,Class:m.cls,Power:m.power,Attendance:m.attendance})),"power_leaderboard.csv",["Rank","Name","Class","Power","Attendance"])},
+    {title:t("exportTitle_fullReport"),icon:<StatIcon src={WARRIORS_ICON} size={32}/>,desc:t("exportDesc_fullReport"),action:()=>downloadCSV(members.map(m=>({Name:m.name,Class:m.cls,Role:m.role,Coins:m.coins,Power:m.power,Attendance:m.attendance,AuctionWins:m.auctionWins,JoinDate:m.joinDate,Discord:m.discord||""})),"full_members.csv",["Name","Class","Role","Coins","Power","Attendance","AuctionWins","JoinDate","Discord"])},
   ];
   return (
     <div>
       <div className="card card-gold" style={{marginBottom:24}}>
-        <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:16,color:"var(--gold-light)",marginBottom:6}}>📤 Data Export Center</div>
-        <div style={{color:"var(--text-dim)",fontSize:13}}>Download clan data as CSV files for external analysis or record keeping.</div>
+        <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:16,color:"var(--gold-light)",marginBottom:6}}>{t("dataExportCenter")}</div>
+        <div style={{color:"var(--text-dim)",fontSize:13}}>{t("dataExportDesc")}</div>
       </div>
       <div className="grid-2">
         {exports.map((ex,i)=>(
@@ -4828,7 +5918,7 @@ function Export({ ctx }) {
             <div style={{flex:1}}>
               <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:"var(--text-bright)",marginBottom:4}}>{ex.title}</div>
               <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:12}}>{ex.desc}</div>
-              <button className="btn btn-gold btn-sm" onClick={ex.action}>Download CSV</button>
+              <button className="btn btn-gold btn-sm" onClick={ex.action}>{t("downloadCsvBtn")}</button>
             </div>
           </div>
         ))}
@@ -4840,6 +5930,7 @@ function Export({ ctx }) {
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
 function Settings({ ctx }) {
   const { currentUser, members, setMembers, addToast } = ctx;
+  const { t } = useLang();
   const isMaster = currentUser.role==="Master";
   // ── Auto-decay: every Tuesday at 7:00 AM ─────────────────────────────────
   function getLastTuesday7am() {
@@ -4877,7 +5968,7 @@ function Settings({ ctx }) {
         return updated;
       });
       try { localStorage.setItem("last_decay", lastTuesday7am.toString()); } catch {}
-      addToast("Weekly 5% coin decay has been applied automatically.","red","Auto Decay");
+      addToast(t("autoDecayApplied"),"red",t("autoDecayTitle"));
     }
   }, []);
 
@@ -4897,40 +5988,40 @@ function Settings({ ctx }) {
       }
       return updated;
     });
-    addToast("Weekly coin decay applied: 5% removed.","red","Decay Triggered");
+    addToast(t("decayTriggeredToast"),"red",t("decayTriggeredTitle"));
     try { localStorage.setItem("last_decay", getLastTuesday7am().toString()); } catch {}
   }
   function resetAttendance() {
     setMembers(ms=>ms.map(m=>({...m,attendance:0})));
-    addToast("Weekly attendance reset for all members.","blue","Reset");
+    addToast(t("attendanceResetToast"),"blue",t("resetTitle"));
   }
   if(!isMaster) return (
     <div className="card" style={{textAlign:"center",padding:48,color:"var(--text-dim)"}}>
       <div style={{marginBottom:14,display:"flex",justifyContent:"center"}}><LockIcon size={44} style={{filter:"drop-shadow(0 0 8px rgba(122,26,26,0.5))"}}/></div>
-      <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:20,color:"var(--text)"}}>Master Only</div>
-      <div style={{marginTop:8,fontSize:13}}>Settings require Master privileges.</div>
+      <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:20,color:"var(--text)"}}>{t("masterOnly")}</div>
+      <div style={{marginTop:8,fontSize:13}}>{t("settingsRequireMaster")}</div>
     </div>
   );
   return (
     <div>
       <div className="grid-2">
         <div className="card card-red">
-          <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:15,color:"#e07070",marginBottom:8}}>Coin Decay</div>
-          <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12,lineHeight:1.7}}>Auto-triggers every Tuesday at 7:00 AM. Removes 5% of each member's coins. You can also trigger it manually below.</div>
-          <div style={{fontSize:13,color:"var(--text)",marginBottom:16}}>Avg coins: <strong style={{color:"var(--gold)"}}>{fmt(Math.floor(members.reduce((s,m)=>s+m.coins,0)/members.length))}</strong></div>
-          <button className="btn btn-red" onClick={triggerDecay}>Trigger Weekly Decay</button>
+          <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:15,color:"#e07070",marginBottom:8}}>{t("coinDecayTitle")}</div>
+          <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12,lineHeight:1.7}}>{t("coinDecayDesc")}</div>
+          <div style={{fontSize:13,color:"var(--text)",marginBottom:16}}>{t("avgCoinsLabel")} <strong style={{color:"var(--gold)"}}>{fmt(Math.floor(members.reduce((s,m)=>s+m.coins,0)/members.length))}</strong></div>
+          <button className="btn btn-red" onClick={triggerDecay}>{t("triggerWeeklyDecay")}</button>
         </div>
         <div className="card card-blue">
-          <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:15,color:"#60aadd",marginBottom:8}}>Attendance Reset</div>
-          <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12,lineHeight:1.7}}>Reset all member attendance counts for the new week.</div>
-          <div style={{fontSize:13,color:"var(--text)",marginBottom:16}}>Total records: <strong style={{color:"#60aadd"}}>{members.reduce((s,m)=>s+m.attendance,0)}</strong></div>
-          <button className="btn btn-blue" onClick={resetAttendance}>Reset Weekly Attendance</button>
+          <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:15,color:"#60aadd",marginBottom:8}}>{t("attendanceResetTitle")}</div>
+          <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12,lineHeight:1.7}}>{t("attendanceResetDesc")}</div>
+          <div style={{fontSize:13,color:"var(--text)",marginBottom:16}}>{t("totalRecordsLabel")} <strong style={{color:"#60aadd"}}>{members.reduce((s,m)=>s+m.attendance,0)}</strong></div>
+          <button className="btn btn-blue" onClick={resetAttendance}>{t("resetWeeklyAttendance")}</button>
         </div>
       </div>
       <div className="card" style={{marginTop:20}}>
-        <SectionTitle>Event Coin Values</SectionTitle>
+        <SectionTitle>{t("eventCoinValues")}</SectionTitle>
         <div className="table-wrap"><table className="table-stack">
-          <thead><tr><th>Event</th><th>ID</th><th>Coins</th></tr></thead>
+          <thead><tr><th>{t("colEventName")}</th><th>{t("colId")}</th><th>{t("colCoins")}</th></tr></thead>
           <tbody>{EVENTS.map(ev=>(
             <tr key={ev.id}>
               <td data-label="Event" style={{fontFamily:"'Inter',sans-serif",fontWeight:600}}>{ev.name}</td>
@@ -4941,9 +6032,9 @@ function Settings({ ctx }) {
         </table></div>
       </div>
       <div className="card" style={{marginTop:20}}>
-        <SectionTitle><span style={{display:"inline-flex",alignItems:"center",gap:6}}><GearIcon size={13}/>Elder Management</span></SectionTitle>
+        <SectionTitle><span style={{display:"inline-flex",alignItems:"center",gap:6}}><GearIcon size={13}/>{t("elderManagement")}</span></SectionTitle>
         <div className="table-wrap"><table className="table-stack">
-          <thead><tr><th>Member</th><th>Class</th><th>Power</th><th>Discord</th><th>Role</th><th>Action</th></tr></thead>
+          <thead><tr><th>{t("colMemberName")}</th><th>{t("colClass")}</th><th>{t("colPower")}</th><th>{t("colDiscordName")}</th><th>{t("colRole")}</th><th>{t("colActionName")}</th></tr></thead>
           <tbody>{members.filter(m=>m.id!==currentUser.id).map(m=>(
             <tr key={m.id}>
               <td data-label="Member" style={{fontFamily:"'Inter',sans-serif",fontWeight:700}}>{m.name}</td>
@@ -4952,8 +6043,8 @@ function Settings({ ctx }) {
               <td data-label="Discord">{m.discord?<span className="discord-tag">🎮 {m.discord}</span>:<span style={{color:"var(--text-dim)",fontSize:12}}>—</span>}</td>
               <td data-label="Role"><span className={`badge ${m.role==="Master"?"badge-gold":m.role==="Elder"?"badge-red":"badge-silver"}`}>{m.role}</span></td>
               <td data-label="Action"><div style={{display:"flex",gap:6}}>
-                {m.role!=="Elder"&&m.role!=="Leader"&&<button className="btn btn-outline btn-sm" onClick={()=>{setMembers(ms=>ms.map(x=>x.id===m.id?{...x,role:"Elder"}:x));addToast(`${m.name} promoted to Elder.`,"gold","Promoted");}}>Make Elder</button>}
-                {m.role==="Elder"&&<button className="btn btn-ghost btn-sm" onClick={()=>{setMembers(ms=>ms.map(x=>x.id===m.id?{...x,role:"Member"}:x));addToast(`${m.name} demoted.`,"red","Demoted");}}>Demote</button>}
+                {m.role!=="Elder"&&m.role!=="Leader"&&<button className="btn btn-outline btn-sm" onClick={()=>{setMembers(ms=>ms.map(x=>x.id===m.id?{...x,role:"Elder"}:x));addToast(`${m.name} ${t("promotedToElderToast")}`,"gold",t("promotedTitle"));}}>{t("makeElder")}</button>}
+                {m.role==="Elder"&&<button className="btn btn-ghost btn-sm" onClick={()=>{setMembers(ms=>ms.map(x=>x.id===m.id?{...x,role:"Member"}:x));addToast(`${m.name} ${t("demotedToast")}`,"red",t("demotedTitle"));}}>{t("demote")}</button>}
               </div></td>
             </tr>
           ))}</tbody>
@@ -4966,27 +6057,28 @@ function Settings({ ctx }) {
 // ─── ADD MEMBER MODAL ─────────────────────────────────────────────────────────
 function AddMemberModal({ ctx }) {
   const { setModal, setMembers, addToast } = ctx;
+  const { t } = useLang();
   const [form, setForm] = useState({name:"",username:"",password:"member123",cls:"Berserker",power:10000,role:"Member"});
   function submit() {
-    if(!form.name||!form.username){addToast("Name and username required.","red","Error");return;}
+    if(!form.name||!form.username){addToast(t("nameUsernameRequired"),"red",t("errorLabel"));return;}
     const newM={id:Date.now(),name:form.name,username:form.username,password:form.password,cls:form.cls,power:parseInt(form.power)||10000,role:form.role,coins:0,attendance:0,auctionWins:0,joinDate:new Date().toLocaleDateString(),decayLog:[],txLog:[],attendLog:[],discord:""};
     setMembers(ms=>[...ms,newM]);
-    addToast(`${form.name} added to the clan!`,"gold","Member Added");
+    addToast(`${form.name} ${t("addedToClan")}`,"gold",t("memberAddedTitle"));
     setModal(null);
   }
   return (
     <div className="modal-overlay" onClick={()=>setModal(null)}>
       <div className="modal" onClick={e=>e.stopPropagation()}>
-        <div className="modal-header"><div className="modal-title"><span style={{display:"inline-flex",alignItems:"center",gap:6}}><StatIcon src={WARRIORS_ICON} size={32}/>Add Member</span></div><button className="btn btn-ghost" onClick={()=>setModal(null)}>✕</button></div>
+        <div className="modal-header"><div className="modal-title"><span style={{display:"inline-flex",alignItems:"center",gap:6}}><StatIcon src={WARRIORS_ICON} size={32}/>{t("addMemberTitle")}</span></div><button className="btn btn-ghost" onClick={()=>setModal(null)}>✕</button></div>
         <div className="modal-body">
-          <div className="form-group"><label className="form-label">Character Name</label><input className="input" placeholder="In-game name…" value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))} /></div>
-          <div className="form-group"><label className="form-label">Username (login)</label><input className="input" placeholder="Login username…" value={form.username} onChange={e=>setForm(p=>({...p,username:e.target.value}))} /></div>
-          <div className="form-group"><label className="form-label">Password</label><input className="input" placeholder="Initial password…" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} /></div>
-          <div className="form-group"><label className="form-label">Class</label><select className="select" value={form.cls} onChange={e=>setForm(p=>({...p,cls:e.target.value}))}>{CLASSES.map(c=><option key={c}>{c}</option>)}</select></div>
-          <div className="form-group"><label className="form-label">Power Level</label><input className="input" type="number" value={form.power} onChange={e=>setForm(p=>({...p,power:e.target.value}))} /></div>
-          <div className="form-group"><label className="form-label">Role</label><select className="select" value={form.role} onChange={e=>setForm(p=>({...p,role:e.target.value}))}><option>Member</option><option>Elder</option></select></div>
+          <div className="form-group"><label className="form-label">{t("characterName")}</label><input className="input" placeholder={t("inGameNamePlaceholder")} value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))} /></div>
+          <div className="form-group"><label className="form-label">{t("usernameLoginLabel")}</label><input className="input" placeholder={t("loginUsernamePlaceholder")} value={form.username} onChange={e=>setForm(p=>({...p,username:e.target.value}))} /></div>
+          <div className="form-group"><label className="form-label">{t("passwordLabel2")}</label><input className="input" placeholder={t("initialPasswordPlaceholder")} value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} /></div>
+          <div className="form-group"><label className="form-label">{t("classLabel")}</label><select className="select" value={form.cls} onChange={e=>setForm(p=>({...p,cls:e.target.value}))}>{CLASSES.map(c=><option key={c}>{c}</option>)}</select></div>
+          <div className="form-group"><label className="form-label">{t("powerLevelLabel")}</label><input className="input" type="number" value={form.power} onChange={e=>setForm(p=>({...p,power:e.target.value}))} /></div>
+          <div className="form-group"><label className="form-label">{t("roleLabel")}</label><select className="select" value={form.role} onChange={e=>setForm(p=>({...p,role:e.target.value}))}><option>Member</option><option>Elder</option></select></div>
         </div>
-        <div className="modal-footer"><button className="btn btn-outline" onClick={()=>setModal(null)}>Cancel</button><button className="btn btn-gold" onClick={submit}>Add Member</button></div>
+        <div className="modal-footer"><button className="btn btn-outline" onClick={()=>setModal(null)}>{t("cancel")}</button><button className="btn btn-gold" onClick={submit}>{t("addMemberTitle")}</button></div>
       </div>
     </div>
   );
@@ -4995,6 +6087,7 @@ function AddMemberModal({ ctx }) {
 // ─── ADJUST COINS MODAL ───────────────────────────────────────────────────────
 function AdjustCoinsModal({ ctx }) {
   const { modal, setModal, setMembers, addToast, currentUser, submitCoinRequest } = ctx;
+  const { t } = useLang();
   const member = modal.data;
   const [amount, setAmount] = useState(0);
   const [reason, setReason] = useState("");
@@ -5002,7 +6095,7 @@ function AdjustCoinsModal({ ctx }) {
   const isElder = currentUser.role==="Elder";
   function submit(type) {
     const val=parseInt(amount)||0;
-    if (val<=0) { addToast("Enter a valid amount.", "red", "Error"); return; }
+    if (val<=0) { addToast(t("enterValidAmount"), "red", t("errorLabel")); return; }
     if (isElder && !isMaster) {
       submitCoinRequest(member.id, val, type, reason);
       setModal(null);
@@ -5011,28 +6104,28 @@ function AdjustCoinsModal({ ctx }) {
     const change=type==="add"?val:-val;
     const logType=reason.toLowerCase().includes("bonus")?"Bonus Points":"Admin Manual Add";
     setMembers(ms=>ms.map(m=>m.id===member.id?{...m,coins:Math.max(0,m.coins+change),txLog:[...(m.txLog||[]),{change,reason:reason||"—",date:new Date().toLocaleDateString(),logType,addedBy:currentUser.name,ts:Date.now()}]}:m));
-    addToast(`${type==="add"?"Added":"Removed"} ${fmt(val)} coins ${type==="add"?"to":"from"} ${member.name}.`,type==="add"?"gold":"red","Coins Adjusted");
+    addToast(`${type==="add"?t("addedCoinsToast"):t("removedCoinsToast")} ${fmt(val)} ${type==="add"?t("coinsToLabel"):t("coinsFromLabel")} ${member.name}.`,type==="add"?"gold":"red",t("coinsAdjustedTitle"));
     setModal(null);
   }
   return (
     <div className="modal-overlay" onClick={()=>setModal(null)}>
       <div className="modal" onClick={e=>e.stopPropagation()}>
-        <div className="modal-header"><div className="modal-title"><span style={{display:"inline-flex",alignItems:"center",gap:6}}><StatIcon src={COINS_ICON} size={32}/>Adjust Coins — {member.name}</span></div><button className="btn btn-ghost" onClick={()=>setModal(null)}>✕</button></div>
+        <div className="modal-header"><div className="modal-title"><span style={{display:"inline-flex",alignItems:"center",gap:6}}><StatIcon src={COINS_ICON} size={32}/>{t("adjustCoinsTitle")} {member.name}</span></div><button className="btn btn-ghost" onClick={()=>setModal(null)}>✕</button></div>
         <div className="modal-body">
           {isElder && !isMaster && (
             <div style={{background:"rgba(201,151,42,0.1)",border:"1px solid rgba(201,151,42,0.35)",borderRadius:6,padding:"10px 14px",marginBottom:16,display:"flex",alignItems:"center",gap:8}}>
               <span style={{fontSize:16}}>⏳</span>
-              <span style={{fontSize:12,color:"#c8922a",fontFamily:"'Inter',sans-serif",fontWeight:600}}>As an Elder, your coin adjustments require Master approval before taking effect.</span>
+              <span style={{fontSize:12,color:"#c8922a",fontFamily:"'Inter',sans-serif",fontWeight:600}}>{t("elderApprovalNotice")}</span>
             </div>
           )}
-          <div style={{textAlign:"center",marginBottom:20,fontFamily:"'Spectral',serif",fontWeight:800,fontSize:24,color:"var(--gold-light)"}}>Current: <span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={28}/>{fmt(member.coins)}</span></div>
-          <div className="form-group"><label className="form-label">Amount</label><input className="input" type="number" min={0} value={amount} onChange={e=>setAmount(e.target.value)} /></div>
-          <div className="form-group"><label className="form-label">Reason (optional)</label><input className="input" placeholder="e.g. Bonus, Penalty…" value={reason} onChange={e=>setReason(e.target.value)} /></div>
+          <div style={{textAlign:"center",marginBottom:20,fontFamily:"'Spectral',serif",fontWeight:800,fontSize:24,color:"var(--gold-light)"}}>{t("currentLabel")} <span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={28}/>{fmt(member.coins)}</span></div>
+          <div className="form-group"><label className="form-label">{t("amountLabel")}</label><input className="input" type="number" min={0} value={amount} onChange={e=>setAmount(e.target.value)} /></div>
+          <div className="form-group"><label className="form-label">{t("reasonOptional")}</label><input className="input" placeholder={t("reasonPlaceholder")} value={reason} onChange={e=>setReason(e.target.value)} /></div>
         </div>
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={()=>setModal(null)}>Cancel</button>
-          <button className="btn btn-red" onClick={()=>submit("remove")}>{isElder&&!isMaster?"Request Remove":"— Remove"}</button>
-          <button className="btn btn-gold" onClick={()=>submit("add")}>{isElder&&!isMaster?"Request Add":"+ Add"}</button>
+          <button className="btn btn-outline" onClick={()=>setModal(null)}>{t("cancel")}</button>
+          <button className="btn btn-red" onClick={()=>submit("remove")}>{isElder&&!isMaster?t("requestRemove"):t("removeAmount")}</button>
+          <button className="btn btn-gold" onClick={()=>submit("add")}>{isElder&&!isMaster?t("requestAdd"):t("addAmount")}</button>
         </div>
       </div>
     </div>
@@ -5043,34 +6136,35 @@ function AdjustCoinsModal({ ctx }) {
 // ─── PENDING COIN REQUESTS MODAL ─────────────────────────────────────────────
 function PendingRequestsModal({ ctx }) {
   const { setModal, pendingCoinRequests, approveCoinRequest, rejectCoinRequest } = ctx;
+  const { t } = useLang();
   return (
     <div className="modal-overlay" onClick={()=>setModal(null)}>
       <div className="modal" style={{maxWidth:520}} onClick={e=>e.stopPropagation()}>
         <div className="modal-header">
-          <div className="modal-title"><span style={{display:"inline-flex",alignItems:"center",gap:6}}>⏳ Pending Coin Requests</span></div>
+          <div className="modal-title"><span style={{display:"inline-flex",alignItems:"center",gap:6}}>{t("pendingCoinRequestsTitle")}</span></div>
           <button className="btn btn-ghost" onClick={()=>setModal(null)}>✕</button>
         </div>
         <div className="modal-body" style={{maxHeight:400,overflowY:"auto"}}>
           {pendingCoinRequests.length===0 && (
-            <div style={{textAlign:"center",padding:"32px 0",color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",fontSize:14}}>No pending requests.</div>
+            <div style={{textAlign:"center",padding:"32px 0",color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",fontSize:14}}>{t("noPendingRequests")}</div>
           )}
           {pendingCoinRequests.map(req => (
             <div key={req.id} style={{background:"rgba(20,16,12,0.8)",border:"1px solid rgba(201,151,42,0.25)",borderRadius:6,padding:"14px 16px",marginBottom:10}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
                 <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:14,color:"var(--gold-light)"}}>{req.memberName}</span>
-                <span style={{fontFamily:"'Inter',sans-serif",fontWeight:900,fontSize:16,color:req.type==="add"?"#6dbf76":"#e07070"}}>{req.type==="add"?"+":"-"}{fmt(req.amount)} coins</span>
+                <span style={{fontFamily:"'Inter',sans-serif",fontWeight:900,fontSize:16,color:req.type==="add"?"#6dbf76":"#e07070"}}>{req.type==="add"?"+":"-"}{fmt(req.amount)} {t("coinsSuffix")}</span>
               </div>
-              <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:4}}>Reason: <span style={{color:"var(--text)"}}>{req.reason}</span></div>
-              <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:10}}>Requested by <span style={{color:"#c8922a"}}>{req.requestedBy}</span> · {req.requestedAt}</div>
+              <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:4}}>{t("reasonLabel2")} <span style={{color:"var(--text)"}}>{req.reason}</span></div>
+              <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:10}}>{t("requestedByLabel")} <span style={{color:"#c8922a"}}>{req.requestedBy}</span> · {req.requestedAt}</div>
               <div style={{display:"flex",gap:8}}>
-                <button className="btn btn-gold btn-sm" style={{flex:1}} onClick={()=>approveCoinRequest(req.id)}>✓ Approve</button>
-                <button className="btn btn-red btn-sm" style={{flex:1}} onClick={()=>rejectCoinRequest(req.id)}>✕ Reject</button>
+                <button className="btn btn-gold btn-sm" style={{flex:1}} onClick={()=>approveCoinRequest(req.id)}>{t("approveBtn")}</button>
+                <button className="btn btn-red btn-sm" style={{flex:1}} onClick={()=>rejectCoinRequest(req.id)}>{t("rejectBtn")}</button>
               </div>
             </div>
           ))}
         </div>
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={()=>setModal(null)}>Close</button>
+          <button className="btn btn-outline" onClick={()=>setModal(null)}>{t("closeBtn")}</button>
         </div>
       </div>
     </div>
@@ -5080,6 +6174,7 @@ function PendingRequestsModal({ ctx }) {
 // ─── CHANGE PASSWORD MODAL ────────────────────────────────────────────────────
 function ChangePasswordModal({ ctx }) {
   const { modal, setModal, setMembers, setCurrentUser, addToast, currentUser } = ctx;
+  const { t } = useLang();
   const target = modal.data;
   const [cur, setCur] = useState("");
   const [pw, setPw] = useState("");
@@ -5088,12 +6183,12 @@ function ChangePasswordModal({ ctx }) {
 
   function submit() {
     setErr("");
-    if (cur !== target.password) { setErr("Current password is incorrect."); return; }
-    if (!pw) { setErr("New password cannot be empty."); return; }
-    if (pw !== conf) { setErr("Passwords do not match."); return; }
+    if (cur !== target.password) { setErr(t("currentPasswordIncorrect")); return; }
+    if (!pw) { setErr(t("newPasswordEmpty")); return; }
+    if (pw !== conf) { setErr(t("passwordsNoMatch")); return; }
     setMembers(ms => ms.map(m => m.id === target.id ? {...m, password: pw} : m));
     if (currentUser.id === target.id) setCurrentUser(u => ({...u, password: pw}));
-    addToast("Password changed successfully.", "gold", "Password Updated");
+    addToast(t("passwordChangedSuccess"), "gold", t("passwordUpdatedTitle"));
     setModal(null);
   }
 
@@ -5101,27 +6196,27 @@ function ChangePasswordModal({ ctx }) {
     <div className="modal-overlay" onClick={()=>setModal(null)}>
       <div className="modal" onClick={e=>e.stopPropagation()}>
         <div className="modal-header">
-          <div className="modal-title">Change Password</div>
+          <div className="modal-title">{t("changePasswordTitle")}</div>
           <button className="btn btn-ghost" onClick={()=>setModal(null)}>✕</button>
         </div>
         <div className="modal-body">
           {err && <div className="login-error" style={{marginBottom:14}}>{err}</div>}
           <div className="form-group">
-            <label className="form-label">Current Password</label>
-            <input className="input" type="password" placeholder="Your current password…" value={cur} onChange={e=>setCur(e.target.value)} />
+            <label className="form-label">{t("currentPasswordLabel")}</label>
+            <input className="input" type="password" placeholder={t("currentPasswordPlaceholder")} value={cur} onChange={e=>setCur(e.target.value)} />
           </div>
           <div className="form-group">
-            <label className="form-label">New Password</label>
-            <input className="input" type="password" placeholder="Choose a new password…" value={pw} onChange={e=>setPw(e.target.value)} />
+            <label className="form-label">{t("newPasswordLabel")}</label>
+            <input className="input" type="password" placeholder={t("newPasswordPlaceholder")} value={pw} onChange={e=>setPw(e.target.value)} />
           </div>
           <div className="form-group">
-            <label className="form-label">Confirm New Password</label>
-            <input className="input" type="password" placeholder="Repeat new password…" value={conf} onChange={e=>setConf(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} />
+            <label className="form-label">{t("confirmNewPasswordLabel")}</label>
+            <input className="input" type="password" placeholder={t("repeatPasswordPlaceholder")} value={conf} onChange={e=>setConf(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} />
           </div>
         </div>
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={()=>setModal(null)}>Cancel</button>
-          <button className="btn btn-gold" onClick={submit}>Save Password</button>
+          <button className="btn btn-outline" onClick={()=>setModal(null)}>{t("cancel")}</button>
+          <button className="btn btn-gold" onClick={submit}>{t("savePasswordBtn")}</button>
         </div>
       </div>
     </div>
@@ -5131,6 +6226,7 @@ function ChangePasswordModal({ ctx }) {
 // ─── RENAME MEMBER MODAL (Master only) ───────────────────────────────────────
 function RenameMemberModal({ ctx }) {
   const { modal, setModal, setMembers, addToast } = ctx;
+  const { t } = useLang();
   const target = modal.data;
   const [name, setName] = useState(target.name);
   const [err, setErr] = useState("");
@@ -5138,9 +6234,9 @@ function RenameMemberModal({ ctx }) {
   function submit() {
     setErr("");
     const n = name.trim();
-    if (!n) { setErr("Name cannot be empty."); return; }
+    if (!n) { setErr(t("nameEmptyError")); return; }
     setMembers(ms => ms.map(m => m.id === target.id ? {...m, name: n} : m));
-    addToast(`${target.name} renamed to ${n}.`, "gold", "Member Renamed");
+    addToast(`${target.name} ${t("renamedToast")} ${n}.`, "gold", t("memberRenamedTitle"));
     setModal(null);
   }
 
@@ -5148,22 +6244,22 @@ function RenameMemberModal({ ctx }) {
     <div className="modal-overlay" onClick={()=>setModal(null)}>
       <div className="modal" onClick={e=>e.stopPropagation()}>
         <div className="modal-header">
-          <div className="modal-title"><span style={{display:"inline-flex",alignItems:"center",gap:6}}><ClassIcon cls={target.cls} size={28}/>Rename Member</span></div>
+          <div className="modal-title"><span style={{display:"inline-flex",alignItems:"center",gap:6}}><ClassIcon cls={target.cls} size={28}/>{t("renameMemberTitle")}</span></div>
           <button className="btn btn-ghost" onClick={()=>setModal(null)}>✕</button>
         </div>
         <div className="modal-body">
           {err && <div className="login-error" style={{marginBottom:14}}>{err}</div>}
           <div style={{marginBottom:14,fontSize:12,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
-            Current name: <span style={{color:"var(--gold-light)",fontWeight:700}}>{target.name}</span>
+            {t("currentNameLabel")} <span style={{color:"var(--gold-light)",fontWeight:700}}>{target.name}</span>
           </div>
           <div className="form-group">
-            <label className="form-label">New Name</label>
-            <input className="input" placeholder="Enter new in-game name…" value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} autoFocus />
+            <label className="form-label">{t("newNameLabel")}</label>
+            <input className="input" placeholder={t("newNamePlaceholder")} value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} autoFocus />
           </div>
         </div>
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={()=>setModal(null)}>Cancel</button>
-          <button className="btn btn-gold" onClick={submit}>Save Name</button>
+          <button className="btn btn-outline" onClick={()=>setModal(null)}>{t("cancel")}</button>
+          <button className="btn btn-gold" onClick={submit}>{t("saveNameBtn")}</button>
         </div>
       </div>
     </div>
@@ -5180,6 +6276,7 @@ function RenameMemberModal({ ctx }) {
 // undone, never any other attendance the member recorded before or since.
 function DeleteAttendanceModal({ ctx }) {
   const { modal, setModal, members, setMembers, setAttendanceLogs, addToast } = ctx;
+  const { t } = useLang();
   const log = modal.data;
   const ts = log.ts;
   // The log's own `attendees` list (names recorded at submit time) is the
@@ -5238,7 +6335,7 @@ function DeleteAttendanceModal({ ctx }) {
       };
     }));
     setAttendanceLogs(p => p.filter(l => l.id !== log.id));
-    addToast(`"${log.event}" removed — ${fmt(totalRefund)} coins deducted from ${affected.length} member(s).`, "red", "Attendance Deleted");
+    addToast(`"${log.event}" ${t("attendanceDeletedToast")} ${fmt(totalRefund)} ${t("deductedFromToast")} ${affected.length} ${t("memberSuffix2")}`, "red", t("attendanceDeletedTitle"));
     setModal(null);
   }
 
@@ -5246,21 +6343,21 @@ function DeleteAttendanceModal({ ctx }) {
     <div className="modal-overlay" onClick={()=>setModal(null)}>
       <div className="modal" onClick={e=>e.stopPropagation()}>
         <div className="modal-header">
-          <div className="modal-title">Remove Attendance Record</div>
+          <div className="modal-title">{t("removeAttendanceTitle")}</div>
           <button className="btn btn-ghost" onClick={()=>setModal(null)}>✕</button>
         </div>
         <div className="modal-body">
           <div style={{marginBottom:14,fontFamily:"'Inter',sans-serif",fontSize:13,color:"var(--text)"}}>
-            This will permanently delete <span style={{color:"var(--gold-light)",fontWeight:700}}>{log.event}</span> ({formatLogDateTime(log)}) from the history and automatically deduct the coins it awarded from every participant — including any bonus it triggered.
+            {t("permanentlyDeleteWarning")} <span style={{color:"var(--gold-light)",fontWeight:700}}>{log.event}</span> ({formatLogDateTime(log)}) {t("fromHistoryWarning")}
           </div>
           <div style={{background:"rgba(122,26,26,0.12)",border:"1px solid rgba(224,112,112,0.3)",borderRadius:4,padding:"12px 14px",marginBottom:6}}>
-            <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:6,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700}}>This will affect</div>
-            <div style={{fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:700,color:"#e07070"}}>{affected.length} member(s) · −{fmt(totalRefund)} coins total</div>
+            <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:6,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700}}>{t("thisWillAffect")}</div>
+            <div style={{fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:700,color:"#e07070"}}>{affected.length} {t("memberSuffix")} · −{fmt(totalRefund)} {t("coinsTotalSuffix")}</div>
           </div>
         </div>
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={()=>setModal(null)}>Cancel</button>
-          <button className="btn btn-red" onClick={confirmDelete}>✕ Remove &amp; Deduct</button>
+          <button className="btn btn-outline" onClick={()=>setModal(null)}>{t("cancel")}</button>
+          <button className="btn btn-red" onClick={confirmDelete}>{t("removeDeductBtn")}</button>
         </div>
       </div>
     </div>
@@ -5276,6 +6373,7 @@ function DeleteAttendanceModal({ ctx }) {
 // double-payout — it just fixes the record to match what already happened.
 function AddMissingAttendanceModal({ ctx }) {
   const { setModal, members, setMembers, addToast, setAttendanceLogs, currentUser } = ctx;
+  const { t } = useLang();
   const [eventName, setEventName] = useState(EVENTS[0]?.name || "");
   const [whenLocal, setWhenLocal] = useState(() => {
     // Default to now, formatted for <input type="datetime-local">
@@ -5300,11 +6398,11 @@ function AddMissingAttendanceModal({ ctx }) {
 
   function submit() {
     setErr("");
-    if (!eventName || !ev) { setErr("Pick an event."); return; }
-    if (!whenLocal) { setErr("Pick a date & time."); return; }
-    if (selectedCount === 0) { setErr("Select at least one member who attended."); return; }
+    if (!eventName || !ev) { setErr(t("pickEventError")); return; }
+    if (!whenLocal) { setErr(t("pickDateTimeError")); return; }
+    if (selectedCount === 0) { setErr(t("selectAtLeastOneAttendee")); return; }
     const ts = new Date(whenLocal).getTime();
-    if (isNaN(ts)) { setErr("Invalid date/time."); return; }
+    if (isNaN(ts)) { setErr(t("invalidDateTime")); return; }
     const date = new Date(ts).toLocaleDateString();
     const present = members.filter(m => selected[m.id]).map(m => m.id);
 
@@ -5324,13 +6422,13 @@ function AddMissingAttendanceModal({ ctx }) {
       setMembers(ms => {
         const { updatedMembers, bonusToasts } = performAttendancePayout(ms, { ev, date, ts, present, qualifierMap });
         setTimeout(()=>{
-          bonusToasts.forEach(t=>addToast(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><TrophyIcon size={14}/>{t.name} earned +{t.coins} coins — {t.bonus} Bonus!</span>,"gold","Bonus Awarded"));
+          bonusToasts.forEach(bonus=>addToast(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><TrophyIcon size={14}/>{bonus.name} {t("earnedBonusText")} +{bonus.coins} {t("coinsText")} — {bonus.bonus} {t("bonusText")}</span>,"gold",t("bonusAwarded")));
         }, 200);
         return updatedMembers;
       });
       const logEntry = { id: Date.now(), event: eventName, date, ts, members: present.length, recordedBy: currentUser.name, attendees: presentNames };
       setAttendanceLogs(p => [logEntry, ...p]);
-      addToast(`Backfilled "${eventName}" — coins distributed to ${present.length} member(s).`, "gold", "Record Added");
+      addToast(`${t("attendanceRecorded")} "${eventName}" ${t("backfilledDistributed")} ${present.length} ${t("memberSuffix3")}`, "gold", t("recordAddedTitle"));
     } else {
       // Record-only: no coins, no attendLog/txLog changes — for when the
       // payout already happened and only the History row is missing.
@@ -5340,7 +6438,7 @@ function AddMissingAttendanceModal({ ctx }) {
       });
       const logEntry = { id: Date.now(), event: eventName, date, ts, members: attendees.length, recordedBy: currentUser.name, attendees };
       setAttendanceLogs(p => [logEntry, ...p]);
-      addToast(`Backfilled "${eventName}" history record — no coins were changed.`, "blue", "Record Added");
+      addToast(`"${eventName}" ${t("backfilledHistoryOnly")}`, "blue", t("recordAddedTitle"));
     }
     setModal(null);
   }
@@ -5349,39 +6447,39 @@ function AddMissingAttendanceModal({ ctx }) {
     <div className="modal-overlay" onClick={()=>setModal(null)}>
       <div className="modal" onClick={e=>e.stopPropagation()}>
         <div className="modal-header">
-          <div className="modal-title">Add Missing Record</div>
+          <div className="modal-title">{t("addMissingRecordTitle")}</div>
           <button className="btn btn-ghost" onClick={()=>setModal(null)}>✕</button>
         </div>
         <div className="modal-body">
           <div style={{marginBottom:14,fontFamily:"'Inter',sans-serif",fontSize:12,color:"var(--text-dim)"}}>
-            Backfill a History row for an attendance that was recorded outside the normal flow.
+            {t("backfillDesc")}
           </div>
           {err && <div className="login-error" style={{marginBottom:12}}>{err}</div>}
           <div className="form-group">
-            <label className="form-label">Coins</label>
+            <label className="form-label">{t("coinsFieldLabel")}</label>
             <div style={{display:"flex",gap:8}}>
-              <button type="button" className={`btn btn-sm ${payoutMode==="none"?"btn-gold":"btn-outline"}`} style={{flex:1}} onClick={()=>setPayoutMode("none")}>Coins Untouched</button>
-              <button type="button" className={`btn btn-sm ${payoutMode==="distribute"?"btn-gold":"btn-outline"}`} style={{flex:1}} onClick={()=>setPayoutMode("distribute")}>Distribute Coins</button>
+              <button type="button" className={`btn btn-sm ${payoutMode==="none"?"btn-gold":"btn-outline"}`} style={{flex:1}} onClick={()=>setPayoutMode("none")}>{t("coinsUntouched")}</button>
+              <button type="button" className={`btn btn-sm ${payoutMode==="distribute"?"btn-gold":"btn-outline"}`} style={{flex:1}} onClick={()=>setPayoutMode("distribute")}>{t("distributeCoins")}</button>
             </div>
             <div style={{marginTop:8,fontSize:11,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
               {payoutMode==="distribute"
-                ? <>Pays out coins (and any qualifying bonus) to everyone selected below, exactly like a normal attendance submission — use this when the attendance never actually paid out at all.</>
-                : <>Creates the History row only — <strong style={{color:"var(--gold-light)"}}>no coins, attendance counts, or bonuses change.</strong> Use this when the payout already happened and only the row is missing.</>}
+                ? <>{t("distributeCoinsHint")}</>
+                : <>{t("recordOnlyHintPrefix")} <strong style={{color:"var(--gold-light)"}}>{t("recordOnlyHintBold")}</strong> {t("recordOnlyHintSuffix")}</>}
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label">Event</label>
+            <label className="form-label">{t("eventFieldLabel")}</label>
             <select className="select" value={eventName} onChange={e=>setEventName(e.target.value)}>
               {EVENTS.map(ev => <option key={ev.id} value={ev.name}>{ev.name}</option>)}
             </select>
           </div>
           <div className="form-group">
-            <label className="form-label">Date &amp; Time</label>
+            <label className="form-label">{t("dateTimeFieldLabel")}</label>
             <input className="input" type="datetime-local" value={whenLocal} onChange={e=>setWhenLocal(e.target.value)} />
           </div>
           <div className="form-group">
-            <label className="form-label">Who attended? ({selectedCount} selected)</label>
-            <input className="input" placeholder="Search warrior…" value={search} onChange={e=>setSearch(e.target.value)} style={{marginBottom:8}} />
+            <label className="form-label">{t("whoAttendedLabel")} ({selectedCount} {t("selectedSuffix")})</label>
+            <input className="input" placeholder={t("searchWarrior")} value={search} onChange={e=>setSearch(e.target.value)} style={{marginBottom:8}} />
             <div style={{maxHeight:220,overflowY:"auto",border:"1px solid var(--border-dim)",borderRadius:4}}>
               {filtered.map(m => (
                 <div key={m.id} onClick={()=>toggle(m.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",cursor:"pointer",background:selected[m.id]?"rgba(201,151,42,0.1)":"transparent",borderBottom:"1px solid var(--border-dim)"}}>
@@ -5390,18 +6488,18 @@ function AddMissingAttendanceModal({ ctx }) {
                   <span style={{flex:1,fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13}}>{m.name}</span>
                   {selected[m.id] && (
                     <select className="select" style={{width:"auto",padding:"3px 8px",fontSize:11}} value={qualifierMap[m.id]||"full"} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();setQualifierMap(p=>({...p,[m.id]:e.target.value}));}}>
-                      <option value="full">Full</option><option value="late">Late</option><option value="afk">AFK</option>
+                      <option value="full">{t("full")}</option><option value="late">{t("late")}</option><option value="afk">{t("afk")}</option>
                     </select>
                   )}
                 </div>
               ))}
-              {filtered.length===0 && <div style={{padding:14,textAlign:"center",color:"var(--text-dim)",fontSize:12}}>No members found.</div>}
+              {filtered.length===0 && <div style={{padding:14,textAlign:"center",color:"var(--text-dim)",fontSize:12}}>{t("noMembersFound")}</div>}
             </div>
           </div>
         </div>
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={()=>setModal(null)}>Cancel</button>
-          <button className="btn btn-gold" onClick={submit}>{payoutMode==="distribute" ? "Add Record & Pay Coins" : "Add Record"}</button>
+          <button className="btn btn-outline" onClick={()=>setModal(null)}>{t("cancel")}</button>
+          <button className="btn btn-gold" onClick={submit}>{payoutMode==="distribute" ? t("addRecordPayBtn") : t("addRecordBtn")}</button>
         </div>
       </div>
     </div>
