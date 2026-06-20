@@ -1,8 +1,24 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 
 // ─── SUPABASE CONFIG ──────────────────────────────────────────────────────────
-const SUPA_URL = "https://vewslugeacpiewjreoqh.supabase.co";
-const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZld3NsdWdlYWNwaWV3anJlb3FoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5MTczMDcsImV4cCI6MjA5NjQ5MzMwN30.YVKcm1mpa3UbixjLBbG2ijsP46vQiq51xc61QSMT6og";
+// These come from environment variables (set per-deployment in Vercel,
+// or in a local .env file) instead of being hardcoded, so the same codebase
+// can be deployed for multiple clans, each pointing at their own Supabase
+// project. See the .env.example file / setup notes for how to configure
+// these for a new clan.
+const SUPA_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!SUPA_URL || !SUPA_KEY) {
+  // Fail loudly and early rather than silently sending requests to
+  // "undefined" — this is much easier to debug than mysterious empty
+  // tables later.
+  throw new Error(
+    "Missing Supabase config. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY " +
+    "in your Vercel project's Environment Variables (Settings \u2192 Environment Variables), " +
+    "or in a local .env file for development."
+  );
+}
 
 // Wrap fetch with a timeout so a slow/hanging response (e.g. under high
 // concurrent load) can never leave the app stuck on the loading screen.
