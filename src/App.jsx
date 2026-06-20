@@ -20,6 +20,21 @@ if (!SUPA_URL || !SUPA_KEY) {
   );
 }
 
+// ─── CLAN BRANDING CONFIG ─────────────────────────────────────────────────────
+// Lets each clan's deployment show its own name/quote without forking the
+// code. All four fall back to the original Peaky Blinders branding if a
+// clan's Vercel project doesn't set these — so existing deployments that
+// haven't added these env vars yet keep working exactly as before.
+const CLAN_NAME = import.meta.env.VITE_CLAN_NAME || "Peaky Blinders";
+const CLAN_SUBTITLE = import.meta.env.VITE_CLAN_SUBTITLE || "Clan Stronghold";
+const CLAN_QUOTE = import.meta.env.VITE_CLAN_QUOTE || "You touch one of us, you fight us all.";
+const CLAN_SEASON_LABEL = import.meta.env.VITE_CLAN_SEASON_LABEL || "Season 4";
+// Grammatically-correct possessive for any clan name: "Warriors" -> "Warriors'",
+// "Peaky Blinders" -> "Peaky Blinders'", "RedTed" -> "RedTed's".
+function possessive(name) {
+  return /s$/i.test(name) ? `${name}'` : `${name}'s`;
+}
+
 // Wrap fetch with a timeout so a slow/hanging response (e.g. under high
 // concurrent load) can never leave the app stuck on the loading screen.
 async function fetchWithTimeout(url, opts = {}, timeoutMs = 8000) {
@@ -1145,9 +1160,9 @@ function LoginScreen({ members, onLogin }) {
   return (
     <div className="login-wrap">
       <div className="login-hero">
-        <div className="login-quote">"You touch one of us, you fight us all."</div>
-        <div className="login-hero-title">PEAKY BLINDERS</div>
-        <div className="login-hero-sub">Clan Stronghold</div>
+        <div className="login-quote">"{CLAN_QUOTE}"</div>
+        <div className="login-hero-title">{CLAN_NAME.toUpperCase()}</div>
+        <div className="login-hero-sub">{CLAN_SUBTITLE}</div>
         <div className="login-card">
           {error && <div className="login-error">{error}</div>}
           <div className="form-group">
@@ -1644,7 +1659,7 @@ function LootRoulette({ ctx }) {
 export default function App() {
   // ── Browser tab title + favicon ──────────────────────────────────────────────
   useEffect(() => {
-    document.title = "PeakyBlinders";
+    document.title = CLAN_NAME;
     // Set favicon to COINS_ICON
     let link = document.querySelector("link[rel~='icon']");
     if (!link) {
@@ -2576,7 +2591,7 @@ function WorldBossSchedule() {
           }}><StatIcon src={WARRIORS_ICON} size={28}/></div>
           <div>
             <div style={{fontFamily:"'Inter',sans-serif",fontWeight:900,fontSize:17,color:"#e6b048",letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 20px rgba(200,146,42,0.5)",textAlign:"left"}}>Event Schedule</div>
-            <div style={{fontSize:9,color:"rgba(110,88,64,0.9)",letterSpacing:3,fontWeight:700,textTransform:"uppercase",marginTop:1,textAlign:"left"}}>Peaky Blinders · Server Time</div>
+            <div style={{fontSize:9,color:"rgba(110,88,64,0.9)",letterSpacing:3,fontWeight:700,textTransform:"uppercase",marginTop:1,textAlign:"left"}}>{CLAN_NAME} · Server Time</div>
           </div>
         </div>
         <div style={{display:"flex",gap:2,background:"rgba(0,0,0,0.5)",borderRadius:5,border:"1px solid rgba(200,146,42,0.15)",padding:3}}>
@@ -2913,14 +2928,14 @@ function Dashboard({ ctx, setPage }) {
             <div className="dashboard-banner-left" style={{flex:"1 1 280px",textAlign:"left"}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
                 <div style={{width:28,height:1,background:"linear-gradient(90deg,transparent,rgba(200,146,42,0.6))"}} />
-                <span style={{fontSize:9,color:"rgba(200,146,42,0.7)",letterSpacing:5,textTransform:"uppercase",fontFamily:"'Inter',sans-serif",fontWeight:700}}>Clan HQ · Season 4</span>
+                <span style={{fontSize:9,color:"rgba(200,146,42,0.7)",letterSpacing:5,textTransform:"uppercase",fontFamily:"'Inter',sans-serif",fontWeight:700}}>Clan HQ · {CLAN_SEASON_LABEL}</span>
                 <div style={{width:28,height:1,background:"linear-gradient(90deg,rgba(200,146,42,0.6),transparent)"}} />
               </div>
               <div style={{fontFamily:"'Spectral',serif",fontSize:42,fontWeight:900,lineHeight:1,marginBottom:12,
                 background:"linear-gradient(135deg,#f2d98a 0%,#c8922a 45%,#f2d98a 75%,#a06820 100%)",
                 WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",
                 textShadow:"none",letterSpacing:1,
-              }}>Peaky Blinders</div>
+              }}>{CLAN_NAME}</div>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,flexWrap:"wrap"}}>
                 <span style={{fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",
                   background:"rgba(122,26,26,0.35)",border:"1px solid rgba(200,80,80,0.3)",
@@ -4748,7 +4763,7 @@ function Leaderboard({ ctx }) {
         <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,var(--gold-dim),transparent)"}} />
         <div style={{fontSize:42,marginBottom:10}}><LBIcon src={LEADERBOARD_ICON} size={56} /></div>
         <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:28,color:"var(--gold-light)",letterSpacing:2}}>Hall of Fame</div>
-        <div style={{color:"var(--text-dim)",marginTop:6,fontSize:13,fontWeight:500,letterSpacing:2}}>Peaky Blinders' Mightiest Warriors</div>
+        <div style={{color:"var(--text-dim)",marginTop:6,fontSize:13,fontWeight:500,letterSpacing:2}}>{possessive(CLAN_NAME)} Mightiest Warriors</div>
       </div>
       <div className="lb-grid">
         <LBList data={byPower} valueKey="power" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={POWER_ICON} size={22} />Most Powerful</span>} format={v=>fmt(v)} color="linear-gradient(90deg,#071824,#2e86c1)" currentUser={currentUser} />
