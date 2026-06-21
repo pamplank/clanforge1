@@ -2803,6 +2803,17 @@ function AppInner() {
         };
         setMembersRaw(mRows.map(r => ({
           ...r,
+          // ROOT CAUSE FIX: Supabase's `id` column is text, so it always
+          // comes back as a string (e.g. "1"). Every other part of the app
+          // (checkbox selection state, the `present` array built from
+          // parseInt(id) in submitAttendance, role-change handlers, etc.)
+          // works with NUMERIC ids. Without this conversion, comparisons
+          // like `present.includes(m.id)` silently fail (1 !== "1"), so a
+          // member could be checked, submitted, and the History row would
+          // save correctly — but that member's own coins/attendance would
+          // never update, with no error at all, since the code correctly
+          // (from its own perspective) decided they weren't in `present`.
+          id:          Number(r.id),
           coins:       Number(r.coins)       || 0,
           power:       Number(r.power)       || 0,
           attendance:  Number(r.attendance)  || 0,
@@ -2821,7 +2832,7 @@ function AppInner() {
         if (!localStorage.getItem(seedFlag)) {
           localStorage.setItem(seedFlag, "1");
           await Promise.all(SEED_MEMBERS.map(m => dbUpsert("members", {
-            id: m.id, name: m.name, username: m.username, password: m.password,
+            id: String(m.id), name: m.name, username: m.username, password: m.password,
             role: m.role, cls: m.cls, power: m.power, coins: m.coins,
             attendance: m.attendance, join_date: m.joinDate, auction_wins: m.auctionWins,
             decay_log: "[]", tx_log: "[]", attend_log: "[]", discord: m.discord || "",
@@ -2923,7 +2934,7 @@ function AppInner() {
     setMembersRaw(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       next.forEach(m => dbUpsert("members", {
-        id: m.id, name: m.name, username: m.username, password: m.password,
+        id: String(m.id), name: m.name, username: m.username, password: m.password,
         role: m.role, cls: m.cls, power: m.power, coins: m.coins,
         attendance: m.attendance, join_date: m.joinDate || m.join_date,
         auction_wins: m.auctionWins,
@@ -3074,6 +3085,11 @@ function AppInner() {
       setMembersRaw(prev => {
         const incoming = mRows.map(r => ({
           ...r,
+          // Same fix as the initial load: keep id numeric so it matches
+          // local state's ids (m.id === dbM.id below would otherwise
+          // never match, since Supabase's text column always returns a
+          // string).
+          id:          Number(r.id),
           coins:       Number(r.coins)       || 0,
           power:       Number(r.power)       || 0,
           attendance:  Number(r.attendance)  || 0,
