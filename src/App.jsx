@@ -1193,7 +1193,32 @@ async function dbUpsertReliable(table, data, retries = 2) {
   return false;
 }
 async function dbDelete(table, match) {
-  try { const t = await supa.from(table); return await t.delete(match); } catch { return null; }
+  // Returns true/false based on whether the delete actually succeeded,
+  // instead of the previous behavior of returning the raw HTTP status with
+  // no caller ever checking it — every call site fired this and moved on,
+  // so a failed delete (RLS rejection, network blip, schema mismatch) was
+  // invisible: the row vanished from the deleter's own optimistic local
+  // state, but never actually left the database, so it reappeared for
+  // every other client on their next poll.
+  try {
+    const t = await supa.from(table);
+    const status = await t.delete(match);
+    return status >= 200 && status < 300;
+  } catch (e) {
+    console.error(`dbDelete(${table}) failed:`, e);
+    return false;
+  }
+}
+// Same as dbDelete, but retries on failure — for deletes where silently
+// failing to remove a row (and the coin refund/state change that came with
+// it) would leave clients permanently out of sync with each other.
+async function dbDeleteReliable(table, match, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const ok = await dbDelete(table, match);
+    if (ok) return true;
+    if (attempt < retries) await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
+  }
+  return false;
 }
 
 // ─── SUPABASE STORAGE (auction images) ───────────────────────────────────────
@@ -2983,10 +3008,25 @@ function AppInner() {
       // Anything that was present before but isn't in `next` was deleted
       // (e.g. Master removing an attendance record) — propagate the delete
       // to the DB and remember the id so a lagging poll can't bring it back.
-      const removedIds = prev.filter(l => !nextIds.has(String(l.id))).map(l => l.id);
-      removedIds.forEach(id => {
+      // ROOT CAUSE FIX: this used to fire dbDelete and ignore its result —
+      // every other client's poll just reads from the DB, so if the actual
+      // DELETE request failed (RLS, network blip, schema mismatch) nobody
+      // would ever know: the row vanished from the Master's own optimistic
+      // local state, but never actually left the database, so it reappeared
+      // for everyone else on their next poll. Now we retry and warn if it
+      // ultimately doesn't succeed, the same way the upsert side already does.
+      const removedEntries = prev.filter(l => !nextIds.has(String(l.id)));
+      removedEntries.forEach(l => {
+        const id = l.id;
         deletedAttendanceIds.current.add(id);
-        dbDelete("attendance_logs", { id });
+        dbDeleteReliable("attendance_logs", { id }).then(ok => {
+          if (!ok) {
+            addToast(
+              <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>"{l.event}" couldn't be removed from the shared log — it may reappear for other members. Try removing it again.</span>,
+              "red", "Delete Failed"
+            );
+          }
+        });
       });
       return next;
     });
@@ -3290,14 +3330,31 @@ function AppInner() {
     const change = req.type==="add" ? req.amount : -req.amount;
     setMembers(ms=>ms.map(m=>m.id===req.memberId?{...m,coins:Math.max(0,m.coins+change),txLog:[...(m.txLog||[]),{change,reason:req.reason,date:new Date().toLocaleDateString(),logType:"Elder Request",addedBy:req.requestedBy,ts:Date.now()}]}:m));
     setPendingCoinRequests(prev=>prev.filter(r=>r.id!==reqId));
-    dbDelete("coin_requests", { id: reqId });
+    // If this delete fails, the request could reappear on the next poll and
+    // potentially be approved a second time, double-paying the coins — so
+    // retry and warn rather than fire-and-forget.
+    dbDeleteReliable("coin_requests", { id: reqId }).then(ok => {
+      if (!ok) {
+        addToast(
+          <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Approved request for "{req.memberName}" couldn't be cleared from the queue — it may reappear. Don't approve it again if it does.</span>,
+          "red", "Delete Failed"
+        );
+      }
+    });
     addToast("Approved: "+req.amount+" coins for "+req.memberName+".", "gold", "Approved");
   }
   function rejectCoinRequest(reqId) {
     const req = pendingCoinRequests.find(r=>r.id===reqId);
     if (!req) return;
     setPendingCoinRequests(prev=>prev.filter(r=>r.id!==reqId));
-    dbDelete("coin_requests", { id: reqId });
+    dbDeleteReliable("coin_requests", { id: reqId }).then(ok => {
+      if (!ok) {
+        addToast(
+          <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Rejected request for "{req.memberName}" couldn't be cleared from the queue — it may reappear.</span>,
+          "red", "Delete Failed"
+        );
+      }
+    });
     addToast("Rejected coin request for "+req.memberName+".", "red", "Rejected");
   }
   function adjustPower(id, power) {
@@ -4178,8 +4235,16 @@ function Members({ ctx }) {
 
   function removeMember(id) {
     if(!isAdmin) return;
+    const target = members.find(m=>m.id===id);
     setMembers(ms=>ms.filter(m=>m.id!==id));
-    dbDelete("members", {id});
+    dbDeleteReliable("members", {id}).then(ok => {
+      if (!ok) {
+        addToast(
+          <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>"{target?.name||"Member"}" couldn't be removed from the shared roster — they may reappear. Try again.</span>,
+          "red", "Delete Failed"
+        );
+      }
+    });
     addToast(t("memberRemoved"),"red",t("removed"));
     setSelectedMember(null);
   }
@@ -4790,17 +4855,17 @@ function Attendance({ ctx }) {
             // Bonuses, admin manual adds/removes, Elder requests, auction wins —
             // everything in txLog except the combined "All Members" decay
             // announcement, which isn't this member's personal figure.
-            const adjustmentEntries = (currentUser.txLog||[]).filter(t=>t.logType!=="Weekly Decay").map(t=>({
-              date:t.date, ts:t.ts, type:t.logType||"Admin Manual Add",
-              details:t.reason||"—",
-              coins:t.change,
+            const adjustmentEntries = (currentUser.txLog||[]).filter(entry=>entry.logType!=="Weekly Decay").map(entry=>({
+              date:entry.date, ts:entry.ts, type:entry.logType||"Admin Manual Add",
+              details:entry.reason||"—",
+              coins:entry.change,
             }));
             const rawEntries = [...attendEntries, ...decayEntries, ...adjustmentEntries]
               .sort((a,b)=>logSortKey(b)-logSortKey(a));
             // Build the filter options from whichever types actually appear,
             // preferring a sensible fixed order with anything unexpected tacked on.
             const PREFERRED_ORDER = ["Attendance","Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Bonus Points","Elder Request","Admin Manual Add","Auction Win","Weekly Decay"];
-            const presentTypes = PREFERRED_ORDER.filter(t=>rawEntries.some(e=>e.type===t));
+            const presentTypes = PREFERRED_ORDER.filter(type=>rawEntries.some(e=>e.type===type));
             rawEntries.forEach(e=>{ if(!presentTypes.includes(e.type)) presentTypes.push(e.type); });
             const filteredEntries = (historyFilter==="All" ? rawEntries : rawEntries.filter(e=>e.type===historyFilter)).slice(0,40);
             const badgeClass = (e) => e.type==="Attendance"?"badge-blue":e.type==="Weekly Decay"?"badge-red":e.type==="Auction Win"?"badge-silver":e.coins>=0?"badge-gold":"badge-red";
@@ -4855,8 +4920,8 @@ function Attendance({ ctx }) {
                   const BONUS_TYPES = new Set(["Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Bonus Points","Elder Request","Weekly Decay"]);
                   const allEntries = members.flatMap(m=>
                     (m.txLog||[])
-                      .filter(t=>t.logType==="Admin Manual Add" || BONUS_TYPES.has(t.logType) || (!t.logType && t.addedBy && t.addedBy!=="System"))
-                      .map(t=>({date:t.date,ts:t.ts,member:t.logType==="Weekly Decay"?t("allMembersLabel"):m.name,type:t.logType||"Admin Manual Add",amount:t.change,addedBy:t.addedBy||"—",reason:t.reason||"—",cls:m.cls}))
+                      .filter(entry=>entry.logType==="Admin Manual Add" || BONUS_TYPES.has(entry.logType) || (!entry.logType && entry.addedBy && entry.addedBy!=="System"))
+                      .map(entry=>({date:entry.date,ts:entry.ts,member:entry.logType==="Weekly Decay"?t("allMembersLabel"):m.name,type:entry.logType||"Admin Manual Add",amount:entry.change,addedBy:entry.addedBy||"—",reason:entry.reason||"—",cls:m.cls}))
                   ).sort((a,b)=>logSortKey(b)-logSortKey(a)).slice(0,100);
                   if(allEntries.length===0) return(
                     <tr><td colSpan={5} style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noGlobalAdjustments")}</td></tr>
@@ -6313,7 +6378,7 @@ function DeleteAttendanceModal({ ctx }) {
   const totalRefund = matches.reduce((sum, {m, entry}) => {
     const base = entry?.coins || 0;
     const entryTs = entry?.ts;
-    const bonus = (m.txLog||[]).filter(t => t.addedBy === "System" && entryTs != null && String(t.ts) === String(entryTs)).reduce((s,t)=>s+(t.change||0),0);
+    const bonus = (m.txLog||[]).filter(entry2 => entry2.addedBy === "System" && entryTs != null && String(entry2.ts) === String(entryTs)).reduce((s,entry2)=>s+(entry2.change||0),0);
     return sum + base + bonus;
   }, 0);
 
@@ -6325,13 +6390,13 @@ function DeleteAttendanceModal({ ctx }) {
       if (!matchingAttend) return m;
       const refund = matchingAttend.coins || 0;
       const entryTs = matchingAttend.ts;
-      const bonusRefund = (m.txLog||[]).filter(t => t.addedBy === "System" && entryTs != null && String(t.ts) === String(entryTs)).reduce((s,t)=>s+(t.change||0),0);
+      const bonusRefund = (m.txLog||[]).filter(entry => entry.addedBy === "System" && entryTs != null && String(entry.ts) === String(entryTs)).reduce((s,entry)=>s+(entry.change||0),0);
       return {
         ...m,
         coins: Math.max(0, m.coins - refund - bonusRefund),
         attendance: Math.max(0, m.attendance - (matchingAttend.qualifier!=="afk" ? 1 : 0)),
         attendLog: (m.attendLog||[]).filter(e => e !== matchingAttend),
-        txLog: (m.txLog||[]).filter(t => !(t.addedBy === "System" && entryTs != null && String(t.ts) === String(entryTs))),
+        txLog: (m.txLog||[]).filter(entry => !(entry.addedBy === "System" && entryTs != null && String(entry.ts) === String(entryTs))),
       };
     }));
     setAttendanceLogs(p => p.filter(l => l.id !== log.id));
