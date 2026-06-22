@@ -289,6 +289,10 @@ const TRANSLATIONS = {
     rarityKari: "Kari",
     rarityMaterial: "Common",
     rarityUncommon: "Uncommon",
+    colItem: "Item",
+    colRarity: "Rarity",
+    colWinner: "Winner",
+    colFinalBid: "Final Bid",
     importFromAttendance: "Import from Attendance Log",
     selectingLogHint: "Selecting a log auto-fills the event name, date, and marks all non-AFK attendees.",
     eventNameLabel: "Event Name",
@@ -777,6 +781,10 @@ const TRANSLATIONS = {
     rarityKari: "卡里",
     rarityMaterial: "普通",
     rarityUncommon: "罕见",
+    colItem: "物品",
+    colRarity: "稀有度",
+    colWinner: "赢家",
+    colFinalBid: "最终出价",
     importFromAttendance: "从出勤记录导入",
     selectingLogHint: "选择一条记录将自动填写活动名称、日期，并标记所有未缺席的成员。",
     eventNameLabel: "活动名称",
@@ -5457,35 +5465,31 @@ function Auctions({ ctx }) {
       )}
 
       {tab==="ended" && (
-        <div>
-          {ended.length===0&&<div style={{color:"var(--text-dim)",textAlign:"center",padding:48,fontFamily:"'Inter',sans-serif"}}>{t("noEndedAuctions")}</div>}
-          {ended.map(a=>{
-            const rc={epic:{bg:"rgba(122,26,26,0.92)",color:"#ff8080",border:"rgba(192,57,43,0.5)"},rare:{bg:"rgba(26,90,138,0.92)",color:"#60aadd",border:"rgba(46,134,193,0.5)"},kari:{bg:"rgba(0,60,130,0.92)",color:"#a0d8ff",border:"rgba(100,200,255,0.6)"},material:{bg:"rgba(120,120,120,0.92)",color:"#cccccc",border:"rgba(160,160,160,0.5)"},uncommon:{bg:"rgba(46,138,46,0.92)",color:"#7ddc7d",border:"rgba(80,180,80,0.5)"}};
-            const rc2=rc[a.rarity]||rc.epic;
-            return (
-            <div key={a.id} className="card" style={{marginBottom:12,display:"flex",alignItems:"center",gap:16}}>
-              <div style={{width:56,height:56,borderRadius:2,overflow:"hidden",background:a.rarity==="epic"?"rgba(122,26,26,0.2)":"rgba(26,90,138,0.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
-                {a.image?<AuctionImage auction={a} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={<StatIcon src={AUCTION_ICON} size={32}/>}/>:<StatIcon src={AUCTION_ICON} size={32}/>}
-              </div>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                  <span style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:"var(--text-bright)"}}>{a.name}</span>
-                  <span className={`badge badge-${a.rarity||"epic"}`}>{rarityLabel(a.rarity||"epic",t).toLowerCase()}</span>
-                </div>
-                <div style={{fontSize:12,color:"var(--text-dim)"}}>{a.desc}</div>
-              </div>
-              {a.topBidder?(
-                <div className="winner-banner" style={{minWidth:150,padding:"10px 16px"}}>
-                  <div style={{fontSize:9,color:"var(--gold-dim)",letterSpacing:3,fontWeight:700,textTransform:"uppercase"}}>{t("winnerLabel")}</div>
-                  <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:15,color:"var(--gold-light)"}}>{a.topBidder}</div>
-                  <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:"var(--gold)"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={28}/>{fmt(a.currentBid)}</span></div>
-                </div>
-              ):(
-                <span className="badge badge-silver">{t("noWinner")}</span>
-              )}
-            </div>
-            );
-          })}
+        <div className="card" style={{padding:0}}>
+          <div className="table-wrap">
+            <table className="table-stack">
+              <thead><tr><th>{t("colDateTime")}</th><th>{t("colItem")}</th><th>{t("colRarity")}</th><th>{t("colWinner")}</th><th>{t("colFinalBid")}</th></tr></thead>
+              <tbody>
+                {ended.length===0 && <tr><td colSpan={5} style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noEndedAuctions")}</td></tr>}
+                {ended.map(a=>(
+                  <tr key={a.id}>
+                    <td data-label="Date & Time" style={{fontWeight:500,whiteSpace:"nowrap"}}>{formatLogDateTime({ts:a.endsAt})}</td>
+                    <td data-label="Item">
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <div style={{width:28,height:28,borderRadius:2,overflow:"hidden",background:a.rarity==="epic"?"rgba(122,26,26,0.2)":"rgba(26,90,138,0.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
+                          {a.image?<AuctionImage auction={a} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={<StatIcon src={AUCTION_ICON} size={16}/>}/>:<StatIcon src={AUCTION_ICON} size={16}/>}
+                        </div>
+                        <span style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:"var(--text-bright)"}}>{a.name}</span>
+                      </div>
+                    </td>
+                    <td data-label="Rarity"><span className={`badge badge-${a.rarity||"epic"}`}>{rarityLabel(a.rarity||"epic",t).toLowerCase()}</span></td>
+                    <td data-label="Winner">{a.topBidder ? <span style={{color:"var(--gold-light)",fontWeight:700,fontFamily:"'Inter',sans-serif"}}>{a.topBidder}</span> : <span className="badge badge-silver">{t("noWinner")}</span>}</td>
+                    <td data-label="Final Bid">{a.topBidder ? <span style={{display:"inline-flex",alignItems:"center",gap:4,color:"var(--gold)",fontWeight:700,fontFamily:"'Inter',sans-serif"}}><StatIcon src={COINS_ICON} size={20}/>{fmt(a.currentBid)}</span> : <span style={{color:"var(--text-dim)"}}>—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
