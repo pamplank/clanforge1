@@ -287,7 +287,8 @@ const TRANSLATIONS = {
     rarityEpic: "Epic",
     rarityRare: "Rare",
     rarityKari: "Kari",
-    rarityMaterial: "Material",
+    rarityMaterial: "Common",
+    rarityUncommon: "Uncommon",
     importFromAttendance: "Import from Attendance Log",
     selectingLogHint: "Selecting a log auto-fills the event name, date, and marks all non-AFK attendees.",
     eventNameLabel: "Event Name",
@@ -774,7 +775,8 @@ const TRANSLATIONS = {
     rarityEpic: "史诗",
     rarityRare: "稀有",
     rarityKari: "卡里",
-    rarityMaterial: "材料",
+    rarityMaterial: "普通",
+    rarityUncommon: "罕见",
     importFromAttendance: "从出勤记录导入",
     selectingLogHint: "选择一条记录将自动填写活动名称、日期，并标记所有未缺席的成员。",
     eventNameLabel: "活动名称",
@@ -1460,10 +1462,10 @@ function typeLabel(type, t) {
   return key ? t(key) : type;
 }
 
-// Maps a stored rarity key (always lowercase English: epic/rare/kari/material) to its
+// Maps a stored rarity key (always lowercase English: epic/rare/kari/material/uncommon) to its
 // translated display label. The stored value never changes — only the
 // rendered text does.
-const RARITY_LABEL_KEYS = { epic: "rarityEpic", rare: "rarityRare", kari: "rarityKari", material: "rarityMaterial" };
+const RARITY_LABEL_KEYS = { epic: "rarityEpic", rare: "rarityRare", kari: "rarityKari", material: "rarityMaterial", uncommon: "rarityUncommon" };
 function rarityLabel(rarity, t) {
   const key = RARITY_LABEL_KEYS[rarity];
   return (key ? t(key) : (rarity||"")).toUpperCase();
@@ -1931,6 +1933,7 @@ tbody tr:last-child td{border-bottom:none;}
 .badge-rare{background:rgba(26,90,138,0.2);color:#60aadd;border:1px solid rgba(46,134,193,0.5);text-transform:uppercase;}
 .badge-kari{background:rgba(0,80,160,0.35);color:#a0d8ff;border:1px solid rgba(100,200,255,0.6);text-transform:uppercase;}
 .badge-material{background:rgba(120,120,120,0.25);color:#cccccc;border:1px solid rgba(160,160,160,0.55);text-transform:uppercase;}
+.badge-uncommon{background:rgba(46,138,46,0.2);color:#7ddc7d;border:1px solid rgba(80,180,80,0.55);text-transform:uppercase;}
 
 /* ── SECTION HEADER ── */
 .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
@@ -1965,11 +1968,14 @@ tbody tr:last-child td{border-bottom:none;}
 .auction-card.rarity-kari{border-color:rgba(100,180,255,0.7);box-shadow:0 0 18px rgba(80,160,255,0.25);}
 .auction-card.rarity-material{border-color:rgba(160,160,160,0.5);}
 .auction-card.rarity-material:hover{border-color:#cccccc;box-shadow:0 6px 30px rgba(120,120,120,0.2);}
+.auction-card.rarity-uncommon{border-color:rgba(80,180,80,0.5);}
+.auction-card.rarity-uncommon:hover{border-color:#7ddc7d;box-shadow:0 6px 30px rgba(46,138,46,0.2);}
 .auction-card.rarity-rare:hover{border-color:var(--rare-light);box-shadow:0 6px 30px rgba(26,90,138,0.2);}
 .auction-img{width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:52px;position:relative;overflow:hidden;}
 .auction-img.rarity-epic{background:radial-gradient(ellipse at 50% 50%,rgba(180,30,30,0.55) 0%,rgba(90,10,10,0.8) 55%,#0d0a0a 100%);}
 .auction-img.rarity-rare{background:radial-gradient(ellipse at 50% 50%,rgba(30,100,180,0.55) 0%,rgba(10,40,90,0.8) 55%,#090d12 100%);}
 .auction-img.rarity-material{background:radial-gradient(ellipse at 50% 50%,rgba(140,140,140,0.5) 0%,rgba(60,60,60,0.8) 55%,#0d0d0d 100%);}
+.auction-img.rarity-uncommon{background:radial-gradient(ellipse at 50% 50%,rgba(60,180,60,0.5) 0%,rgba(20,70,20,0.8) 55%,#0a0d0a 100%);}
 .auction-img.rarity-kari{background-size:cover!important;background-position:center!important;background-repeat:no-repeat!important;}
 .auction-img img{width:80%;height:80%;object-fit:contain;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);filter:drop-shadow(0 4px 16px rgba(0,0,0,0.7));}
 .auction-timer{position:absolute;top:8px;right:8px;background:rgba(122,26,26,0.92);color:#f0a0a0;
@@ -5046,7 +5052,7 @@ function Auctions({ ctx }) {
   const isMaster = currentUser.role==="Master";
 
 
-  const RARITY_ORDER = { kari: 0, epic: 1, rare: 2, material: 3 };
+  const RARITY_ORDER = { kari: 0, epic: 1, rare: 2, uncommon: 3, material: 4 };
 
   function sortAuctions(list) {
     let sorted;
@@ -5195,6 +5201,7 @@ function Auctions({ ctx }) {
     {value:"epic",label:t("rarityEpic"),color:"#ff8080",bg:"rgba(122,26,26,0.25)",border:"rgba(192,57,43,0.55)"},
     {value:"rare",label:t("rarityRare"),color:"#60aadd",bg:"rgba(26,90,138,0.2)",border:"rgba(46,134,193,0.5)"},
     {value:"kari",label:t("rarityKari"),color:"#a0d8ff",bg:"rgba(0,80,160,0.35)",border:"rgba(100,200,255,0.6)"},
+    {value:"uncommon",label:t("rarityUncommon"),color:"#7ddc7d",bg:"rgba(46,138,46,0.2)",border:"rgba(80,180,80,0.55)"},
     {value:"material",label:t("rarityMaterial"),color:"#b8b8b8",bg:"rgba(120,120,120,0.25)",border:"rgba(160,160,160,0.55)"},
   ];
 
@@ -5340,7 +5347,7 @@ function Auctions({ ctx }) {
           {active.map(a=>{
             const isWinning=a.topBidder===currentUser.name;
             const minBid=a.currentBid+5;
-            const rc={epic:{bg:"rgba(122,26,26,0.92)",color:"#ff8080",border:"rgba(192,57,43,0.5)"},rare:{bg:"rgba(26,90,138,0.92)",color:"#60aadd",border:"rgba(46,134,193,0.5)"},kari:{bg:"rgba(0,60,130,0.92)",color:"#a0d8ff",border:"rgba(100,200,255,0.6)"},material:{bg:"rgba(120,120,120,0.92)",color:"#cccccc",border:"rgba(160,160,160,0.5)"}};
+            const rc={epic:{bg:"rgba(122,26,26,0.92)",color:"#ff8080",border:"rgba(192,57,43,0.5)"},rare:{bg:"rgba(26,90,138,0.92)",color:"#60aadd",border:"rgba(46,134,193,0.5)"},kari:{bg:"rgba(0,60,130,0.92)",color:"#a0d8ff",border:"rgba(100,200,255,0.6)"},material:{bg:"rgba(120,120,120,0.92)",color:"#cccccc",border:"rgba(160,160,160,0.5)"},uncommon:{bg:"rgba(46,138,46,0.92)",color:"#7ddc7d",border:"rgba(80,180,80,0.5)"}};
             const rc2=rc[a.rarity]||rc.epic;
             if (viewMode==="compact") return (
               <div key={a.id} style={{
@@ -5453,7 +5460,7 @@ function Auctions({ ctx }) {
         <div>
           {ended.length===0&&<div style={{color:"var(--text-dim)",textAlign:"center",padding:48,fontFamily:"'Inter',sans-serif"}}>{t("noEndedAuctions")}</div>}
           {ended.map(a=>{
-            const rc={epic:{bg:"rgba(122,26,26,0.92)",color:"#ff8080",border:"rgba(192,57,43,0.5)"},rare:{bg:"rgba(26,90,138,0.92)",color:"#60aadd",border:"rgba(46,134,193,0.5)"},kari:{bg:"rgba(0,60,130,0.92)",color:"#a0d8ff",border:"rgba(100,200,255,0.6)"},material:{bg:"rgba(120,120,120,0.92)",color:"#cccccc",border:"rgba(160,160,160,0.5)"}};
+            const rc={epic:{bg:"rgba(122,26,26,0.92)",color:"#ff8080",border:"rgba(192,57,43,0.5)"},rare:{bg:"rgba(26,90,138,0.92)",color:"#60aadd",border:"rgba(46,134,193,0.5)"},kari:{bg:"rgba(0,60,130,0.92)",color:"#a0d8ff",border:"rgba(100,200,255,0.6)"},material:{bg:"rgba(120,120,120,0.92)",color:"#cccccc",border:"rgba(160,160,160,0.5)"},uncommon:{bg:"rgba(46,138,46,0.92)",color:"#7ddc7d",border:"rgba(80,180,80,0.5)"}};
             const rc2=rc[a.rarity]||rc.epic;
             return (
             <div key={a.id} className="card" style={{marginBottom:12,display:"flex",alignItems:"center",gap:16}}>
