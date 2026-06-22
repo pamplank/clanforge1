@@ -3844,6 +3844,22 @@ function WorldBossSchedule() {
 // ─── UPDATE NOTES ─────────────────────────────────────────────────────────────
 const UPDATE_NOTES = [
   {
+    version: "v2.0",
+    date: "June 2026",
+    title: "Mandarin Support & Major Bug Fixes",
+    color: "#e8b84a",
+    changes: [
+      { icon: "🌐", text: "Full Mandarin (中文) translation added across the entire app — switch languages anytime with the EN / 中文 toggle on the login screen or top bar. Your choice is remembered." },
+      { icon: "🎲", text: "Fixed Loot Roulette results disappearing after a refresh and not showing up for other members — results now save and sync reliably for everyone." },
+      { icon: "📋", text: "Fixed attendance recorded by Elders sometimes not appearing in the History tab, even though coins were correctly given out." },
+      { icon: "🪙", text: "Fixed a bug where submitted attendance could fail to credit coins to the member, with no error shown." },
+      { icon: "✨", text: "Two new item rarities added to the Auction House: Uncommon and Common." },
+      { icon: "📜", text: "Auction History redesigned as a compact table showing Date & Time, Item, Rarity, Winner, and Final Bid at a glance." },
+      { icon: "⬇️", text: "Elders and Master can now download a CSV of any single attendance event's roster directly from the History tab." },
+      { icon: "✅", text: "Elders can now use Add Missing Record to backfill attendance, previously Master-only." },
+    ],
+  },
+  {
     version: "v1.9",
     date: "June 2026",
     title: "Auction Timer Fix & QoL Changes",
