@@ -413,7 +413,7 @@ const TRANSLATIONS = {
     masterOnly: "Master Only",
     settingsRequireMaster: "Settings require Master privileges.",
     coinDecayTitle: "Coin Decay",
-    coinDecayDesc: "Auto-triggers every Tuesday at 7:00 AM. Removes 5% of each member's coins. You can also trigger it manually below.",
+    coinDecayDesc: "Auto-triggers every Tuesday at 7:00 AM (GMT+8). Removes 5% of each member's coins. You can also trigger it manually below.",
     avgCoinsLabel: "Avg coins:",
     triggerWeeklyDecay: "Trigger Weekly Decay",
     attendanceResetTitle: "Attendance Reset",
@@ -899,7 +899,7 @@ const TRANSLATIONS = {
     masterOnly: "仅限盟主",
     settingsRequireMaster: "设置功能需要盟主权限。",
     coinDecayTitle: "金币衰减",
-    coinDecayDesc: "每周二早上7:00自动触发。扣除每位成员5%的金币。您也可以在下方手动触发。",
+    coinDecayDesc: "每周二早上7:00（GMT+8）自动触发。扣除每位成员5%的金币。您也可以在下方手动触发。",
     avgCoinsLabel: "平均金币：",
     triggerWeeklyDecay: "触发每周衰减",
     attendanceResetTitle: "出勤重置",
@@ -3857,6 +3857,7 @@ const UPDATE_NOTES = [
       { icon: "📜", text: "Auction History redesigned as a compact table showing Date & Time, Item, Rarity, Winner, and Final Bid at a glance." },
       { icon: "⬇️", text: "Elders and Master can now download a CSV of any single attendance event's roster directly from the History tab." },
       { icon: "✅", text: "Elders can now use Add Missing Record to backfill attendance, previously Master-only." },
+      { icon: "📅", text: "One-time exception: this week's coin decay runs on Wednesday, June 24 instead of Tuesday. The regular Tuesday 7:00 AM GMT+8 schedule resumes the following week — and that schedule is now fixed to GMT+8 for everyone, regardless of where you're browsing from." },
     ],
   },
   {
@@ -6047,23 +6048,62 @@ function Settings({ ctx }) {
   const { currentUser, members, setMembers, addToast } = ctx;
   const { t } = useLang();
   const isMaster = currentUser.role==="Master";
-  // ── Auto-decay: every Tuesday at 7:00 AM ─────────────────────────────────
+  // ── Auto-decay: every Wednesday at 7:00 AM, fixed to GMT+8 ───────────────
+  // Pinned to a fixed timezone rather than each visitor's device clock, so
+  // "Wednesday 7am" means the same real moment for everyone, regardless of
+  // where they're browsing from. We do this by shifting the current UTC time
+  // forward by 8 hours, running the day-of-week/hour math as if that shifted
+  // value were UTC (so JS's own Date methods, which always use UTC for
+  // get/setUTC*, do the work for us), then shifting the result back to a
+  // real UTC timestamp for comparison against Date.now().
+  const GMT8_OFFSET_MS = 8 * 60 * 60 * 1000;
+  // One-time exception: decay also runs on Wednesday, June 24 2026 7am GMT+8,
+  // instead of that week's normal Tuesday. This was a one-off request to push
+  // that single week's decay back a day; every other week uses the regular
+  // Tuesday schedule. Safe to delete this constant (and the logic in
+  // getMostRecentScheduledDecay that references it) once that date has
+  // passed, since it can never be the most recent scheduled moment again.
+  const JUNE_24_2026_WED_7AM_GMT8 = Date.UTC(2026, 5, 24, 7, 0, 0, 0) - GMT8_OFFSET_MS;
   function getLastTuesday7am() {
-    const now = new Date();
-    const day = now.getDay(); // 0=Sun,1=Mon,2=Tue,...
+    const nowMs = Date.now();
+    const shifted = new Date(nowMs + GMT8_OFFSET_MS);
+    const day = shifted.getUTCDay(); // 0=Sun,1=Mon,2=Tue,3=Wed,... in the shifted (GMT+8) frame
     const diffToTuesday = (day >= 2) ? day - 2 : day + 5;
-    const tuesday = new Date(now);
-    tuesday.setDate(now.getDate() - diffToTuesday);
-    tuesday.setHours(7, 0, 0, 0);
-    // If today is Tuesday but before 7am, go back 7 days
-    if (tuesday > now) tuesday.setDate(tuesday.getDate() - 7);
-    return tuesday.getTime();
+    const tuesdayShifted = new Date(shifted);
+    tuesdayShifted.setUTCDate(shifted.getUTCDate() - diffToTuesday);
+    tuesdayShifted.setUTCHours(7, 0, 0, 0);
+    // If today is Tuesday but before 7am (in GMT+8), go back 7 days
+    if (tuesdayShifted.getTime() > shifted.getTime()) {
+      tuesdayShifted.setUTCDate(tuesdayShifted.getUTCDate() - 7);
+    }
+    // Shift back from the GMT+8 frame to a real UTC timestamp
+    return tuesdayShifted.getTime() - GMT8_OFFSET_MS;
+  }
+  // Single source of truth for "when was the most recent moment decay was
+  // supposed to run" — used by both the automatic check below and the
+  // manual Trigger Weekly Decay button, so they never disagree with each
+  // other about which week's decay has or hasn't happened yet.
+  function getMostRecentScheduledDecay() {
+    const lastTuesday7am = getLastTuesday7am();
+    // This week (the one containing the June 24 exception) should fire ONLY
+    // on Wednesday, not on its normal Tuesday too — so if the most recent
+    // Tuesday falls within 24 hours of the exception date (i.e. it's the
+    // Tuesday immediately before that Wednesday), we ignore it and use the
+    // exception instead. Every other week is unaffected.
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    const tuesdayIsTheOneBeingReplaced =
+      Math.abs(JUNE_24_2026_WED_7AM_GMT8 - lastTuesday7am - oneDayMs) < oneDayMs;
+    const effectiveTuesday = tuesdayIsTheOneBeingReplaced ? -Infinity : lastTuesday7am;
+    return Math.max(
+      effectiveTuesday,
+      JUNE_24_2026_WED_7AM_GMT8 <= Date.now() ? JUNE_24_2026_WED_7AM_GMT8 : -Infinity
+    );
   }
   useEffect(() => {
-    const lastTuesday7am = getLastTuesday7am();
+    const mostRecentScheduled = getMostRecentScheduledDecay();
     let lastDecay = 0;
     try { lastDecay = parseInt(localStorage.getItem("last_decay") || "0"); } catch {}
-    if (lastDecay < lastTuesday7am) {
+    if (lastDecay < mostRecentScheduled) {
       // Auto-trigger decay silently
       const decayDate = new Date().toLocaleDateString();
       const decayTs = Date.now();
@@ -6082,7 +6122,7 @@ function Settings({ ctx }) {
         }
         return updated;
       });
-      try { localStorage.setItem("last_decay", lastTuesday7am.toString()); } catch {}
+      try { localStorage.setItem("last_decay", mostRecentScheduled.toString()); } catch {}
       addToast(t("autoDecayApplied"),"red",t("autoDecayTitle"));
     }
   }, []);
@@ -6104,7 +6144,7 @@ function Settings({ ctx }) {
       return updated;
     });
     addToast(t("decayTriggeredToast"),"red",t("decayTriggeredTitle"));
-    try { localStorage.setItem("last_decay", getLastTuesday7am().toString()); } catch {}
+    try { localStorage.setItem("last_decay", getMostRecentScheduledDecay().toString()); } catch {}
   }
   function resetAttendance() {
     setMembers(ms=>ms.map(m=>({...m,attendance:0})));
