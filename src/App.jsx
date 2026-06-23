@@ -1603,7 +1603,12 @@ body{
   background-size:100% 100%,100% 100%,100% 100%,cover;
   background-position:0% 0%,0% 0%,0 0,center top;
   background-repeat:no-repeat,no-repeat,no-repeat,no-repeat;
+  margin:-28px -80px;
+  padding:28px 80px;
 }
+@media (max-width:1100px){.page-auctions{margin:-28px -40px;padding:28px 40px;}}
+@media (max-width:768px){.page-auctions{margin:-20px -20px;padding:20px 20px;}}
+@media (max-width:480px){.page-auctions{margin:-14px -16px;padding:14px 16px;}}
 
 /* ── ORNAMENTAL ELEMENTS ── */
 .orn-border{
