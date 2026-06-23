@@ -1594,15 +1594,14 @@ body{
    coin-treasury photo. Scrolls normally with the page, matching the
    rest of the app, instead of staying fixed in place. */
 .page-auctions{
+  background-color:var(--bg-void);
   background-image:
-    radial-gradient(ellipse 900px 600px at 18% 8%, rgba(200,146,42,0.14) 0%, transparent 55%),
-    radial-gradient(ellipse 700px 500px at 85% 88%, rgba(200,146,42,0.09) 0%, transparent 55%),
-    linear-gradient(180deg, rgba(8,6,5,0.72) 0%, rgba(10,7,6,0.8) 45%, rgba(8,6,5,0.9) 100%),
+    linear-gradient(180deg, rgba(8,6,5,0.45) 0%, rgba(8,6,5,0.55) 60%, rgba(8,6,5,1) 100%),
     url('/images/auction-bg.jpg');
-  background-attachment:scroll,scroll,scroll,scroll;
-  background-size:100% 100%,100% 100%,100% 100%,cover;
-  background-position:0% 0%,0% 0%,0 0,center top;
-  background-repeat:no-repeat,no-repeat,no-repeat,no-repeat;
+  background-attachment:scroll,scroll;
+  background-size:100% 100%,100% 900px;
+  background-position:0% 0%,center top;
+  background-repeat:no-repeat,no-repeat;
   margin:-28px -80px;
   padding:28px 80px;
 }
