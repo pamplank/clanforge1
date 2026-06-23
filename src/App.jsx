@@ -1594,9 +1594,9 @@ body{
    Uses a fixed-height ::before pinned to the top of the page instead
    of body's own background-image, because body's height grows to the
    full scrollable page (which can be 4000px+ with a long auction
-   list) — sizing `cover` directly against that would blow the image
+   list) — sizing 'cover' directly against that would blow the image
    up into an unrecognisable sliver. This pseudo-element has its OWN
-   fixed 1400px height, so `cover` fits the image against THAT box:
+   fixed 1400px height, so 'cover' fits the image against THAT box:
    always full width, zero gaps on any screen, mild/sane cropping
    only, never a stretch. It scrolls away normally with the page
    (position:absolute, not fixed) and fades to fully transparent at
