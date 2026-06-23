@@ -1819,6 +1819,9 @@ tbody tr:last-child td{border-bottom:none;}
   .event-card-row .event-card-thumb{width:100%!important;height:150px!important;}
   .attendance-table-view{display:none!important;}
   .attendance-card-view{display:block!important;}
+  .update-notes-badge{flex-basis:100%;margin-left:46px;}
+  .event-card-coins{padding:3px 10px!important;bottom:6px!important;}
+  .event-card-coins-num{font-size:14px!important;}
   /* Stacking tables on mobile */
   .table-wrap{overflow-x:visible;}
   .table-stack thead{display:none;}
@@ -3708,7 +3711,7 @@ function WorldBossSchedule() {
             {/* Vignette — dark right + bottom fade so text on right is readable */}
             <div style={{position:"absolute",inset:0,background:"linear-gradient(to right, rgba(0,0,0,0.05) 0%, rgba(14,11,9,0.85) 85%), linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 45%)"}} />
             {/* Coins overlay */}
-            <div style={{
+            <div className="event-card-coins" style={{
               position:"absolute", bottom:10, left:"50%", transform:"translateX(-50%)",
               background:"rgba(0,0,0,0.72)", border:`1px solid ${col}99`,
               borderRadius:20, padding: compact?"3px 10px":"4px 14px",
@@ -3716,7 +3719,7 @@ function WorldBossSchedule() {
               display:"flex", alignItems:"center", gap:4,
               boxShadow:`0 0 12px ${glow}`,
             }}>
-              <span style={{fontSize: compact?14:19, fontFamily:"'Inter',sans-serif", fontWeight:900, color:"#f2cc60", lineHeight:1}}>{`+${ev.coins}`}</span>
+              <span className="event-card-coins-num" style={{fontSize: compact?14:19, fontFamily:"'Inter',sans-serif", fontWeight:900, color:"#f2cc60", lineHeight:1}}>{`+${ev.coins}`}</span>
               <span style={{fontSize:8, color:"rgba(200,146,42,0.7)", fontWeight:700, letterSpacing:1, textTransform:"uppercase", alignSelf:"flex-end", paddingBottom:1}}>coins</span>
             </div>
             {/* Event ID badge */}
@@ -4016,11 +4019,11 @@ function UpdateNotes() {
     }}>
       <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,rgba(200,146,42,0.8),transparent)"}} />
       {/* Header */}
-      <div style={{
+      <div className="update-notes-header" style={{
         display:"flex",alignItems:"center",justifyContent:"space-between",
         padding:"16px 20px",borderBottom:"1px solid rgba(200,146,42,0.12)",flexWrap:"wrap",gap:10,textAlign:"left"
       }}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <div className="update-notes-header-left" style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <div style={{
             width:36,height:36,borderRadius:5,flexShrink:0,
             background:"linear-gradient(135deg,rgba(200,146,42,0.3),rgba(200,146,42,0.1))",
@@ -4031,8 +4034,8 @@ function UpdateNotes() {
             <div style={{fontFamily:"'Inter',sans-serif",fontWeight:900,fontSize:14,color:"var(--gold-light)",letterSpacing:1}}>Update Notes</div>
             <div style={{fontSize:10,color:"var(--text-dim)",fontWeight:600,letterSpacing:2,textTransform:"uppercase"}}>Recent Changes</div>
           </div>
-          <span style={{
-            fontSize:9,fontWeight:900,letterSpacing:2,textTransform:"uppercase",
+          <span className="update-notes-badge" style={{
+            fontSize:9,fontWeight:900,letterSpacing:2,textTransform:"uppercase",whiteSpace:"nowrap",
             background:"linear-gradient(135deg,rgba(200,146,42,0.4),rgba(200,146,42,0.2))",
             border:"1px solid rgba(200,146,42,0.4)",borderRadius:20,padding:"2px 10px",
             color:"var(--gold-light)",
