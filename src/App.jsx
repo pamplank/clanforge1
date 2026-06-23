@@ -1577,11 +1577,15 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
   pointer-events:none;
 }
 .sidebar-logo{
-  padding:0 16px 0 0;
+  padding:0 14px 0 2px;
   border-right:1px solid var(--border);
-  margin-right:10px;
-  display:flex;align-items:center;gap:9px;
+  margin-right:8px;
+  display:flex;align-items:center;
   height:100%;flex-shrink:0;
+}
+.sidebar-logo-mark{
+  width:24px;height:24px;object-fit:contain;display:block;
+  filter:drop-shadow(0 0 5px rgba(201,151,42,0.4));
 }
 .logo-emblem{font-size:20px;filter:drop-shadow(0 0 8px rgba(200,146,42,0.8));}
 .logo-title{font-family:'Spectral',serif;font-size:14px;font-weight:800;color:var(--gold-light);letter-spacing:1.5px;text-align:left;line-height:1;}
@@ -1654,23 +1658,30 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
   font-size:8px;font-weight:700;letter-spacing:2.5px;color:var(--text-dim);
   padding:6px 16px 2px;text-transform:uppercase;font-family:'Inter',sans-serif;
 }
-/* ── USER AREA FIX — collapse gracefully ── */
-.sidebar-user{
-  margin-left:auto;display:flex;align-items:center;gap:8px;
-  padding:0 0 0 12px;border-left:1px solid var(--border);
-  flex-shrink:0;min-width:0;
-}
-.user-info{display:flex;flex-direction:column;min-width:0;}
-.sidebar-user .user-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px;}
-.user-menu-btn{
-  background:none;border:1px solid var(--border);border-radius:5px;
-  color:var(--text-dim);cursor:pointer;font-size:10px;padding:3px 7px;
-  font-family:'Inter',sans-serif;font-weight:700;letter-spacing:0.5px;
-  transition:all 0.2s;flex-shrink:0;white-space:nowrap;
-}
-.user-menu-btn:hover{color:var(--gold-light);border-color:var(--gold-dim);}
-.user-menu{position:relative;}
+/* ── PROFILE CHIP (replaces old separate avatar + "Menu" button) ── */
+.user-menu{position:relative;margin-left:auto;flex-shrink:0;}
 .user-menu:hover .user-dropdown,.user-menu.dd-open .user-dropdown{opacity:1;pointer-events:all;transform:translateY(0);}
+.profile-chip{
+  display:flex;align-items:center;gap:9px;
+  background:rgba(200,146,42,0.05);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:5px 10px 5px 6px;
+  cursor:pointer;transition:all 0.2s;
+  font-family:'Inter',sans-serif;
+}
+.profile-chip:hover{background:rgba(200,146,42,0.1);border-color:var(--gold-dim);}
+.profile-chip-info{display:flex;flex-direction:column;align-items:flex-start;min-width:0;line-height:1.3;}
+.profile-chip-sub{
+  display:flex;align-items:center;gap:3px;
+  font-size:10px;color:var(--gold);font-weight:700;
+}
+.profile-chip-caret{
+  font-size:8px;color:var(--text-dim);margin-left:2px;
+  transition:transform 0.2s,color 0.2s;
+}
+.profile-chip:hover .profile-chip-caret,.user-menu.dd-open .profile-chip-caret{color:var(--gold-light);}
+.user-menu.dd-open .profile-chip-caret{transform:rotate(180deg);}
 .user-dropdown{
   position:absolute;top:100%;right:0;
   background:transparent;
@@ -1696,12 +1707,6 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
 .user-dd-item.danger{color:#e07070;}
 .user-dd-item.danger:hover{color:#ff9090;background:rgba(122,26,26,0.12);}
 
-
-.sidebar-user{
-  margin-left:auto;display:flex;align-items:center;gap:8px;
-  padding:0 0 0 12px;border-left:1px solid var(--border);
-  flex-shrink:0;
-}
 .user-avatar{
   width:28px;height:28px;border-radius:50%;
   background:linear-gradient(135deg,var(--gold-dim),var(--gold));
@@ -1709,7 +1714,8 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
   border:1px solid var(--border-bright);
   box-shadow:0 0 8px rgba(200,146,42,0.25);flex-shrink:0;
 }
-.user-name{font-family:'Inter',sans-serif;font-size:11px;font-weight:700;color:var(--gold-light);}
+.user-name{font-family:'Inter',sans-serif;font-size:11px;font-weight:700;color:var(--gold-light);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100px;}
 .user-role{font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:2px;font-weight:600;}
 .user-coins{font-size:11px;color:var(--gold);font-family:'Inter',sans-serif;font-weight:700;}
 
@@ -1797,7 +1803,7 @@ tbody tr:last-child td{border-bottom:none;}
 @media(max-width:700px){
   .nav-wrapper{padding:0 12px;top:8px;}
   .sidebar{padding:0 14px;height:48px;}
-  .nav-section,.sidebar-user{display:none;}
+  .nav-section,.user-menu{display:none;}
   .hamburger{display:flex;}
   .topbar-logout-mobile{display:flex;}
   .main{margin-top:8px;}
@@ -2217,7 +2223,6 @@ tbody tr:last-child td{border-bottom:none;}
   .grid-4{grid-template-columns:1fr 1fr;}.grid-3{grid-template-columns:1fr 1fr;}
 }
 @media(max-width:720px){
-  .sidebar-user .user-role,.sidebar-user .user-coins{display:none;}
   .nav-item{padding:0 9px;font-size:10px;}
 }
 @media(max-width:640px){
@@ -3588,6 +3593,9 @@ function AppInner() {
       <div className="app-shell">
         <div className="nav-wrapper">
         <nav className="sidebar">
+          <div className="sidebar-logo">
+            <img src="/images/ymir-logo-gold.png" alt="" className="sidebar-logo-mark" />
+          </div>
           {NAV.map((section, si) => (
             <div key={section.section} style={{display:"flex",flexDirection:"row",alignItems:"center"}}>
               {si > 0 && <div className="nav-section-divider"/>}
@@ -3631,23 +3639,29 @@ function AppInner() {
               </div>
             </div>
           ))}
-          <div className="sidebar-user">
-            <div className="user-avatar"><ClassIcon cls={currentUser.cls} size={22} /></div>
-            <div className={`user-menu${openUserMenu?" dd-open":""}`} onMouseLeave={()=>setOpenUserMenu(false)}>
-              <button className="user-menu-btn" onClick={()=>setOpenUserMenu(v=>!v)}>▾ {t("menu")}</button>
-              <div className="user-dropdown">
-                <div className="user-dropdown-inner">
-                  <div className="nav-dd-label">{currentUser.name}</div>
-                  <div className="nav-dd-sep"/>
-                  <div className="user-dd-item" style={{fontSize:10,color:"var(--gold)",pointerEvents:"none"}}>
-                    <StatIcon src={COINS_ICON} size={22}/>{fmt(currentUser.coins)} {t("coinsLabel")}
-                  </div>
-                  <div className="nav-dd-sep"/>
-                  <div className="user-dd-item" onClick={()=>{setModal({type:"changePassword",data:currentUser});setOpenUserMenu(false);setOpenDropdown(null);}}>
-                    {t("changePassword")}
-                  </div>
-                  <div className="user-dd-item danger" onClick={handleLogout}>{t("logOut")}</div>
+          <div className={`user-menu${openUserMenu?" dd-open":""}`} onMouseLeave={()=>setOpenUserMenu(false)}>
+            <button className="profile-chip" onClick={()=>setOpenUserMenu(v=>!v)}>
+              <div className="user-avatar"><ClassIcon cls={currentUser.cls} size={20} /></div>
+              <div className="profile-chip-info">
+                <div className="user-name">{currentUser.name}</div>
+                <div className="profile-chip-sub">
+                  <StatIcon src={COINS_ICON} size={11}/>{fmt(currentUser.coins)}
                 </div>
+              </div>
+              <span className="profile-chip-caret">▾</span>
+            </button>
+            <div className="user-dropdown">
+              <div className="user-dropdown-inner">
+                <div className="nav-dd-label">{currentUser.name}</div>
+                <div className="nav-dd-sep"/>
+                <div className="user-dd-item" style={{fontSize:10,color:"var(--gold)",pointerEvents:"none"}}>
+                  <StatIcon src={COINS_ICON} size={22}/>{fmt(currentUser.coins)} {t("coinsLabel")}
+                </div>
+                <div className="nav-dd-sep"/>
+                <div className="user-dd-item" onClick={()=>{setModal({type:"changePassword",data:currentUser});setOpenUserMenu(false);setOpenDropdown(null);}}>
+                  {t("changePassword")}
+                </div>
+                <div className="user-dd-item danger" onClick={handleLogout}>{t("logOut")}</div>
               </div>
             </div>
           </div>
