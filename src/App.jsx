@@ -1719,9 +1719,6 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
 .user-role{font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:2px;font-weight:600;}
 .user-coins{font-size:11px;color:var(--gold);font-family:'Inter',sans-serif;font-weight:700;}
 
-/* ── TOPBAR LOGOUT MOBILE ── */
-.topbar-logout-mobile{display:none;}
-
 /* ── HAMBURGER ── */
 .hamburger{display:none;flex-direction:column;justify-content:center;gap:5px;cursor:pointer;
   padding:6px;margin-left:auto;flex-shrink:0;background:none;border:none;}
@@ -1765,9 +1762,11 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
   background:rgba(10,8,6,0.55);backdrop-filter:blur(6px);
   border-bottom:1px solid var(--border);
   padding:13px 80px;display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:12px;
 }
 .page-title{font-family:'Spectral',serif;font-size:24px;font-weight:800;color:var(--text-bright);letter-spacing:2px;text-align:left;}
 .page-sub{font-size:10px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;margin-top:2px;font-weight:600;text-align:left;}
+.topbar-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;}
 .content{padding:28px 80px;flex:1;max-width:1600px;width:100%;margin:0 auto;box-sizing:border-box;}
 
 /* ── TABLE — stacking cards on mobile ── */
@@ -1805,7 +1804,6 @@ tbody tr:last-child td{border-bottom:none;}
   .sidebar{padding:0 14px;height:48px;}
   .nav-section,.user-menu{display:none;}
   .hamburger{display:flex;}
-  .topbar-logout-mobile{display:flex;}
   .main{margin-top:8px;}
   .topbar{padding:10px 16px;}
   .topbar .page-title{font-size:18px;text-align:left;}
@@ -3727,7 +3725,7 @@ function AppInner() {
               <div className="page-title">{PAGE_TITLES[page]||page}</div>
               <div className="page-sub">{currentUser.name} · {currentUser.role}</div>
             </div>
-            <div style={{display:"flex",gap:10,alignItems:"center"}}>
+            <div className="topbar-actions">
               <LangSwitcher />
               {(currentUser.role==="Master"||currentUser.role==="Elder") && (
                 <button className="btn btn-gold btn-sm" onClick={()=>setModal({type:"addMember"})}>{t("addMember")}</button>
@@ -3738,7 +3736,6 @@ function AppInner() {
                   <span style={{position:"absolute",top:-6,right:-6,background:"#e85d3a",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:9,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>{pendingCoinRequests.length}</span>
                 </button>
               )}
-              <button className="btn btn-ghost btn-sm topbar-logout-mobile" onClick={handleLogout} style={{borderColor:"rgba(200,80,80,0.4)",color:"#e07070"}}>{t("logOut")}</button>
             </div>
           </div>
           <div className="content">
