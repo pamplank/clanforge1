@@ -1591,23 +1591,32 @@ body{
 
 /* Auction House background — overrides body's own background-image
    when the bg-auctions class is toggled on (see AppInner's useEffect).
-   Same exact mechanism as Clan HQ's background, just swapped to the
-   coin-treasury photo, so it's guaranteed to span the full viewport
-   width with no seams, and scrolls normally like the rest of the app.
-   Sized by HEIGHT only (auto width) so the portrait photo keeps its
-   true proportions — no horizontal squashing. 2400px tall is enough
-   for the proportional width to cover screens up to ~2000px wide
-   with zero gaps; ultra-wide monitors beyond that may show a sliver
-   of the page's dark base color at the very edges, never a stretch. */
-body.bg-auctions{
+   Uses a fixed-height ::before pinned to the top of the page instead
+   of body's own background-image, because body's height grows to the
+   full scrollable page (which can be 4000px+ with a long auction
+   list) — sizing `cover` directly against that would blow the image
+   up into an unrecognisable sliver. This pseudo-element has its OWN
+   fixed 1400px height, so `cover` fits the image against THAT box:
+   always full width, zero gaps on any screen, mild/sane cropping
+   only, never a stretch. It scrolls away normally with the page
+   (position:absolute, not fixed) and fades to fully transparent at
+   its own bottom edge so it blends into the page's plain dark
+   background with no visible seam. */
+body.bg-auctions{ background-color:var(--bg-void); position:relative; }
+body.bg-auctions::before{
+  content:"";
+  position:absolute;
+  top:0;left:0;right:0;height:1400px;
+  z-index:0;
+  pointer-events:none;
   background-image:
-    linear-gradient(180deg, rgba(8,6,5,0.3) 0%, rgba(8,6,5,0.45) 50%, rgba(8,6,5,0.7) 75%, rgba(8,6,5,0.95) 100%),
+    linear-gradient(180deg, rgba(10,7,6,0.25) 0%, rgba(10,7,6,0.45) 55%, rgba(10,7,6,1) 100%),
     url('/images/auction-bg.jpg');
-  background-attachment:scroll,scroll;
-  background-size:100% 100%,auto 2400px;
+  background-size:100% 100%,cover;
   background-position:0% 0%,center top;
   background-repeat:no-repeat,no-repeat;
 }
+#root{position:relative;z-index:1;}
 
 /* ── ORNAMENTAL ELEMENTS ── */
 .orn-border{
