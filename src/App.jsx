@@ -3739,12 +3739,12 @@ function WorldBossSchedule() {
               textAlign:"left",
             }}>{ev.name}</div>
             <div style={{
-              display:"inline-flex", alignItems:"center", gap:5, marginBottom: compact?8:12,
+              display:"inline-flex", alignItems:"flex-start", gap:5, marginBottom: compact?8:12,
               background:`${col}18`, border:`1px solid ${col}44`,
-              borderRadius:20, padding:"3px 10px", width:"fit-content",
+              borderRadius:14, padding:"5px 10px", maxWidth:"100%",
             }}>
-              <span style={{fontSize:10}}>🕐</span>
-              <span style={{fontSize: compact?9:11, fontWeight:800, color:col, fontFamily:"'Inter',sans-serif", letterSpacing:0.5}}>{ev.time} SERVER TIME</span>
+              <span style={{fontSize:10,flexShrink:0,lineHeight:1.4,paddingTop:1}}>🕐</span>
+              <span style={{fontSize: compact?9:11, fontWeight:800, color:col, fontFamily:"'Inter',sans-serif", letterSpacing:0.5, lineHeight:1.4}}>{ev.time} SERVER TIME</span>
             </div>
             <div style={{
               fontSize: compact?10:11, color:"rgba(156,126,92,0.85)", lineHeight:1.65,
@@ -4293,7 +4293,6 @@ function Members({ ctx }) {
   const [classFilter, setClassFilter] = useState("All");
   const [sortBy, setSortBy] = useState("coins");
   const [selectedMember, setSelectedMember] = useState(null);
-  const [viewMode, setViewMode] = useState("table"); // "table" | "cards"
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
 
   const filtered = members
@@ -4334,39 +4333,11 @@ function Members({ ctx }) {
           <option value="coins">{t("sortCoins")}</option><option value="power">{t("sortPower")}</option>
           <option value="attendance">{t("sortAttendance")}</option><option value="name">{t("sortName")}</option>
         </select>
-        <div className="view-toggle" style={{display:"flex",marginLeft:isAdmin?0:"auto"}}>
-          <button className={`btn btn-sm ${viewMode==="table"?"btn-gold":"btn-outline"}`} style={{borderRadius:"2px 0 0 2px"}} onClick={()=>setViewMode("table")}>☰ {t("tableView")}</button>
-          <button className={`btn btn-sm ${viewMode==="cards"?"btn-gold":"btn-outline"}`} style={{borderRadius:"0 2px 2px 0",marginLeft:-1}} onClick={()=>setViewMode("cards")}>▦ {t("cardsView")}</button>
-        </div>
         {isAdmin && <button className="btn btn-gold" style={{marginLeft:isAdmin?"auto":0}} onClick={()=>setModal({type:"addMember"})}>{t("addMember")}</button>}
       </div>
 
       <div className="members-layout">
         <div style={{flex:1,minWidth:0}}>
-        {viewMode==="cards" ? (
-          <div className="member-card-grid">
-            {filtered.map(m => {
-              const roleStyle = m.role==="Master" ? {border:"rgba(201,151,42,0.35)",diamond:"#c8922a"}
-                : m.role==="Elder" ? {border:"rgba(122,26,26,0.35)",diamond:"#c0392b"}
-                : {border:"rgba(255,255,255,0.1)",diamond:"#7a7a82"};
-              return (
-                <div key={m.id} className="member-row-card" style={{borderColor:roleStyle.border,cursor:"pointer"}} onClick={()=>setSelectedMember(m)}>
-                  <div className="member-row-icon">
-                    <div className="member-row-diamond" style={{background:roleStyle.diamond}} />
-                    <ClassIcon cls={m.cls} size={34} />
-                  </div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontFamily:"'Spectral',serif",fontSize:13,fontWeight:700,color:"#f0e4cc",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.name}</div>
-                    <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,fontWeight:700,color:"var(--gold-light)",marginTop:2}}>
-                      <StatIcon src={COINS_ICON} size={14}/>{fmt(m.coins)}
-                    </div>
-                  </div>
-                  {isAdmin && <button className="btn btn-ghost btn-sm" style={{flexShrink:0}} onClick={e=>{e.stopPropagation();removeMember(m.id);}}>✕</button>}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
           <div className="card" style={{padding:0,overflow:"hidden"}}>
             <div className="table-wrap members-table-wrap">
               <table className="table-stack members-table">
@@ -4398,7 +4369,6 @@ function Members({ ctx }) {
               </table>
             </div>
           </div>
-        )}
         </div>
 
         {selectedMember && (
