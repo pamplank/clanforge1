@@ -1659,17 +1659,22 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
   padding:6px 16px 2px;text-transform:uppercase;font-family:'Inter',sans-serif;
 }
 /* ── PROFILE CHIP (replaces old separate avatar + "Menu" button) ── */
-.user-menu{position:relative;margin-left:auto;flex-shrink:0;}
+.user-menu{position:relative;margin-left:auto;padding-left:10px;flex-shrink:0;}
 .user-menu:hover .user-dropdown,.user-menu.dd-open .user-dropdown{opacity:1;pointer-events:all;transform:translateY(0);}
 .profile-chip{
+  box-sizing:border-box;
   display:flex;align-items:center;gap:9px;
   background:rgba(200,146,42,0.05);
   border:1px solid var(--border);
   border-radius:8px;
   padding:5px 10px 5px 6px;
   cursor:pointer;transition:all 0.2s;
-  font-family:'Inter',sans-serif;
+  font:inherit;line-height:normal;
+  -webkit-appearance:none;appearance:none;
+  user-select:none;-webkit-user-select:none;
+  outline:none;
 }
+.profile-chip:focus-visible{border-color:var(--gold);box-shadow:0 0 0 2px rgba(200,146,42,0.25);}
 .profile-chip:hover{background:rgba(200,146,42,0.1);border-color:var(--gold-dim);}
 .profile-chip-info{display:flex;flex-direction:column;align-items:flex-start;min-width:0;line-height:1.3;}
 .profile-chip-sub{
@@ -3638,7 +3643,13 @@ function AppInner() {
             </div>
           ))}
           <div className={`user-menu${openUserMenu?" dd-open":""}`} onMouseLeave={()=>setOpenUserMenu(false)}>
-            <button className="profile-chip" onClick={()=>setOpenUserMenu(v=>!v)}>
+            <div
+              className="profile-chip"
+              role="button"
+              tabIndex={0}
+              onClick={()=>setOpenUserMenu(v=>!v)}
+              onKeyDown={e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); setOpenUserMenu(v=>!v); } }}
+            >
               <div className="user-avatar"><ClassIcon cls={currentUser.cls} size={20} /></div>
               <div className="profile-chip-info">
                 <div className="user-name">{currentUser.name}</div>
@@ -3647,7 +3658,7 @@ function AppInner() {
                 </div>
               </div>
               <span className="profile-chip-caret">▾</span>
-            </button>
+            </div>
             <div className="user-dropdown">
               <div className="user-dropdown-inner">
                 <div className="nav-dd-label">{currentUser.name}</div>
