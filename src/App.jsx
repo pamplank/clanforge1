@@ -1589,35 +1589,6 @@ body{
 ::-webkit-scrollbar-track{background:var(--bg-dark);}
 ::-webkit-scrollbar-thumb{background:var(--gold-dim);border-radius:2px;}
 
-/* Auction House background — overrides body's own background-image
-   when the bg-auctions class is toggled on (see AppInner's useEffect).
-   Uses a fixed-height ::before pinned to the top of the page instead
-   of body's own background-image, because body's height grows to the
-   full scrollable page (which can be 4000px+ with a long auction
-   list) — sizing `cover` directly against that would blow the image
-   up into an unrecognisable sliver. This pseudo-element has its OWN
-   fixed 1400px height, so `cover` fits the image against THAT box:
-   always full width, zero gaps on any screen, mild/sane cropping
-   only, never a stretch. It scrolls away normally with the page
-   (position:absolute, not fixed) and fades to fully transparent at
-   its own bottom edge so it blends into the page's plain dark
-   background with no visible seam. */
-body.bg-auctions{ background-color:var(--bg-void); position:relative; }
-body.bg-auctions::before{
-  content:"";
-  position:absolute;
-  top:0;left:0;right:0;height:1400px;
-  z-index:0;
-  pointer-events:none;
-  background-image:
-    linear-gradient(180deg, rgba(10,7,6,0.25) 0%, rgba(10,7,6,0.45) 55%, rgba(10,7,6,1) 100%),
-    url('/images/auction-bg.jpg');
-  background-size:100% 100%,cover;
-  background-position:0% 0%,center top;
-  background-repeat:no-repeat,no-repeat;
-}
-#root{position:relative;z-index:1;}
-
 /* ── ORNAMENTAL ELEMENTS ── */
 .orn-border{
   position:relative;
@@ -1864,7 +1835,23 @@ body.bg-auctions::before{
 .drawer-user-actions{display:flex;gap:8px;flex-wrap:wrap;}
 
 /* ── MAIN ── */
-.main{flex:1;display:flex;flex-direction:column;margin-top:10px;}
+.main{flex:1;display:flex;flex-direction:column;margin-top:10px;position:relative;}
+/* Auction House gets its own background image instead of the default temple
+   hall — same scrim/glow treatment as body for consistency, just a
+   different photo underneath. Applied to .main (not body) so it's scoped
+   to this page only and disappears the moment the user navigates away. */
+.main.page-bg-auctions{
+  background-color:var(--bg-void);
+  background-image:
+    radial-gradient(ellipse 900px 600px at 18% 8%, rgba(200,146,42,0.14) 0%, transparent 55%),
+    radial-gradient(ellipse 700px 500px at 85% 88%, rgba(200,146,42,0.09) 0%, transparent 55%),
+    linear-gradient(180deg, rgba(8,6,5,0.72) 0%, rgba(10,7,6,0.8) 45%, rgba(8,6,5,0.9) 100%),
+    url('/images/auction-house-bg.jpg');
+  background-attachment:scroll,scroll,scroll,scroll;
+  background-size:100% 100%,100% 100%,100% 100%,cover;
+  background-position:0% 0%,0% 0%,0 0,center top;
+  background-repeat:no-repeat,no-repeat,no-repeat,no-repeat;
+}
 .topbar{
   padding:20px 80px 28px;display:flex;align-items:center;justify-content:space-between;
   flex-wrap:wrap;gap:12px;
@@ -3082,17 +3069,6 @@ function AppInner() {
   }, []);
 
   const [page, setPage] = useState("dashboard");
-
-  // Swap the body background image depending on which page is active —
-  // same mechanism as the rest of the app's single full-bleed background,
-  // just pointed at a different photo on the Auctions page. Doing it this
-  // way (instead of a nested div) guarantees it always covers the full
-  // viewport width with zero seams, since it's the same element/rule that
-  // already paints Clan HQ's background everywhere else.
-  useEffect(() => {
-    document.body.classList.toggle("bg-auctions", page === "auctions");
-  }, [page]);
-
   const [members, setMembersRaw] = useState(SEED_MEMBERS);
   const [auctions, setAuctionsRaw] = useState(SEED_AUCTIONS);
   const [attendanceLogs, setAttendanceLogsRaw] = useState([]);
@@ -3920,7 +3896,7 @@ function AppInner() {
           </div>
         </div>
 
-        <main className="main">
+        <main className={`main${page==="auctions"?" page-bg-auctions":""}`}>
           <div className="topbar">
             <div>
               <div className="page-title">{PAGE_TITLES[page]||page}</div>
