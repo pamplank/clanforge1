@@ -2195,7 +2195,7 @@ tbody tr:last-child td{border-bottom:none;}
 .register-link span{color:var(--gold-light);cursor:pointer;font-weight:700;}
 .register-link span:hover{text-decoration:underline;}
 @media (max-width:760px){
-  .login-video-bg{object-position:center 30%;}
+  .login-video-bg{object-position:78% center;}
   .login-scrim{
     background:linear-gradient(180deg,
       rgba(4,3,8,0.55) 0%,
