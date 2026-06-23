@@ -1602,7 +1602,11 @@ body{
    (position:absolute, not fixed) and fades to fully transparent at
    its own bottom edge so it blends into the page's plain dark
    background with no visible seam. */
-body.bg-auctions{ background-color:var(--bg-void); position:relative; }
+body.bg-auctions{
+  background-color:var(--bg-void);
+  background-image:none;
+  position:relative;
+}
 body.bg-auctions::before{
   content:"";
   position:absolute;
