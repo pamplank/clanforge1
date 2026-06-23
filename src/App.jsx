@@ -1513,19 +1513,20 @@ const GLOBAL_CSS = `
 body{
   background-color:var(--bg-void);
   background-image:
-    radial-gradient(ellipse 900px 600px at 18% 8%, rgba(200,146,42,0.16) 0%, transparent 55%),
-    radial-gradient(ellipse 700px 500px at 85% 88%, rgba(200,146,42,0.10) 0%, transparent 55%),
-    repeating-linear-gradient(135deg, rgba(200,146,42,0.035) 0px, rgba(200,146,42,0.035) 1px, transparent 1px, transparent 64px),
-    repeating-linear-gradient(45deg, rgba(200,146,42,0.025) 0px, rgba(200,146,42,0.025) 1px, transparent 1px, transparent 64px),
-    linear-gradient(160deg, var(--bg-deep) 0%, var(--bg-void) 50%, var(--bg-deep) 100%);
-  background-attachment:fixed,fixed,fixed,fixed,fixed;
-  background-size:100% 100%,100% 100%,128px 128px,128px 128px,100% 100%;
+    radial-gradient(ellipse 900px 600px at 18% 8%, rgba(200,146,42,0.14) 0%, transparent 55%),
+    radial-gradient(ellipse 700px 500px at 85% 88%, rgba(200,146,42,0.09) 0%, transparent 55%),
+    linear-gradient(180deg, rgba(8,6,5,0.72) 0%, rgba(10,7,6,0.8) 45%, rgba(8,6,5,0.9) 100%),
+    url('/images/dashboard-bg.jpg');
+  background-attachment:fixed,fixed,fixed,fixed;
+  background-size:100% 100%,100% 100%,100% 100%,cover;
+  background-position:0% 0%,0% 0%,0 0,center center;
+  background-repeat:no-repeat,no-repeat,no-repeat,no-repeat;
   animation:bgDrift 50s ease-in-out infinite;
   color:var(--text);font-family:'Inter',sans-serif;font-size:16px;min-height:100vh;
 }
 @keyframes bgDrift{
-  0%,100%{background-position:0% 0%,0% 0%,0 0,0 0,0% 0%;}
-  50%{background-position:3% 2%,-2% -3%,0 0,0 0,0% 0%;}
+  0%,100%{background-position:0% 0%,0% 0%,0 0,center center;}
+  50%{background-position:3% 2%,-2% -3%,0 0,center center;}
 }
 @media (prefers-reduced-motion: reduce){
   body{animation:none;}
