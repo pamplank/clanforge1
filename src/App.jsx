@@ -478,6 +478,7 @@ const TRANSLATIONS = {
     coinsSuffix: "coins",
     reasonLabel2: "Reason:",
     requestedByLabel: "Requested by",
+    recordedByCardLabel: "by",
     approveBtn: "✓ Approve",
     rejectBtn: "✕ Reject",
     closeBtn: "Close",
@@ -963,6 +964,7 @@ const TRANSLATIONS = {
     coinsSuffix: "金币",
     reasonLabel2: "原因：",
     requestedByLabel: "申请人",
+    recordedByCardLabel: "记录人",
     approveBtn: "✓ 批准",
     rejectBtn: "✕ 拒绝",
     closeBtn: "关闭",
@@ -1813,6 +1815,10 @@ tbody tr:last-child td{border-bottom:none;}
   .event-card-text{padding:10px 12px!important;}
   .members-table th:nth-child(6),.members-table td:nth-child(6),
   .members-table th:nth-child(7),.members-table td:nth-child(7){display:none!important;}
+  .event-card-row{flex-direction:column!important;}
+  .event-card-row .event-card-thumb{width:100%!important;height:150px!important;}
+  .attendance-table-view{display:none!important;}
+  .attendance-card-view{display:block!important;}
   /* Stacking tables on mobile */
   .table-wrap{overflow-x:visible;}
   .table-stack thead{display:none;}
@@ -1840,6 +1846,7 @@ tbody tr:last-child td{border-bottom:none;}
   .members-table-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch;}
 }
 .members-table-wrap{overflow-x:auto;}
+.attendance-card-view{display:none;}
 @media(max-width:400px){
   .grid-4{grid-template-columns:1fr;}
   .lb-val{min-width:52px;font-size:11px;}
@@ -3694,7 +3701,7 @@ function WorldBossSchedule() {
           transition:"transform 0.2s, box-shadow 0.2s",
         }}>
         <div style={{height:2, background:`linear-gradient(90deg, transparent 5%, ${col} 40%, ${col} 60%, transparent 95%)`}} />
-        <div style={{display:"flex"}}>
+        <div className={compact?"":"event-card-row"} style={{display:"flex"}}>
           {/* Thumbnail */}
           <div className="event-card-thumb" style={{position:"relative", flexShrink:0, width:thumbSize, height:thumbSize}}>
             <img src={ev.img} alt={ev.name} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} />
@@ -4762,7 +4769,7 @@ function Attendance({ ctx }) {
             <button className="btn btn-outline btn-sm" onClick={()=>setModal({type:"addMissingAttendance"})}>{t("addMissingRecord")}</button>
           </div>
         )}
-        <div className="card" style={{padding:0}}>
+        <div className="card attendance-table-view" style={{padding:0}}>
           <div className="table-wrap">
             <table className="table-stack">
               <thead><tr><th>{t("colDateTime")}</th><th>{t("colEvent")}</th><th>{t("colMembers")}</th><th>{t("colRecBy")}</th><th>{t("attendeesLabel")}</th>{isMaster&&<th>{t("colActions")}</th>}</tr></thead>
@@ -4818,6 +4825,55 @@ function Attendance({ ctx }) {
             <div style={{display:"flex",alignItems:"center",gap:10,padding:"14px 18px",borderTop:"1px solid var(--border)",justifyContent:"flex-end"}}>
               <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:"var(--text-dim)"}}>{t("pageOf")} {logPage+1} {t("ofLabel")} {totalPages}</span>
               <button className="btn btn-outline btn-sm" disabled={logPage===0} onClick={()=>setLogPage(p=>p-1)} style={{opacity:logPage===0?0.4:1}}>{t("prevPage")}</button>
+              <button className="btn btn-outline btn-sm" disabled={logPage>=totalPages-1} onClick={()=>setLogPage(p=>p+1)} style={{opacity:logPage>=totalPages-1?0.4:1}}>{t("nextPage")}</button>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile card view — same data as the table above, shown only on narrow screens (see .attendance-card-view media query) */}
+        <div className="attendance-card-view">
+          {attendanceLogs.length===0 && <div className="card" style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noAttendanceYet")}</div>}
+          {pagedLogs.map(l=>(
+            <div key={`card-${l.id}`} className="card" style={{marginBottom:10,padding:"14px 16px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:6}}>
+                <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:14,color:"var(--text-bright)",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{l.event}</span>
+                <span style={{fontSize:10,color:"var(--text-dim)",flexShrink:0,whiteSpace:"nowrap"}}>{formatLogDateTime(l)}</span>
+              </div>
+              <div style={{display:"flex",gap:14,fontSize:11,color:"var(--text-mid)",marginBottom:10,flexWrap:"wrap"}}>
+                <span>{l.members} {t("membersCountLabel")}</span>
+                <span>{t("recordedByCardLabel")} <span style={{color:"var(--gold-light)",fontWeight:700}}>{l.recordedBy}</span></span>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button className="btn btn-ghost btn-sm" style={{flex:1}} onClick={()=>setExpandedLog(expandedLog===l.id?null:l.id)}>
+                  {expandedLog===l.id?t("hideAttendees"):t("showAttendees")}
+                </button>
+                {isAdmin && (
+                  <button className="btn btn-ghost btn-sm" style={{flexShrink:0,width:38}} title={t("downloadCsvTitle")} onClick={()=>downloadLogCSV(l)}>⬇</button>
+                )}
+                {isMaster && (
+                  <button className="btn btn-red btn-sm" style={{flexShrink:0,width:38}} title={t("removeAction")} onClick={()=>setModal({type:"deleteAttendance",data:l})}>✕</button>
+                )}
+              </div>
+              {expandedLog===l.id && (
+                <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid var(--border-dim)"}}>
+                  <div style={{fontFamily:"'Inter',sans-serif",fontSize:9,color:"var(--gold-dim)",fontWeight:700,letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>{t("attendeesLabel")}</div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                    {(l.attendees||[]).map((a,i)=>(
+                      <div key={i} style={{display:"flex",alignItems:"center",gap:6,background:"rgba(201,151,42,0.08)",border:"1px solid var(--border)",borderRadius:2,padding:"4px 10px"}}>
+                        <span style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:12,color:"var(--text-bright)"}}>{a.name}</span>
+                        <span className={`badge ${a.qualifier==="full"?"badge-gold":a.qualifier==="late"?"badge-blue":"badge-red"}`}>{a.qualifier}</span>
+                        {a.earned>0&&<span style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:"var(--gold)",fontWeight:700}}>+{a.earned}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+          {totalPages>1 && (
+            <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 4px",justifyContent:"center"}}>
+              <button className="btn btn-outline btn-sm" disabled={logPage===0} onClick={()=>setLogPage(p=>p-1)} style={{opacity:logPage===0?0.4:1}}>{t("prevPage")}</button>
+              <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:"var(--text-dim)"}}>{logPage+1} {t("ofLabel")} {totalPages}</span>
               <button className="btn btn-outline btn-sm" disabled={logPage>=totalPages-1} onClick={()=>setLogPage(p=>p+1)} style={{opacity:logPage>=totalPages-1?0.4:1}}>{t("nextPage")}</button>
             </div>
           )}
@@ -4950,7 +5006,8 @@ function Attendance({ ctx }) {
                 ) : filteredEntries.length===0 ? (
                   <div style={{padding:32,textAlign:"center",color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{t("noEntriesFilter")}</div>
                 ) : (
-                  <div className="table-wrap">
+                  <>
+                  <div className="table-wrap attendance-table-view">
                     <table className="table-stack">
                       <thead><tr><th>{t("colDateTime")}</th><th>{t("colType")}</th><th>{t("colDetails")}</th><th>{t("colCoins")}</th></tr></thead>
                       <tbody>
@@ -4965,6 +5022,21 @@ function Attendance({ ctx }) {
                       </tbody>
                     </table>
                   </div>
+                  <div className="attendance-card-view" style={{padding:"4px 16px 16px"}}>
+                    {filteredEntries.map((e,i)=>(
+                      <div key={`card-${i}`} className="card" style={{marginBottom:8,padding:"12px 14px"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:6}}>
+                          <span className={`badge ${badgeClass(e)}`}>{typeLabel(e.type,t)}</span>
+                          <span style={{fontSize:10,color:"var(--text-dim)",whiteSpace:"nowrap"}}>{formatLogDateTime(e)}</span>
+                        </div>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+                          <span style={{fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:12,color:"var(--text-bright)",minWidth:0,overflow:"hidden",textOverflow:"ellipsis"}}>{e.details}</span>
+                          <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:13,color:e.coins>=0?"var(--gold-light)":"#e07070",flexShrink:0,display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={18}/>{e.coins>0?`+${e.coins}`:e.coins}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  </>
                 )}
               </>
             );
@@ -4978,35 +5050,57 @@ function Attendance({ ctx }) {
             <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:15,color:"var(--gold-light)"}}>{t("globalPointsTitle")}</div>
             <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3}}>{t("globalPointsDesc")}</div>
           </div>
-          <div className="table-wrap">
-            <table className="table-stack">
-              <thead><tr><th>{t("colDateTime")}</th><th>{t("colMember")}</th><th>{t("colType")}</th><th>{t("colAmount")}</th><th>{t("colAddedBy")}</th><th>{t("colReason")}</th></tr></thead>
-              <tbody>
-                {(()=>{
-                  // Show admin manual adds and all bonus entries
-                  const BONUS_TYPES = new Set(["Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Bonus Points","Elder Request","Weekly Decay"]);
-                  const allEntries = members.flatMap(m=>
-                    (m.txLog||[])
-                      .filter(entry=>entry.logType==="Admin Manual Add" || BONUS_TYPES.has(entry.logType) || (!entry.logType && entry.addedBy && entry.addedBy!=="System"))
-                      .map(entry=>({date:entry.date,ts:entry.ts,member:entry.logType==="Weekly Decay"?t("allMembersLabel"):m.name,type:entry.logType||"Admin Manual Add",amount:entry.change,addedBy:entry.addedBy||"—",reason:entry.reason||"—",cls:m.cls}))
-                  ).sort((a,b)=>logSortKey(b)-logSortKey(a)).slice(0,100);
-                  if(allEntries.length===0) return(
-                    <tr><td colSpan={5} style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noGlobalAdjustments")}</td></tr>
-                  );
-                  return allEntries.map((entry,i)=>(
-                    <tr key={i}>
-                      <td data-label="Date & Time" style={{fontWeight:500,whiteSpace:"nowrap"}}>{formatLogDateTime(entry)}</td>
-                      <td data-label="Member" style={{fontFamily:"'Inter',sans-serif",fontWeight:700,color:"var(--text-bright)"}}>{entry.member}</td>
-                      <td data-label="Type"><span className={`badge ${entry.amount>0?"badge-gold":"badge-red"}`}>{typeLabel(entry.type,t)}</span></td>
-                      <td data-label="Amount" style={{fontFamily:"'Inter',sans-serif",fontWeight:800,color:entry.amount>=0?"var(--gold-light)":"#e07070"}}>{entry.amount>=0?`+${entry.amount}`:entry.amount}</td>
-                      <td data-label="Added By" style={{fontFamily:"'Inter',sans-serif",fontWeight:600,color:"var(--gold)",fontSize:12}}>{entry.addedBy}</td>
-                      <td data-label="Reason" style={{fontSize:11,color:"var(--text-dim)"}}>{entry.reason}</td>
-                    </tr>
-                  ));
-                })()}
-              </tbody>
-            </table>
-          </div>
+          {(()=>{
+            // Show admin manual adds and all bonus entries
+            const BONUS_TYPES = new Set(["Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Bonus Points","Elder Request","Weekly Decay"]);
+            const allEntries = members.flatMap(m=>
+              (m.txLog||[])
+                .filter(entry=>entry.logType==="Admin Manual Add" || BONUS_TYPES.has(entry.logType) || (!entry.logType && entry.addedBy && entry.addedBy!=="System"))
+                .map(entry=>({date:entry.date,ts:entry.ts,member:entry.logType==="Weekly Decay"?t("allMembersLabel"):m.name,type:entry.logType||"Admin Manual Add",amount:entry.change,addedBy:entry.addedBy||"—",reason:entry.reason||"—",cls:m.cls}))
+            ).sort((a,b)=>logSortKey(b)-logSortKey(a)).slice(0,100);
+            if (allEntries.length===0) return (
+              <div style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noGlobalAdjustments")}</div>
+            );
+            return (
+              <>
+              <div className="table-wrap attendance-table-view">
+                <table className="table-stack">
+                  <thead><tr><th>{t("colDateTime")}</th><th>{t("colMember")}</th><th>{t("colType")}</th><th>{t("colAmount")}</th><th>{t("colAddedBy")}</th><th>{t("colReason")}</th></tr></thead>
+                  <tbody>
+                    {allEntries.map((entry,i)=>(
+                      <tr key={i}>
+                        <td data-label="Date & Time" style={{fontWeight:500,whiteSpace:"nowrap"}}>{formatLogDateTime(entry)}</td>
+                        <td data-label="Member" style={{fontFamily:"'Inter',sans-serif",fontWeight:700,color:"var(--text-bright)"}}>{entry.member}</td>
+                        <td data-label="Type"><span className={`badge ${entry.amount>0?"badge-gold":"badge-red"}`}>{typeLabel(entry.type,t)}</span></td>
+                        <td data-label="Amount" style={{fontFamily:"'Inter',sans-serif",fontWeight:800,color:entry.amount>=0?"var(--gold-light)":"#e07070"}}>{entry.amount>=0?`+${entry.amount}`:entry.amount}</td>
+                        <td data-label="Added By" style={{fontFamily:"'Inter',sans-serif",fontWeight:600,color:"var(--gold)",fontSize:12}}>{entry.addedBy}</td>
+                        <td data-label="Reason" style={{fontSize:11,color:"var(--text-dim)"}}>{entry.reason}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="attendance-card-view" style={{padding:"4px 16px 16px"}}>
+                {allEntries.map((entry,i)=>(
+                  <div key={`card-${i}`} className="card" style={{marginBottom:8,padding:"12px 14px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:6}}>
+                      <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:13,color:"var(--text-bright)"}}>{entry.member}</span>
+                      <span style={{fontSize:10,color:"var(--text-dim)",whiteSpace:"nowrap"}}>{formatLogDateTime(entry)}</span>
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:6}}>
+                      <span className={`badge ${entry.amount>0?"badge-gold":"badge-red"}`}>{typeLabel(entry.type,t)}</span>
+                      <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:13,color:entry.amount>=0?"var(--gold-light)":"#e07070"}}>{entry.amount>=0?`+${entry.amount}`:entry.amount}</span>
+                    </div>
+                    <div style={{fontSize:11,color:"var(--text-dim)",display:"flex",justifyContent:"space-between",gap:8}}>
+                      <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.reason}</span>
+                      <span style={{color:"var(--gold)",fontWeight:600,flexShrink:0}}>{entry.addedBy}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              </>
+            );
+          })()}
         </div>
       )}
     </div>
@@ -5496,7 +5590,8 @@ function Auctions({ ctx }) {
       )}
 
       {tab==="ended" && (
-        <div className="card" style={{padding:0}}>
+        <>
+        <div className="card attendance-table-view" style={{padding:0}}>
           <div className="table-wrap">
             <table className="table-stack">
               <thead><tr><th>{t("colDateTime")}</th><th>{t("colItem")}</th><th>{t("colRarity")}</th><th>{t("colWinner")}</th><th>{t("colFinalBid")}</th></tr></thead>
@@ -5522,6 +5617,36 @@ function Auctions({ ctx }) {
             </table>
           </div>
         </div>
+
+        {/* Mobile card view */}
+        <div className="attendance-card-view">
+          {ended.length===0 && <div className="card" style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noEndedAuctions")}</div>}
+          {ended.map(a=>(
+            <div key={`card-${a.id}`} className="card" style={{marginBottom:10,padding:"14px 16px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                <div style={{width:36,height:36,borderRadius:3,overflow:"hidden",background:a.rarity==="epic"?"rgba(122,26,26,0.2)":"rgba(26,90,138,0.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
+                  {a.image?<AuctionImage auction={a} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={<StatIcon src={AUCTION_ICON} size={18}/>}/>:<StatIcon src={AUCTION_ICON} size={18}/>}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:13,color:"var(--text-bright)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</div>
+                  <div style={{fontSize:10,color:"var(--text-dim)"}}>{formatLogDateTime({ts:a.endsAt})}</div>
+                </div>
+                <span className={`badge badge-${a.rarity||"epic"}`} style={{flexShrink:0}}>{rarityLabel(a.rarity||"epic",t).toLowerCase()}</span>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:8,borderTop:"1px solid var(--border-dim)"}}>
+                <div>
+                  <div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>{t("colWinner")}</div>
+                  {a.topBidder ? <span style={{color:"var(--gold-light)",fontWeight:700,fontFamily:"'Inter',sans-serif",fontSize:12}}>{a.topBidder}</span> : <span className="badge badge-silver">{t("noWinner")}</span>}
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>{t("colFinalBid")}</div>
+                  {a.topBidder ? <span style={{display:"inline-flex",alignItems:"center",gap:4,color:"var(--gold)",fontWeight:700,fontFamily:"'Inter',sans-serif",fontSize:13}}><StatIcon src={COINS_ICON} size={18}/>{fmt(a.currentBid)}</span> : <span style={{color:"var(--text-dim)"}}>—</span>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        </>
       )}
 
       {tab==="roulette"&&(
@@ -5834,10 +5959,10 @@ function Auctions({ ctx }) {
           </div>
           <div className="form-group">
             <label className="form-label">{t("rarityLabel")}</label>
-            <div style={{display:"flex",gap:10}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(80px,1fr))",gap:8}}>
               {RARITY_OPTS.map(r=>(
                 <div key={r.value} onClick={()=>setNewAuction(p=>({...p,rarity:r.value}))}
-                  style={{flex:1,padding:"10px 14px",borderRadius:2,cursor:"pointer",textAlign:"center",
+                  style={{padding:"10px 8px",borderRadius:2,cursor:"pointer",textAlign:"center",
                     background:newAuction.rarity===r.value?r.bg:"rgba(10,11,15,0.6)",
                     border:`1px solid ${newAuction.rarity===r.value?r.border:"var(--border)"}`,
                     color:newAuction.rarity===r.value?r.color:"var(--text-dim)",
