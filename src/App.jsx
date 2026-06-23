@@ -1805,6 +1805,14 @@ tbody tr:last-child td{border-bottom:none;}
   .grid-4{grid-template-columns:1fr 1fr;}
   .stat-card{padding:18px 10px;}
   .stat-value{font-size:22px;}
+  .patch-title{flex-basis:100%!important;order:3;margin-top:2px;}
+  .table-stack td[data-label="Attendees"] .btn-sm{padding:5px 9px;font-size:8px;}
+  .members-table-wrap{position:relative;}
+  .members-table-wrap::after{content:"";position:absolute;top:0;right:0;bottom:0;width:18px;background:linear-gradient(90deg,transparent,var(--bg-card));pointer-events:none;}
+  .event-card-thumb{width:78px!important;height:78px!important;}
+  .event-card-text{padding:10px 12px!important;}
+  .members-table th:nth-child(6),.members-table td:nth-child(6),
+  .members-table th:nth-child(7),.members-table td:nth-child(7){display:none!important;}
   /* Stacking tables on mobile */
   .table-wrap{overflow-x:visible;}
   .table-stack thead{display:none;}
@@ -3688,7 +3696,7 @@ function WorldBossSchedule() {
         <div style={{height:2, background:`linear-gradient(90deg, transparent 5%, ${col} 40%, ${col} 60%, transparent 95%)`}} />
         <div style={{display:"flex"}}>
           {/* Thumbnail */}
-          <div style={{position:"relative", flexShrink:0, width:thumbSize, height:thumbSize}}>
+          <div className="event-card-thumb" style={{position:"relative", flexShrink:0, width:thumbSize, height:thumbSize}}>
             <img src={ev.img} alt={ev.name} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} />
             {/* Vignette — dark right + bottom fade so text on right is readable */}
             <div style={{position:"absolute",inset:0,background:"linear-gradient(to right, rgba(0,0,0,0.05) 0%, rgba(14,11,9,0.85) 85%), linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 45%)"}} />
@@ -3715,7 +3723,7 @@ function WorldBossSchedule() {
             }}>{ev.id}</div>
           </div>
           {/* Text content */}
-          <div style={{flex:1, padding: compact?"12px 14px":"18px 20px", display:"flex", flexDirection:"column", justifyContent:"center", minWidth:0}}>
+          <div className="event-card-text" style={{flex:1, padding: compact?"12px 14px":"18px 20px", display:"flex", flexDirection:"column", justifyContent:"center", minWidth:0}}>
             <div style={{
               fontFamily:"'Inter',sans-serif", fontWeight:900,
               fontSize: compact?14:19, color:"#f4e8cc",
@@ -4038,7 +4046,7 @@ function UpdateNotes() {
               onClick={()=>setExpanded(expanded===pi?null:pi)}
               style={{
                 display:"flex",alignItems:"center",gap:12,padding:"10px 14px",cursor:"pointer",
-                transition:"background 0.15s",
+                transition:"background 0.15s",flexWrap:"wrap",rowGap:4,
                 background:expanded===pi?`${patch.color}12`:"transparent",
               }}
               onMouseEnter={e=>e.currentTarget.style.background=`${patch.color}10`}
@@ -4046,8 +4054,8 @@ function UpdateNotes() {
             >
               <div style={{width:6,height:6,borderRadius:"50%",background:patch.color,boxShadow:`0 0 6px ${patch.color}`,flexShrink:0}} />
               <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:11,color:patch.color,minWidth:32,flexShrink:0,letterSpacing:0.5,textAlign:"left"}}>{patch.version}</span>
-              <span style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:12,color:"var(--text-bright)",flex:1,textAlign:"left"}}>{patch.title}</span>
-              <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",flexShrink:0,textAlign:"left"}}>{patch.date}</span>
+              <span className="patch-title" style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:12,color:"var(--text-bright)",flex:"1 1 160px",minWidth:0,textAlign:"left"}}>{patch.title}</span>
+              <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",flexShrink:0,textAlign:"left",marginLeft:"auto"}}>{patch.date}</span>
               <span style={{fontSize:9,color:"var(--text-dim)",marginLeft:4,flexShrink:0,transition:"transform 0.2s",display:"inline-block",transform:expanded===pi?"rotate(180deg)":"rotate(0deg)"}}>▼</span>
             </div>
             {/* Change list */}
