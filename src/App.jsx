@@ -3710,18 +3710,23 @@ function WorldBossSchedule() {
             <img src={ev.img} alt={ev.name} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} />
             {/* Vignette — dark right + bottom fade so text on right is readable */}
             <div style={{position:"absolute",inset:0,background:"linear-gradient(to right, rgba(0,0,0,0.05) 0%, rgba(14,11,9,0.85) 85%), linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 45%)"}} />
-            {/* Coins overlay */}
-            <div className="event-card-coins" style={{
-              position:"absolute", bottom:10, left:"50%", transform:"translateX(-50%)",
-              background:"rgba(0,0,0,0.72)", border:`1px solid ${col}99`,
-              borderRadius:20, padding: compact?"3px 10px":"4px 14px",
-              backdropFilter:"blur(6px)", whiteSpace:"nowrap",
-              display:"flex", alignItems:"center", gap:4,
-              boxShadow:`0 0 12px ${glow}`,
-            }}>
-              <span className="event-card-coins-num" style={{fontSize: compact?14:19, fontFamily:"'Inter',sans-serif", fontWeight:900, color:"#f2cc60", lineHeight:1}}>{`+${ev.coins}`}</span>
-              <span style={{fontSize:8, color:"rgba(200,146,42,0.7)", fontWeight:700, letterSpacing:1, textTransform:"uppercase", alignSelf:"flex-end", paddingBottom:1}}>coins</span>
-            </div>
+            {/* Coins overlay — only for the non-compact (Today) card. The
+                compact (Full Week) card shows coins inline in the text
+                column instead, see below — overlaying it on the smaller
+                compact thumbnail looked cramped/oversized against the image. */}
+            {!compact && (
+              <div className="event-card-coins" style={{
+                position:"absolute", bottom:10, left:"50%", transform:"translateX(-50%)",
+                background:"rgba(0,0,0,0.72)", border:`1px solid ${col}99`,
+                borderRadius:20, padding:"4px 14px",
+                backdropFilter:"blur(6px)", whiteSpace:"nowrap",
+                display:"flex", alignItems:"center", gap:4,
+                boxShadow:`0 0 12px ${glow}`,
+              }}>
+                <span className="event-card-coins-num" style={{fontSize:19, fontFamily:"'Inter',sans-serif", fontWeight:900, color:"#f2cc60", lineHeight:1}}>{`+${ev.coins}`}</span>
+                <span style={{fontSize:8, color:"rgba(200,146,42,0.7)", fontWeight:700, letterSpacing:1, textTransform:"uppercase", alignSelf:"flex-end", paddingBottom:1}}>coins</span>
+              </div>
+            )}
             {/* Event ID badge */}
             <div style={{
               position:"absolute", top:8, left:8,
@@ -3735,12 +3740,27 @@ function WorldBossSchedule() {
           {/* Text content */}
           <div className="event-card-text" style={{flex:1, padding: compact?"12px 14px":"18px 20px", display:"flex", flexDirection:"column", justifyContent:"center", minWidth:0}}>
             <div style={{
-              fontFamily:"'Inter',sans-serif", fontWeight:900,
-              fontSize: compact?14:19, color:"#f4e8cc",
-              marginBottom:6, lineHeight:1.2,
-              textShadow:`0 0 20px ${col}66`,
-              textAlign:"left",
-            }}>{ev.name}</div>
+              display:"flex", alignItems:"center", gap:8, flexWrap:"wrap",
+              marginBottom:6,
+            }}>
+              <div style={{
+                fontFamily:"'Inter',sans-serif", fontWeight:900,
+                fontSize: compact?14:19, color:"#f4e8cc",
+                lineHeight:1.2,
+                textShadow:`0 0 20px ${col}66`,
+                textAlign:"left",
+              }}>{ev.name}</div>
+              {compact && (
+                <span style={{
+                  display:"inline-flex", alignItems:"center", gap:3, flexShrink:0,
+                  background:"rgba(0,0,0,0.45)", border:`1px solid ${col}66`,
+                  borderRadius:12, padding:"2px 8px",
+                }}>
+                  <span style={{fontSize:11, fontFamily:"'Inter',sans-serif", fontWeight:900, color:"#f2cc60", lineHeight:1.3}}>{`+${ev.coins}`}</span>
+                  <span style={{fontSize:7, color:"rgba(200,146,42,0.7)", fontWeight:700, letterSpacing:0.5, textTransform:"uppercase"}}>coins</span>
+                </span>
+              )}
+            </div>
             <div style={{
               display:"inline-flex", alignItems:"flex-start", gap:5, marginBottom: compact?8:12,
               background:`${col}18`, border:`1px solid ${col}44`,
