@@ -1763,9 +1763,8 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
 /* ── MAIN ── */
 .main{flex:1;display:flex;flex-direction:column;margin-top:10px;}
 .topbar{
-  background:rgba(10,8,6,0.55);backdrop-filter:blur(6px);
-  border-bottom:1px solid var(--border);
-  padding:13px 80px;display:flex;align-items:center;justify-content:space-between;
+  background:linear-gradient(180deg,rgba(10,8,6,0.4) 0%,rgba(10,8,6,0.15) 70%,rgba(10,8,6,0) 100%);
+  padding:20px 80px 28px;display:flex;align-items:center;justify-content:space-between;
   flex-wrap:wrap;gap:12px;
 }
 .page-title{font-family:'Spectral',serif;font-size:24px;font-weight:800;color:var(--text-bright);letter-spacing:2px;text-align:left;}
