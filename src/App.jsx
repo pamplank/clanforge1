@@ -5907,16 +5907,14 @@ function LBList({ data, valueKey, label, format, color, currentUser, showMultipl
           }}>
             <span style={{fontSize:10,color:"rgba(200,146,42,0.7)",fontFamily:"'Inter',sans-serif",fontWeight:700,letterSpacing:2,textTransform:"uppercase",flexShrink:0}}>{t("yourRank")}</span>
             <span style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:18,color:"var(--gold-light)",flexShrink:0}}>#{myRank+1}</span>
-            <div style={{flex:"1 1 auto",minWidth:0,display:"flex",alignItems:"baseline",gap:8,flexWrap:"wrap"}}>
-              <span style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",whiteSpace:"nowrap"}}>
-                {format?format(myEntry[valueKey]):myEntry[valueKey]}
-              </span>
-              {myRank>0&&<span style={{fontSize:10,color:"rgba(200,146,42,0.5)",fontFamily:"'Inter',sans-serif",whiteSpace:"nowrap"}}>
-                {valueKey==="coins"?`${fmt(data[myRank-1][valueKey]-myEntry[valueKey])} ${t("behindLabel")} #${myRank}`:
+            <div style={{flex:"1 1 0%",minWidth:0,fontSize:11,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+              {format?format(myEntry[valueKey]):myEntry[valueKey]}
+              {myRank>0&&<span style={{color:"rgba(200,146,42,0.5)",fontSize:10}}>
+                {" "}{valueKey==="coins"?`${fmt(data[myRank-1][valueKey]-myEntry[valueKey])} ${t("behindLabel")} #${myRank}`:
                  valueKey==="power"?`${fmt(data[myRank-1][valueKey]-myEntry[valueKey])} ${t("bpBehind")} #${myRank}`:
                  `${data[myRank-1][valueKey]-myEntry[valueKey]} ${t("attBehind")} #${myRank}`}
               </span>}
-              {myRank===0&&<span style={{fontSize:10,color:"var(--gold)",display:"inline-flex",alignItems:"center",gap:4,whiteSpace:"nowrap"}}><CrownIcon size={11}/>{t("leadingLabel")}</span>}
+              {myRank===0&&<span style={{color:"var(--gold)",fontSize:10}}> <CrownIcon size={11}/> {t("leadingLabel")}</span>}
             </div>
             {showMultiplier && (
               <span style={{flexShrink:0,fontSize:11,fontWeight:800,color:"var(--gold-light)",background:"rgba(201,151,42,0.15)",border:"1px solid rgba(201,151,42,0.35)",borderRadius:3,padding:"3px 8px",fontFamily:"'Inter',sans-serif",whiteSpace:"nowrap"}}>
