@@ -3708,8 +3708,14 @@ function WorldBossSchedule() {
           {/* Thumbnail */}
           <div className="event-card-thumb" style={{position:"relative", flexShrink:0, width:thumbSize, height:thumbSize}}>
             <img src={ev.img} alt={ev.name} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} />
-            {/* Vignette — dark right + bottom fade so text on right is readable */}
-            <div style={{position:"absolute",inset:0,background:"linear-gradient(to right, rgba(0,0,0,0.05) 0%, rgba(14,11,9,0.85) 85%), linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 45%)"}} />
+            {/* Vignette — dark right + bottom fade so text on right is readable.
+                Compact cards no longer have the coin badge sitting on the
+                thumbnail (see below), so the bottom fade is dropped there —
+                otherwise it left a flat dark shadow with nothing on top of it. */}
+            <div style={{position:"absolute",inset:0,background: compact
+              ? "linear-gradient(to right, rgba(0,0,0,0.05) 0%, rgba(14,11,9,0.55) 85%)"
+              : "linear-gradient(to right, rgba(0,0,0,0.05) 0%, rgba(14,11,9,0.85) 85%), linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 45%)"
+            }} />
             {/* Coins overlay — only for the non-compact (Today) card. The
                 compact (Full Week) card shows coins inline in the text
                 column instead, see below — overlaying it on the smaller
