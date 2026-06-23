@@ -71,6 +71,7 @@ const TRANSLATIONS = {
     approvals: "Approvals",
     changePassword: "Change Password",
     coinsLabel: "coins",
+    balanceRemaining: "Balance Remaining",
     // Page titles
     pageTitle_dashboard: "Clan HQ",
     pageTitle_attendance: "Attendance",
@@ -570,6 +571,7 @@ const TRANSLATIONS = {
     approvals: "待审批",
     changePassword: "修改密码",
     coinsLabel: "金币",
+    balanceRemaining: "剩余余额",
     // Page titles
     pageTitle_dashboard: "公会总部",
     pageTitle_attendance: "出勤",
@@ -1316,6 +1318,66 @@ function StatIcon({ src, size=18 }) {
   return <img src={src} alt="" style={{width:size,height:size,objectFit:"contain",
     filter:"drop-shadow(0 0 3px rgba(200,146,42,0.45))",display:"inline-block",
     verticalAlign:"middle",flexShrink:0}} />;
+}
+
+// Fires a burst of coin particles from a screen point (e.g. the bid button
+// that was just clicked). Pure CSS animation per-particle via custom
+// properties, so we can have N differently-angled coins without writing
+// N keyframe blocks. Cleans itself out of the DOM via the caller's timeout.
+function CoinBurst({ x, y }) {
+  const COUNT = 14;
+  const particles = useMemo(() => Array.from({length: COUNT}, (_, i) => {
+    const angle = (i / COUNT) * 360 + (Math.random()*26 - 13);
+    const distance = 70 + Math.random()*70;
+    const rad = angle * Math.PI / 180;
+    return {
+      id: i,
+      dx: Math.cos(rad) * distance,
+      dy: Math.sin(rad) * distance - 30, // bias upward so it reads as a "pop" not a flat ring
+      rot: (Math.random()*540 - 270).toFixed(0),
+      size: 14 + Math.random()*10,
+      delay: Math.random()*60,
+      dur: 750 + Math.random()*250,
+    };
+  }), []);
+  return (
+    <div className="coin-burst-root" style={{left:x, top:y}}>
+      {particles.map(p => (
+        <img
+          key={p.id}
+          src={COINS_ICON}
+          alt=""
+          className="coin-burst-particle"
+          style={{
+            "--dx": `${p.dx}px`,
+            "--dy": `${p.dy}px`,
+            "--rot": `${p.rot}deg`,
+            width: p.size, height: p.size,
+            animationDelay: `${p.delay}ms`,
+            animationDuration: `${p.dur}ms`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Small floating chip showing the bidder's remaining balance right after a
+// bid lands. Anchored above the click point (same x/y as the coin burst)
+// so the two effects read as one connected moment instead of two separate
+// notifications competing for attention.
+function BalancePopup({ x, y, amount, label }) {
+  return (
+    <div className="balance-popup" style={{left:x, top:y}}>
+      <div className="balance-popup-inner">
+        <img src={COINS_ICON} alt="" className="balance-popup-icon" />
+        <div className="balance-popup-text">
+          <div className="balance-popup-amount">{amount}</div>
+          <div className="balance-popup-label">{label}</div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 
@@ -2089,6 +2151,73 @@ tbody tr:last-child td{border-bottom:none;}
 
 /* ── TOAST ── */
 .toast-container{position:fixed;bottom:24px;right:24px;z-index:300;display:flex;flex-direction:column;gap:10px;}
+
+/* ── COIN BURST (bid-placed celebration) ── */
+.coin-burst-root{
+  position:fixed;z-index:500;pointer-events:none;
+  width:0;height:0;
+}
+.coin-burst-particle{
+  position:absolute;left:0;top:0;
+  margin-left:-10px;margin-top:-10px;
+  border-radius:50%;
+  filter:drop-shadow(0 0 4px rgba(255,210,110,0.7));
+  opacity:0;
+  animation-name:coinBurstFly;
+  animation-timing-function:cubic-bezier(0.16,0.8,0.3,1);
+  animation-fill-mode:forwards;
+}
+@keyframes coinBurstFly{
+  0%{
+    opacity:1;
+    transform:translate(0,0) rotate(0deg) scale(0.4);
+  }
+  12%{
+    opacity:1;
+    transform:translate(calc(var(--dx) * 0.3),calc(var(--dy) * 0.3)) rotate(calc(var(--rot) * 0.3)) scale(1.15);
+  }
+  65%{
+    opacity:1;
+    transform:translate(calc(var(--dx) * 0.75),calc(var(--dy) * 0.75 + 30px)) rotate(calc(var(--rot) * 0.8)) scale(0.95);
+  }
+  100%{
+    opacity:0;
+    transform:translate(var(--dx),calc(var(--dy) + 90px)) rotate(var(--rot)) scale(0.7);
+  }
+}
+@media (prefers-reduced-motion: reduce){
+  .coin-burst-particle{animation:none;display:none;}
+}
+
+/* ── BALANCE POPUP (shows remaining coins right after a bid) ── */
+.balance-popup{
+  position:fixed;z-index:501;pointer-events:none;
+  transform:translate(-50%,-50%);
+  animation:balancePopupLift 2.2s cubic-bezier(0.16,0.8,0.3,1) forwards;
+}
+.balance-popup-inner{
+  display:flex;align-items:center;gap:9px;
+  background:linear-gradient(160deg,rgba(20,16,12,0.96),rgba(14,11,9,0.97));
+  border:1px solid var(--gold-dim);
+  border-radius:8px;
+  padding:8px 14px 8px 10px;
+  box-shadow:0 10px 30px rgba(0,0,0,0.55),0 0 0 1px rgba(201,151,42,0.1);
+  white-space:nowrap;
+}
+.balance-popup-icon{width:22px;height:22px;object-fit:contain;
+  filter:drop-shadow(0 0 4px rgba(255,210,110,0.6));flex-shrink:0;}
+.balance-popup-text{display:flex;flex-direction:column;align-items:flex-start;line-height:1.2;}
+.balance-popup-amount{font-family:'Spectral',serif;font-weight:800;font-size:16px;color:var(--gold-bright);}
+.balance-popup-label{font-size:9px;color:var(--text-dim);letter-spacing:1.5px;text-transform:uppercase;font-weight:600;}
+@keyframes balancePopupLift{
+  0%{opacity:0;transform:translate(-50%,-50%) translateY(6px) scale(0.85);}
+  10%{opacity:1;transform:translate(-50%,-50%) translateY(-46px) scale(1);}
+  78%{opacity:1;transform:translate(-50%,-50%) translateY(-58px) scale(1);}
+  100%{opacity:0;transform:translate(-50%,-50%) translateY(-74px) scale(0.96);}
+}
+@media (prefers-reduced-motion: reduce){
+  .balance-popup{animation:none;opacity:0;display:none;}
+}
 .toast{
   background:var(--bg-panel);border:1px solid var(--border-bright);
   border-radius:2px;padding:13px 18px;min-width:270px;
@@ -2930,6 +3059,21 @@ function AppInner() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [toasts, setToasts] = useState([]);
+  const [coinBursts, setCoinBursts] = useState([]);
+  function fireCoinBurst(x, y) {
+    const id = Date.now()+Math.random();
+    setCoinBursts(b => [...b, {id, x, y}]);
+    // Each burst animates for ~1.1s; clean it up after so the DOM doesn't
+    // accumulate stale burst containers during a busy auction session.
+    setTimeout(() => setCoinBursts(b => b.filter(c => c.id !== id)), 1200);
+  }
+  const [balancePopups, setBalancePopups] = useState([]);
+  function fireBalancePopup(x, y, amount) {
+    const id = Date.now()+Math.random();
+    setBalancePopups(b => [...b, {id, x, y, amount}]);
+    // Matches the 2.2s lift-and-fade animation duration with a little headroom.
+    setTimeout(() => setBalancePopups(b => b.filter(c => c.id !== id)), 2400);
+  }
   const [modal, setModal] = useState(null);
   const [tick, setTick] = useState(0);
   const [imageLibrary, addImage] = useImageLibrary();
@@ -3778,6 +3922,8 @@ function AppInner() {
       {modal?.type==="deleteAttendance" && <DeleteAttendanceModal ctx={ctx} />}
       {modal?.type==="addMissingAttendance" && <AddMissingAttendanceModal ctx={ctx} />}
       <Toast toasts={toasts} remove={removeToast} />
+      {coinBursts.map(b => <CoinBurst key={b.id} x={b.x} y={b.y} />)}
+      {balancePopups.map(b => <BalancePopup key={b.id} x={b.x} y={b.y} amount={b.amount} label={t("balanceRemaining")} />)}
     </>
   );
 }
@@ -5329,7 +5475,16 @@ function Auctions({ ctx }) {
   const active = sortAuctions(auctions.filter(a=>a.status==="active"));
   const ended  = [...auctions.filter(a=>a.status==="ended")].sort((a,b)=>(b.endsAt||0)-(a.endsAt||0));
 
-  async function placeBid(auctionId) {
+  async function placeBid(auctionId, clickEvent) {
+    // Grab the button's screen position synchronously — React's synthetic
+    // event won't reliably survive across the awaits below, so capture
+    // coordinates now, before any async work begins.
+    let burstX = null, burstY = null;
+    if (clickEvent && clickEvent.currentTarget) {
+      const rect = clickEvent.currentTarget.getBoundingClientRect();
+      burstX = rect.left + rect.width/2;
+      burstY = rect.top + rect.height/2;
+    }
     const a=auctions.find(x=>x.id===auctionId);
     const amount=parseInt(bidAmounts[auctionId]||0);
     const me=members.find(m=>m.name===currentUser.name);
@@ -5418,6 +5573,10 @@ function Auctions({ ctx }) {
 
     setAuctions(prev=>prev.map(x=>x.id===auctionId?{...x,currentBid:amount,topBidder:currentUser.name,endsAt:newEndsAt,bids:[...(x.bids||[]),{bidder:currentUser.name,amount,time:Date.now()}]}:x));
     addToast(`${t("bidPlacedOn")} ${fmt(amount)} ${t("placedOn")} ${a.name}!${endsAtChanged?" "+t("snipeProtection"):""}`, "gold",t("bidPlacedTitle"));
+    if (burstX !== null) {
+      fireCoinBurst(burstX, burstY);
+      fireBalancePopup(burstX, burstY, fmt(me.coins - amount));
+    }
     setBidAmounts(prev=>({...prev,[auctionId]:""}));
     // Write to bid_events so all other users get a global announcement
     const bidEventId = `${auctionId}_${Date.now()}`;
@@ -5647,7 +5806,7 @@ function Auctions({ ctx }) {
                   <input className="input" type="number" min={minBid} placeholder={`${t("minBidPlaceholder")} ${fmt(minBid)}`}
                     value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p,[a.id]:e.target.value}))}
                     style={{flex:1,minWidth:0,fontSize:12,padding:"5px 8px"}} />
-                  <button className="btn btn-gold btn-sm" onClick={()=>placeBid(a.id)} disabled={!!bidSubmitting[a.id]} style={{flexShrink:0,padding:"5px 14px"}}>
+                  <button className="btn btn-gold btn-sm" onClick={(e)=>placeBid(a.id,e)} disabled={!!bidSubmitting[a.id]} style={{flexShrink:0,padding:"5px 14px"}}>
                     {bidSubmitting[a.id]?"…":t("bidButton")}
                   </button>
 
@@ -5686,7 +5845,7 @@ function Auctions({ ctx }) {
                   </div>
                   <div style={{marginTop:12,display:"flex",gap:8}}>
                     <input className="input" type="number" min={minBid} placeholder={`${t("minBidPlaceholder")} ${fmt(minBid)}`} value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p,[a.id]:e.target.value}))} style={{flex:1}} />
-                    <button className="btn btn-gold" onClick={()=>placeBid(a.id)} disabled={!!bidSubmitting[a.id]}>{bidSubmitting[a.id]?"…":t("bidButton")}</button>
+                    <button className="btn btn-gold" onClick={(e)=>placeBid(a.id,e)} disabled={!!bidSubmitting[a.id]}>{bidSubmitting[a.id]?"…":t("bidButton")}</button>
                   </div>
 
                   {isMaster&&<button className="btn btn-red btn-sm" style={{width:"100%",marginTop:6}} onClick={()=>removeAuction(a.id)}>{t("removeAuctionBtn")}</button>}
