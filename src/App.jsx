@@ -1517,19 +1517,11 @@ body{
     radial-gradient(ellipse 700px 500px at 85% 88%, rgba(200,146,42,0.09) 0%, transparent 55%),
     linear-gradient(180deg, rgba(8,6,5,0.72) 0%, rgba(10,7,6,0.8) 45%, rgba(8,6,5,0.9) 100%),
     url('/images/dashboard-bg.jpg');
-  background-attachment:fixed,fixed,fixed,fixed;
+  background-attachment:scroll,scroll,scroll,scroll;
   background-size:100% 100%,100% 100%,100% 100%,cover;
-  background-position:0% 0%,0% 0%,0 0,center center;
+  background-position:0% 0%,0% 0%,0 0,center top;
   background-repeat:no-repeat,no-repeat,no-repeat,no-repeat;
-  animation:bgDrift 50s ease-in-out infinite;
   color:var(--text);font-family:'Inter',sans-serif;font-size:16px;min-height:100vh;
-}
-@keyframes bgDrift{
-  0%,100%{background-position:0% 0%,0% 0%,0 0,center center;}
-  50%{background-position:3% 2%,-2% -3%,0 0,center center;}
-}
-@media (prefers-reduced-motion: reduce){
-  body{animation:none;}
 }
 ::-webkit-scrollbar{width:5px;height:5px;}
 ::-webkit-scrollbar-track{background:var(--bg-dark);}
@@ -1783,7 +1775,6 @@ body{
 /* ── MAIN ── */
 .main{flex:1;display:flex;flex-direction:column;margin-top:10px;}
 .topbar{
-  background:linear-gradient(180deg,rgba(10,8,6,0.4) 0%,rgba(10,8,6,0.15) 70%,rgba(10,8,6,0) 100%);
   padding:20px 80px 28px;display:flex;align-items:center;justify-content:space-between;
   flex-wrap:wrap;gap:12px;
 }
