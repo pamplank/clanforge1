@@ -1584,8 +1584,8 @@ body{background:url("data:image/webp;base64,UklGRugdAABXRUJQVlA4INwdAAAwaAGdASoA
   height:100%;flex-shrink:0;
 }
 .logo-emblem{font-size:20px;filter:drop-shadow(0 0 8px rgba(200,146,42,0.8));}
-.logo-title{font-family:'Spectral',serif;font-size:14px;font-weight:800;color:var(--gold-light);letter-spacing:2px;text-align:left;}
-.logo-sub{font-size:7px;color:var(--text-dim);letter-spacing:3px;text-transform:uppercase;font-weight:600;margin-top:1px;text-align:left;}
+.logo-title{font-family:'Spectral',serif;font-size:14px;font-weight:800;color:var(--gold-light);letter-spacing:1.5px;text-align:left;line-height:1;}
+.logo-sub{font-size:7px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;font-weight:600;margin-top:2px;text-align:left;line-height:1;}
 
 .nav-section{display:flex;flex-direction:row;align-items:center;gap:0;padding:0 2px;}
 .nav-label{display:none;}
@@ -2138,12 +2138,11 @@ tbody tr:last-child td{border-bottom:none;}
   position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;
   padding:28px 40px;
 }
-.login-brand{display:flex;align-items:center;gap:12px;}
+.login-brand{display:flex;align-items:center;gap:9px;}
 .login-brand-mark{
-  width:34px;height:34px;border-radius:4px;display:flex;align-items:center;justify-content:center;
-  font-family:'Spectral',serif;font-weight:800;font-size:17px;color:var(--gold-bright);
-  background:linear-gradient(160deg,rgba(201,151,42,0.18),rgba(201,151,42,0.04));
-  border:1px solid var(--border-bright);
+  width:30px;height:30px;object-fit:contain;
+  display:block;flex-shrink:0;
+  filter:drop-shadow(0 0 6px rgba(201,151,42,0.35));
 }
 .login-content{
   position:relative;z-index:2;min-height:calc(100vh - 86px);
@@ -2382,10 +2381,10 @@ function LoginScreen({ members, onLogin }) {
 
       <div className="login-topbar">
         <div className="login-brand">
-          <div className="login-brand-mark">Y</div>
+          <img src="/images/ymir-logo-gold.png" alt="Legend of Ymir" className="login-brand-mark" />
           <div>
-            <div className="logo-title" style={{fontSize:15}}>CLANFORGE</div>
-            <div className="logo-sub">{CLAN_SUBTITLE}</div>
+            <div className="logo-title">LEGEND OF YMIR</div>
+            <div className="logo-sub">Clan Management</div>
           </div>
         </div>
         <LangSwitcher />
