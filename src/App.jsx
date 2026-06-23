@@ -1591,17 +1591,13 @@ body{
 
 /* Auction House background — overrides body's own background-image
    when the bg-auctions class is toggled on (see AppInner's useEffect).
-   Uses a fixed-height ::before pinned to the top of the page instead
-   of body's own background-image, because body's height grows to the
-   full scrollable page (which can be 4000px+ with a long auction
-   list) — sizing 'cover' directly against that would blow the image
-   up into an unrecognisable sliver. This pseudo-element has its OWN
-   fixed 1400px height, so 'cover' fits the image against THAT box:
-   always full width, zero gaps on any screen, mild/sane cropping
-   only, never a stretch. It scrolls away normally with the page
-   (position:absolute, not fixed) and fades to fully transparent at
-   its own bottom edge so it blends into the page's plain dark
-   background with no visible seam. */
+   The ::before box uses aspect-ratio matching the photo's real
+   dimensions (1584x1905), so at ANY screen width the browser works
+   out the exact height needed to show the FULL image at its true
+   proportions — nothing cropped, nothing squeezed. The gradient
+   overlay is sized to that same box, so it only starts blending to
+   the page's plain dark color once the real photo content has
+   finished, not before. Scrolls normally with the page (not fixed). */
 body.bg-auctions{
   background-color:var(--bg-void);
   background-image:none;
@@ -1610,13 +1606,15 @@ body.bg-auctions{
 body.bg-auctions::before{
   content:"";
   position:absolute;
-  top:0;left:0;right:0;height:1400px;
+  top:0;left:0;right:0;
+  width:100%;
+  aspect-ratio:1584/1905;
   z-index:0;
   pointer-events:none;
   background-image:
-    linear-gradient(180deg, rgba(10,7,6,0.25) 0%, rgba(10,7,6,0.45) 55%, rgba(10,7,6,1) 100%),
+    linear-gradient(180deg, rgba(10,7,6,0) 0%, rgba(10,7,6,0) 75%, rgba(10,7,6,1) 100%),
     url('/images/auction-bg.jpg');
-  background-size:100% 100%,cover;
+  background-size:100% 100%,100% 100%;
   background-position:0% 0%,center top;
   background-repeat:no-repeat,no-repeat;
 }
