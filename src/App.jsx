@@ -1593,13 +1593,18 @@ body{
    when the bg-auctions class is toggled on (see AppInner's useEffect).
    Same exact mechanism as Clan HQ's background, just swapped to the
    coin-treasury photo, so it's guaranteed to span the full viewport
-   width with no seams, and scrolls normally like the rest of the app. */
+   width with no seams, and scrolls normally like the rest of the app.
+   Sized by HEIGHT only (auto width) so the portrait photo keeps its
+   true proportions — no horizontal squashing. 2400px tall is enough
+   for the proportional width to cover screens up to ~2000px wide
+   with zero gaps; ultra-wide monitors beyond that may show a sliver
+   of the page's dark base color at the very edges, never a stretch. */
 body.bg-auctions{
   background-image:
-    linear-gradient(180deg, rgba(8,6,5,0.45) 0%, rgba(8,6,5,0.55) 55%, rgba(8,6,5,0.92) 100%),
+    linear-gradient(180deg, rgba(8,6,5,0.3) 0%, rgba(8,6,5,0.45) 50%, rgba(8,6,5,0.7) 75%, rgba(8,6,5,0.95) 100%),
     url('/images/auction-bg.jpg');
   background-attachment:scroll,scroll;
-  background-size:100% 100%,100% 1100px;
+  background-size:100% 100%,auto 2400px;
   background-position:0% 0%,center top;
   background-repeat:no-repeat,no-repeat;
 }
