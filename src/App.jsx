@@ -1811,7 +1811,7 @@ tbody tr:last-child td{border-bottom:none;}
   .table-stack td[data-label="Attendees"] .btn-sm{padding:5px 9px;font-size:8px;}
   .members-table-wrap{position:relative;}
   .members-table-wrap::after{content:"";position:absolute;top:0;right:0;bottom:0;width:18px;background:linear-gradient(90deg,transparent,var(--bg-card));pointer-events:none;}
-  .event-card-thumb{width:78px!important;height:78px!important;}
+  .event-card-thumb{width:78px!important;height:72px!important;}
   .event-card-text{padding:10px 12px!important;}
   .members-table th:nth-child(6),.members-table td:nth-child(6),
   .members-table th:nth-child(7),.members-table td:nth-child(7){display:none!important;}
@@ -3690,7 +3690,8 @@ function WorldBossSchedule() {
     const col = EVENT_COLOR[ev.id] || "#c8922a";
     const glow = EVENT_GLOW[ev.id] || "rgba(200,146,42,0.4)";
     const desc = EVENT_DESCRIPTIONS[ev.id] || "";
-    const thumbSize = compact ? 110 : 170;
+    const thumbW = compact ? 110 : 170;
+    const thumbH = compact ? 102 : 170;
     return (
       <div
         onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=`0 10px 40px rgba(0,0,0,0.85), 0 0 24px ${glow}`;}}
@@ -3706,14 +3707,15 @@ function WorldBossSchedule() {
         <div style={{height:2, background:`linear-gradient(90deg, transparent 5%, ${col} 40%, ${col} 60%, transparent 95%)`}} />
         <div className={compact?"":"event-card-row"} style={{display:"flex"}}>
           {/* Thumbnail */}
-          <div className="event-card-thumb" style={{position:"relative", flexShrink:0, width:thumbSize, height:thumbSize}}>
+          <div className="event-card-thumb" style={{position:"relative", flexShrink:0, width:thumbW, height:thumbH}}>
             <img src={ev.img} alt={ev.name} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} />
-            {/* Vignette — dark right + bottom fade so text on right is readable.
-                Compact cards no longer have the coin badge sitting on the
-                thumbnail (see below), so the bottom fade is dropped there —
-                otherwise it left a flat dark shadow with nothing on top of it. */}
+            {/* Vignette — dark right fade for both cards (event-id badge
+                readability), plus a soft bottom fade for visual depth.
+                Compact's bottom fade is lighter than non-compact's since it
+                no longer needs to hide a coin badge behind it — just gives
+                the image a bit of grounding instead of looking flat. */}
             <div style={{position:"absolute",inset:0,background: compact
-              ? "linear-gradient(to right, rgba(0,0,0,0.05) 0%, rgba(14,11,9,0.55) 85%)"
+              ? "linear-gradient(to right, rgba(0,0,0,0.05) 0%, rgba(14,11,9,0.55) 85%), linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 40%)"
               : "linear-gradient(to right, rgba(0,0,0,0.05) 0%, rgba(14,11,9,0.85) 85%), linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 45%)"
             }} />
             {/* Coins overlay — only for the non-compact (Today) card. The
@@ -3744,7 +3746,7 @@ function WorldBossSchedule() {
             }}>{ev.id}</div>
           </div>
           {/* Text content */}
-          <div className="event-card-text" style={{flex:1, padding: compact?"12px 14px":"18px 20px", display:"flex", flexDirection:"column", justifyContent:"center", minWidth:0}}>
+          <div className="event-card-text" style={{flex:1, padding: compact?"12px 14px":"18px 20px", display:"flex", flexDirection:"column", justifyContent:"flex-start", minWidth:0}}>
             <div style={{
               display:"flex", alignItems:"center", gap:8, flexWrap:"wrap",
               marginBottom:6,
@@ -3776,7 +3778,7 @@ function WorldBossSchedule() {
               <span style={{fontSize: compact?9:11, fontWeight:800, color:col, fontFamily:"'Inter',sans-serif", letterSpacing:0.5, lineHeight:1.4}}>{ev.time} SERVER TIME</span>
             </div>
             <div style={{
-              fontSize: compact?10:11, color:"rgba(156,126,92,0.85)", lineHeight:1.65,
+              fontSize: compact?10:11, color:"rgba(156,126,92,0.85)", lineHeight: compact?1.4:1.65,
               fontFamily:"'Inter',sans-serif", fontStyle:"italic",
               display:"-webkit-box", WebkitLineClamp: compact?2:3,
               WebkitBoxOrient:"vertical", overflow:"hidden",
