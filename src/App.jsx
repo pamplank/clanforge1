@@ -1612,7 +1612,7 @@ body.bg-auctions::before{
   z-index:0;
   pointer-events:none;
   background-image:
-    linear-gradient(180deg, rgba(10,7,6,0) 0%, rgba(10,7,6,0) 75%, rgba(10,7,6,1) 100%),
+    linear-gradient(180deg, rgba(8,6,5,0.55) 0%, rgba(8,6,5,0.4) 8%, rgba(10,7,6,0) 16%, rgba(10,7,6,0) 75%, rgba(10,7,6,1) 100%),
     url('/images/auction-bg.jpg');
   background-size:100% 100%,100% 100%;
   background-position:0% 0%,center top;
@@ -2085,7 +2085,7 @@ tbody tr:last-child td{border-bottom:none;}
 .divider{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:18px 0;}
 
 /* ── TABS ── */
-.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:24px;position:relative;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:24px;position:relative;overflow-x:auto;-webkit-overflow-scrolling:touch;background:rgba(8,6,5,0.55);border-radius:6px 6px 0 0;}
 .tabs::-webkit-scrollbar{height:0;}
 .tabs::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
   background:linear-gradient(90deg,transparent,var(--border),transparent);}
@@ -5463,7 +5463,7 @@ function BidMarquee({ feed, auctions }) {
 
   return (
     <div style={{
-      overflow:"hidden", whiteSpace:"nowrap", background:"rgba(0,0,0,0.35)",
+      overflow:"hidden", whiteSpace:"nowrap", background:"rgba(5,3,2,0.65)",
       border:"1px solid rgba(255,185,40,0.25)", borderRadius:8, margin:"10px 0 4px",
       padding:"7px 0",
     }}>
