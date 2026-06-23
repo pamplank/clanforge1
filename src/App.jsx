@@ -1575,9 +1575,9 @@ const GLOBAL_CSS = `
 body{
   background-color:var(--bg-void);
   background-image:
-    radial-gradient(ellipse 900px 600px at 18% 8%, rgba(200,146,42,0.14) 0%, transparent 55%),
-    radial-gradient(ellipse 700px 500px at 85% 88%, rgba(200,146,42,0.09) 0%, transparent 55%),
-    linear-gradient(180deg, rgba(8,6,5,0.72) 0%, rgba(10,7,6,0.8) 45%, rgba(8,6,5,0.9) 100%),
+    radial-gradient(ellipse 900px 600px at 18% 8%, rgba(200,146,42,0.10) 0%, transparent 55%),
+    radial-gradient(ellipse 700px 500px at 85% 88%, rgba(200,146,42,0.06) 0%, transparent 55%),
+    linear-gradient(180deg, rgba(5,4,3,0.82) 0%, rgba(6,4,3,0.9) 35%, rgba(5,4,3,0.96) 70%, rgba(5,4,3,1) 100%),
     url('/images/dashboard-bg.jpg');
   background-attachment:scroll,scroll,scroll,scroll;
   background-size:100% 100%,100% 100%,100% 100%,cover;
@@ -1612,7 +1612,7 @@ body.bg-auctions::before{
   z-index:0;
   pointer-events:none;
   background-image:
-    linear-gradient(180deg, rgba(8,6,5,0.55) 0%, rgba(8,6,5,0.4) 8%, rgba(10,7,6,0) 16%, rgba(10,7,6,0) 75%, rgba(10,7,6,1) 100%),
+    linear-gradient(180deg, rgba(5,4,3,0.6) 0%, rgba(5,4,3,0.45) 8%, rgba(5,4,3,0.18) 16%, rgba(5,4,3,0.3) 55%, rgba(5,4,3,0.75) 80%, rgba(5,4,3,1) 100%),
     url('/images/auction-bg.jpg');
   background-size:100% 100%,100% 100%;
   background-position:0% 0%,center top;
@@ -2085,7 +2085,7 @@ tbody tr:last-child td{border-bottom:none;}
 .divider{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:18px 0;}
 
 /* ── TABS ── */
-.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:24px;position:relative;overflow-x:auto;-webkit-overflow-scrolling:touch;background:rgba(8,6,5,0.55);border-radius:6px 6px 0 0;}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:24px;position:relative;overflow-x:auto;-webkit-overflow-scrolling:touch;}
 .tabs::-webkit-scrollbar{height:0;}
 .tabs::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
   background:linear-gradient(90deg,transparent,var(--border),transparent);}
@@ -5463,7 +5463,7 @@ function BidMarquee({ feed, auctions }) {
 
   return (
     <div style={{
-      overflow:"hidden", whiteSpace:"nowrap", background:"rgba(5,3,2,0.65)",
+      overflow:"hidden", whiteSpace:"nowrap", background:"rgba(0,0,0,0.35)",
       border:"1px solid rgba(255,185,40,0.25)", borderRadius:8, margin:"10px 0 4px",
       padding:"7px 0",
     }}>
