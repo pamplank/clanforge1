@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 
 // ─── SUPABASE CONFIG ──────────────────────────────────────────────────────────
 // These come from environment variables (set per-deployment in Vercel,
@@ -2109,9 +2110,13 @@ tbody tr:last-child td{border-bottom:none;}
   font-size:11px;font-weight:600;font-family:'Inter',sans-serif;}
 
 /* ── LOGIN ── */
+/* Portaled directly into <body> (see LoginScreen) — position:fixed here
+   pins it to the viewport regardless of where in the DOM tree it lives. */
 .login-wrap{
-  min-height:100vh;position:relative;overflow:hidden;
+  position:fixed;inset:0;
+  min-height:100vh;overflow:hidden;
   background:#05040a;
+  z-index:9999;
 }
 .login-video-bg{
   position:absolute;inset:0;width:100%;height:100%;
@@ -2353,7 +2358,15 @@ function LoginScreen({ members, onLogin }) {
     onLogin(m);
   }
 
-  return (
+  // Rendered via a portal straight into <body>, NOT in place. This is
+  // deliberate: the login screen must always fill the entire viewport,
+  // and if it's mounted inside whatever wrapper happens to contain the
+  // <App/> root (a centered/max-width shell, a flex container, anything
+  // with overflow:hidden, etc.) it can get visually squeezed or clipped
+  // no matter what CSS we throw at it from the inside. Portaling to
+  // document.body sidesteps that entirely — this node's nearest
+  // positioning/overflow context is the page itself.
+  return createPortal(
     <div className="login-wrap">
       <video
         className="login-video-bg"
@@ -2399,7 +2412,8 @@ function LoginScreen({ members, onLogin }) {
           {t("contactMaster")}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
