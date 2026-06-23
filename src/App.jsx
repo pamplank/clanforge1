@@ -1589,25 +1589,20 @@ body{
 ::-webkit-scrollbar-track{background:var(--bg-dark);}
 ::-webkit-scrollbar-thumb{background:var(--gold-dim);border-radius:2px;}
 
-/* Auction House page background — same treatment as the body/Clan HQ
-   background (gradient overlays + cover image), but swapped to the
-   coin-treasury photo. Scrolls normally with the page, matching the
-   rest of the app, instead of staying fixed in place. */
-.page-auctions{
-  background-color:var(--bg-void);
+/* Auction House background — overrides body's own background-image
+   when the bg-auctions class is toggled on (see AppInner's useEffect).
+   Same exact mechanism as Clan HQ's background, just swapped to the
+   coin-treasury photo, so it's guaranteed to span the full viewport
+   width with no seams, and scrolls normally like the rest of the app. */
+body.bg-auctions{
   background-image:
-    linear-gradient(180deg, rgba(8,6,5,0.45) 0%, rgba(8,6,5,0.55) 60%, rgba(8,6,5,1) 100%),
+    linear-gradient(180deg, rgba(8,6,5,0.45) 0%, rgba(8,6,5,0.55) 55%, rgba(8,6,5,0.92) 100%),
     url('/images/auction-bg.jpg');
   background-attachment:scroll,scroll;
-  background-size:100% 100%,100% 900px;
+  background-size:100% 100%,100% 1100px;
   background-position:0% 0%,center top;
   background-repeat:no-repeat,no-repeat;
-  margin:-28px -80px;
-  padding:28px 80px;
 }
-@media (max-width:1100px){.page-auctions{margin:-28px -40px;padding:28px 40px;}}
-@media (max-width:768px){.page-auctions{margin:-20px -20px;padding:20px 20px;}}
-@media (max-width:480px){.page-auctions{margin:-14px -16px;padding:14px 16px;}}
 
 /* ── ORNAMENTAL ELEMENTS ── */
 .orn-border{
@@ -3073,6 +3068,17 @@ function AppInner() {
   }, []);
 
   const [page, setPage] = useState("dashboard");
+
+  // Swap the body background image depending on which page is active —
+  // same mechanism as the rest of the app's single full-bleed background,
+  // just pointed at a different photo on the Auctions page. Doing it this
+  // way (instead of a nested div) guarantees it always covers the full
+  // viewport width with zero seams, since it's the same element/rule that
+  // already paints Clan HQ's background everywhere else.
+  useEffect(() => {
+    document.body.classList.toggle("bg-auctions", page === "auctions");
+  }, [page]);
+
   const [members, setMembersRaw] = useState(SEED_MEMBERS);
   const [auctions, setAuctionsRaw] = useState(SEED_AUCTIONS);
   const [attendanceLogs, setAttendanceLogsRaw] = useState([]);
@@ -5745,7 +5751,7 @@ function Auctions({ ctx }) {
   React.useEffect(()=>{return()=>{if(lrRef.current)cancelAnimationFrame(lrRef.current);};},[]);
 
   return (
-    <div className="page-auctions">
+    <div>
       <div className="tabs">
         <div className={`tab${tab==="active"?" active":""}`} onClick={()=>setTab("active")}>{t("tabLiveAuctions")} ({active.length})</div>
         <div className={`tab${tab==="ended"?" active":""}`} onClick={()=>setTab("ended")}>{t("tabAuctionHistory")}</div>
