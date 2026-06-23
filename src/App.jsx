@@ -5725,7 +5725,7 @@ function Auctions({ ctx }) {
   React.useEffect(()=>{return()=>{if(lrRef.current)cancelAnimationFrame(lrRef.current);};},[]);
 
   return (
-    <div>
+    <div className="page-auctions">
       <div className="tabs">
         <div className={`tab${tab==="active"?" active":""}`} onClick={()=>setTab("active")}>{t("tabLiveAuctions")} ({active.length})</div>
         <div className={`tab${tab==="ended"?" active":""}`} onClick={()=>setTab("ended")}>{t("tabAuctionHistory")}</div>

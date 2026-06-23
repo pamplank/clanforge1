@@ -19,3 +19,39 @@ body {
   flex-direction: column;
   box-sizing: border-box;
 }
+
+/* Auction House page background — coin treasury image, full-screen,
+   fixed so it stays put while the page content scrolls over it.
+   Negative margin trick pulls it out to cover .main/.content fully
+   even though .page-auctions itself only wraps the inner content. */
+.page-auctions {
+  position: relative;
+  min-height: 100%;
+  isolation: isolate; /* keeps ::before contained to this stacking context */
+}
+
+.page-auctions::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(rgba(10, 8, 5, 0.78), rgba(10, 8, 5, 0.82)),
+    url("/images/auction-bg.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  pointer-events: none;
+}
+
+/* WebP is ~40% smaller than the JPEG at the same visual quality.
+   Browsers that support image-set() will load this instead; everything
+   else falls back to the JPEG rule above. */
+@supports (background-image: image-set(url("/images/auction-bg.webp") 1x)) {
+  .page-auctions::before {
+    background-image:
+      linear-gradient(rgba(10, 8, 5, 0.78), rgba(10, 8, 5, 0.82)),
+      image-set(url("/images/auction-bg.webp") 1x);
+  }
+}
