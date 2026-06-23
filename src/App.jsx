@@ -393,6 +393,7 @@ const TRANSLATIONS = {
     richestWarriors: "Richest Warriors",
     mostActive: "Most Active",
     attSuffix: "att",
+    multiplierLabel: "Coin Multiplier",
     // Export
     dataExportCenter: "📤 Data Export Center",
     dataExportDesc: "Download clan data as CSV files for external analysis or record keeping.",
@@ -417,7 +418,7 @@ const TRANSLATIONS = {
     avgCoinsLabel: "Avg coins:",
     triggerWeeklyDecay: "Trigger Weekly Decay",
     attendanceResetTitle: "Attendance Reset",
-    attendanceResetDesc: "Reset all member attendance counts for the new week.",
+    attendanceResetDesc: "Auto-resets on the 1st of every month at midnight (GMT+8). You can also trigger it manually below.",
     totalRecordsLabel: "Total records:",
     resetWeeklyAttendance: "Reset Weekly Attendance",
     eventCoinValues: "Event Coin Values",
@@ -435,6 +436,7 @@ const TRANSLATIONS = {
     demotedToast: "demoted.",
     demotedTitle: "Demoted",
     autoDecayApplied: "Weekly 5% coin decay has been applied automatically.",
+    autoAttendanceResetApplied: "Monthly attendance counts have been reset automatically.",
     autoDecayTitle: "Auto Decay",
     decayTriggeredToast: "Weekly coin decay applied: 5% removed.",
     decayTriggeredTitle: "Decay Triggered",
@@ -881,6 +883,7 @@ const TRANSLATIONS = {
     richestWarriors: "最富有勇士",
     mostActive: "最活跃",
     attSuffix: "次出勤",
+    multiplierLabel: "金币倍率",
     dataExportCenter: "📤 数据导出中心",
     dataExportDesc: "下载公会数据为 CSV 文件，用于外部分析或记录保存。",
     downloadCsvBtn: "下载 CSV",
@@ -903,7 +906,7 @@ const TRANSLATIONS = {
     avgCoinsLabel: "平均金币：",
     triggerWeeklyDecay: "触发每周衰减",
     attendanceResetTitle: "出勤重置",
-    attendanceResetDesc: "为新的一周重置所有成员的出勤次数。",
+    attendanceResetDesc: "每月1日凌晨0点（GMT+8）自动重置。您也可以在下方手动触发。",
     totalRecordsLabel: "总记录数：",
     resetWeeklyAttendance: "重置每周出勤",
     eventCoinValues: "活动金币数值",
@@ -921,6 +924,7 @@ const TRANSLATIONS = {
     demotedToast: "已降级。",
     demotedTitle: "已降级",
     autoDecayApplied: "每周5%金币衰减已自动应用。",
+    autoAttendanceResetApplied: "每月出勤次数已自动重置。",
     autoDecayTitle: "自动衰减",
     decayTriggeredToast: "每周金币衰减已应用：扣除5%。",
     decayTriggeredTitle: "衰减已触发",
@@ -3858,6 +3862,8 @@ const UPDATE_NOTES = [
       { icon: "⬇️", text: "Elders and Master can now download a CSV of any single attendance event's roster directly from the History tab." },
       { icon: "✅", text: "Elders can now use Add Missing Record to backfill attendance, previously Master-only." },
       { icon: "📅", text: "One-time exception: this week's coin decay runs on Wednesday, June 24 instead of Tuesday. The regular Tuesday 7:00 AM GMT+8 schedule resumes the following week — and that schedule is now fixed to GMT+8 for everyone, regardless of where you're browsing from." },
+      { icon: "🔄", text: "Attendance counts now automatically reset to 0 at the start of every month (midnight GMT+8 on the 1st)." },
+      { icon: "📈", text: "The Power leaderboard now shows each member's coin multiplier next to their rank." },
     ],
   },
   {
@@ -5878,7 +5884,7 @@ function Auctions({ ctx }) {
 // ─── LEADERBOARD ──────────────────────────────────────────────────────────────
 const LB_PAGE = 10;
 
-function LBList({ data, valueKey, label, format, color, currentUser }) {
+function LBList({ data, valueKey, label, format, color, currentUser, showMultiplier }) {
   const { t } = useLang();
   const [page, setPage] = React.useState(0);
   const max=data[0]?.[valueKey]||1;
@@ -5912,7 +5918,11 @@ function LBList({ data, valueKey, label, format, color, currentUser }) {
                 {myRank===0&&<span style={{marginLeft:8,fontSize:10,color:"var(--gold)",display:"inline-flex",alignItems:"center",gap:4}}><CrownIcon size={11}/>{t("leadingLabel")}</span>}
               </div>
             </div>
-
+            {showMultiplier && (
+              <span style={{flexShrink:0,fontSize:11,fontWeight:800,color:"var(--gold-light)",background:"rgba(201,151,42,0.15)",border:"1px solid rgba(201,151,42,0.35)",borderRadius:3,padding:"3px 8px",fontFamily:"'Inter',sans-serif"}}>
+                ×{getRankMultiplier(data, myEntry.id).toFixed(2)}
+              </span>
+            )}
           </div>
         )}
 
@@ -5931,6 +5941,11 @@ function LBList({ data, valueKey, label, format, color, currentUser }) {
                   <div className="lb-bar" style={{width:`${(m[valueKey]/max)*100}%`,background:color||"linear-gradient(90deg,var(--gold-dim),var(--gold-light))"}}/>
                 </div>
               </div>
+              {showMultiplier && (
+                <span title={t("multiplierLabel")} style={{flexShrink:0,fontSize:10,fontWeight:800,color:"var(--gold)",fontFamily:"'Inter',sans-serif",marginRight:4}}>
+                  ×{getRankMultiplier(data, m.id).toFixed(2)}
+                </span>
+              )}
               <div className="lb-val" style={{color:globalRank===0?"var(--gold-light)":globalRank===1?"#a8b8c8":"var(--text)"}}>{format?format(m[valueKey]):m[valueKey]}</div>
             </div>
           );
@@ -5971,7 +5986,7 @@ function Leaderboard({ ctx }) {
         <div style={{color:"var(--text-dim)",marginTop:6,fontSize:13,fontWeight:500,letterSpacing:2}}>{possessive(CLAN_NAME)} {t("mightiestWarriors")}</div>
       </div>
       <div className="lb-grid">
-        <LBList data={byPower} valueKey="power" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={POWER_ICON} size={22} />{t("mostPowerful")}</span>} format={v=>fmt(v)} color="linear-gradient(90deg,#071824,#2e86c1)" currentUser={currentUser} />
+        <LBList data={byPower} valueKey="power" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={POWER_ICON} size={22} />{t("mostPowerful")}</span>} format={v=>fmt(v)} color="linear-gradient(90deg,#071824,#2e86c1)" currentUser={currentUser} showMultiplier />
         <LBList data={byCoins} valueKey="coins" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={RICHEST_ICON} size={22} />{t("richestWarriors")}</span>} format={v=>`${fmt(v)}`} currentUser={currentUser} />
         <LBList data={byAttend} valueKey="attendance" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={MOSTACTIVE_ICON} size={22} />{t("mostActive")}</span>} format={v=>`${v} ${t("attSuffix")}`} color="linear-gradient(90deg,#071a0f,#27ae60)" currentUser={currentUser} />
       </div>
@@ -6127,6 +6142,29 @@ function Settings({ ctx }) {
     }
   }, []);
 
+  // ── Auto-reset: attendance counts reset on the 1st of every month, ───────
+  // midnight GMT+8 — fixed to this timezone for everyone, same reasoning as
+  // the coin decay schedule above (a calendar boundary should mean the same
+  // real moment for every member, not each device's own local midnight).
+  function getLastMonthStart() {
+    const nowMs = Date.now();
+    const shifted = new Date(nowMs + GMT8_OFFSET_MS);
+    const monthStartShifted = new Date(Date.UTC(
+      shifted.getUTCFullYear(), shifted.getUTCMonth(), 1, 0, 0, 0, 0
+    ));
+    return monthStartShifted.getTime() - GMT8_OFFSET_MS;
+  }
+  useEffect(() => {
+    const lastMonthStart = getLastMonthStart();
+    let lastReset = 0;
+    try { lastReset = parseInt(localStorage.getItem("last_attendance_reset") || "0"); } catch {}
+    if (lastReset < lastMonthStart) {
+      setMembers(ms=>ms.map(m=>({...m,attendance:0})));
+      try { localStorage.setItem("last_attendance_reset", lastMonthStart.toString()); } catch {}
+      addToast(t("autoAttendanceResetApplied"),"blue",t("resetTitle"));
+    }
+  }, []);
+
   function triggerDecay() {
     const decayDate = new Date().toLocaleDateString();
     const decayTs = Date.now();
@@ -6148,6 +6186,7 @@ function Settings({ ctx }) {
   }
   function resetAttendance() {
     setMembers(ms=>ms.map(m=>({...m,attendance:0})));
+    try { localStorage.setItem("last_attendance_reset", getLastMonthStart().toString()); } catch {}
     addToast(t("attendanceResetToast"),"blue",t("resetTitle"));
   }
   if(!isMaster) return (
