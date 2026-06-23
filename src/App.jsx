@@ -3684,7 +3684,7 @@ function AppInner() {
   const [openUserMenu, setOpenUserMenu] = useState(false);
 
   const ctx = { members, setMembers, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
-    currentUser, setCurrentUser, addToast, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed };
+    currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed };
 
   const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings")};
 
@@ -5443,7 +5443,7 @@ function BidMarquee({ feed, auctions }) {
 
 // ─── AUCTIONS ─────────────────────────────────────────────────────────────────
 function Auctions({ ctx }) {
-  const { auctions, setAuctions, members, setMembers, currentUser, addToast, tick, imageLibrary, addImage, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed } = ctx;
+  const { auctions, setAuctions, members, setMembers, currentUser, addToast, fireCoinBurst, fireBalancePopup, tick, imageLibrary, addImage, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed } = ctx;
   const { t } = useLang();
   const [tab, setTab] = useState("active");
   const [bidAmounts, setBidAmounts] = useState({});
@@ -5578,12 +5578,12 @@ function Auctions({ ctx }) {
       fireBalancePopup(burstX, burstY, fmt(me.coins - amount));
     }
     setBidAmounts(prev=>({...prev,[auctionId]:""}));
-    // Write to bid_events so all other users get a global announcement
+    // Write to bid_events so all other users get a global announcement.
+    // (The poll loop in AppInner already skips toasting the bidder's own
+    // event via the currentUser.name check, so no local dedupe needed here.)
     const bidEventId = `${auctionId}_${Date.now()}`;
     const bidTs = Date.now();
     dbUpsert("bid_events", { id: bidEventId, bidder: currentUser.name, auction_name: a.name, amount, ts: bidTs });
-    // Immediately show in local feed without waiting for poll
-    seenBidEvents.current.add(bidEventId);
   }
 
 
