@@ -1349,6 +1349,40 @@ async function sendPushNotification(memberName, title, body, url, tag) {
   }
 }
 
+// ─── ATOMIC COIN ADJUSTMENTS ──────────────────────────────────────────────────
+// Calls the adjust_member_coins Postgres function (see atomic_coin_fix.sql)
+// to add/subtract coins as a single indivisible database operation, instead
+// of the old "read balance in JS, compute new balance in JS, write the whole
+// number back" pattern. That pattern has a real lost-update race: if the
+// same member is refunded or charged by two concurrent bids around the same
+// moment (e.g. they're outbid on two different auctions within milliseconds
+// of each other), both reads can see the same stale starting balance, and
+// whichever write lands last silently overwrites the other — discarding one
+// of the refunds entirely. Postgres serializes row updates, so this RPC call
+// can never lose an adjustment that way, no matter how many bids land at once.
+// Returns the member's new balance on success, or null on failure (caller
+// should treat null as "couldn't confirm — fall back / let the next poll
+// reconcile local state from the DB" rather than assuming the write happened).
+async function adjustMemberCoinsAtomic(memberName, delta) {
+  try {
+    const res = await fetchWithTimeout(`${SUPA_URL}/rest/v1/rpc/adjust_member_coins`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPA_KEY,
+        "Authorization": `Bearer ${SUPA_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ member_name: memberName, delta }),
+    });
+    if (!res.ok) throw new Error(`adjust_member_coins failed: HTTP ${res.status}`);
+    const newBalance = await res.json();
+    return typeof newBalance === "number" ? newBalance : null;
+  } catch (e) {
+    console.error(`adjustMemberCoinsAtomic(${memberName}, ${delta}) failed:`, e);
+    return null;
+  }
+}
+
 // ─── SUPABASE STORAGE (auction images) ───────────────────────────────────────
 const STORAGE_BUCKET = "auction-images";
 // Uploads a File/Blob to the auction-images bucket and returns its public URL.
@@ -3377,19 +3411,29 @@ function AppInner() {
   }, [retryCount]);
 
   // ── Wrapped setters that also sync to Supabase ────────────────────────────
-  function setMembers(updater) {
+  // skipCoinsWrite: when true, this write omits `coins` from the dbUpsert
+  // payload entirely. Needed by callers (like placeBid) that already
+  // applied a coin change atomically via adjustMemberCoinsAtomic — without
+  // this, setMembers's own dbUpsert would immediately overwrite that atomic
+  // change with a locally-computed value that may already be stale by the
+  // time this write lands, silently undoing the race-condition fix.
+  function setMembers(updater, skipCoinsWrite=false) {
     setMembersRaw(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      next.forEach(m => dbUpsert("members", {
-        id: String(m.id), name: m.name, username: m.username, password: m.password,
-        role: m.role, cls: m.cls, power: m.power, coins: m.coins,
-        attendance: m.attendance, join_date: m.joinDate || m.join_date,
-        auction_wins: m.auctionWins,
-        decay_log: JSON.stringify(m.decayLog || []),
-        tx_log: JSON.stringify(m.txLog || []),
-        attend_log: JSON.stringify(m.attendLog || []),
-        discord: m.discord || "",
-      }));
+      next.forEach(m => {
+        const row = {
+          id: String(m.id), name: m.name, username: m.username, password: m.password,
+          role: m.role, cls: m.cls, power: m.power,
+          attendance: m.attendance, join_date: m.joinDate || m.join_date,
+          auction_wins: m.auctionWins,
+          decay_log: JSON.stringify(m.decayLog || []),
+          tx_log: JSON.stringify(m.txLog || []),
+          attend_log: JSON.stringify(m.attendLog || []),
+          discord: m.discord || "",
+        };
+        if (!skipCoinsWrite) row.coins = m.coins;
+        dbUpsert("members", row);
+      });
       return next;
     });
   }
@@ -5720,44 +5764,23 @@ function Auctions({ ctx }) {
     const prevBidder = freshRow?.top_bidder ?? a.topBidder;
     const prevRefund = prevBidder ? (freshRow ? (Number(freshRow.current_bid) || 0) : (a.currentBid || 0)) : 0;
 
-    // Fetch the outbid member's coins fresh from DB right now.
-    // We also look at the bids log to find what they last paid in this auction,
-    // so we can detect if their deduction hasn't landed in DB yet and correct for it.
-    let prevBidderCurrentCoins = null;
+    // Apply both coin changes as ATOMIC database operations (see
+    // adjustMemberCoinsAtomic above for why this matters) — this is the
+    // actual source of truth. Local state below is just an optimistic
+    // preview for instant UI feedback; the next poll cycle reconciles it
+    // with whatever the database actually ended up with regardless.
+    adjustMemberCoinsAtomic(currentUser.name, -amount);
     if (prevBidder && prevRefund > 0) {
-      const prevMemberRows = await dbLoad("members", `coins&name=eq.${encodeURIComponent(prevBidder)}`);
-      if (Array.isArray(prevMemberRows) && prevMemberRows[0]) {
-        const dbCoins = Number(prevMemberRows[0].coins) || 0;
-        // Check the bids log: if DB coins still reflect their pre-bid value
-        // (write hasn't settled yet), subtract their bid amount manually.
-        // Their last bid in this auction is exactly prevRefund (= current_bid).
-        // If DB coins > what they should have after paying prevRefund, it means
-        // the deduction write is still in flight — correct for it.
-        const localMember = members.find(m => m.name === prevBidder);
-        const localCoins = localMember ? localMember.coins : null;
-        // Trust whichever is lower: DB or local. The correct post-deduction value
-        // is always LESS than their pre-bid balance. Using the minimum eliminates
-        // the race window where DB still has the old (higher) value.
-        if (localCoins !== null) {
-          prevBidderCurrentCoins = Math.min(dbCoins, localCoins);
-        } else {
-          prevBidderCurrentCoins = dbCoins;
-        }
-      } else {
-        // DB unreachable — fall back to local state
-        const localMember = members.find(m => m.name === prevBidder);
-        prevBidderCurrentCoins = localMember ? localMember.coins : null;
-      }
+      adjustMemberCoinsAtomic(prevBidder, prevRefund);
     }
 
     setMembers(ms=>ms.map(m=>{
       if(m.name===currentUser.name) return {...m,coins:m.coins-amount};
       if(prevBidder&&m.name===prevBidder&&prevRefund>0){
-        const base = prevBidderCurrentCoins !== null ? prevBidderCurrentCoins : m.coins;
-        return {...m,coins:base+prevRefund};
+        return {...m,coins:m.coins+prevRefund};
       }
       return m;
-    }));
+    }), true);
     // SNIPE PROTECTION: if a bid lands in the last 60s, extend the auction by
     // 60s so no one can snipe in the final moment. This also helps with the
     // race where a bid is placed while another client's clock is closing it.
