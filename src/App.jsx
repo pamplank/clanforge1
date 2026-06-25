@@ -2556,6 +2556,19 @@ tbody tr:last-child td{border-bottom:none;}
   z-index:0;
   animation:entranceVideoZoom 3.6s ease forwards;
 }
+/* On tall/narrow screens (phones in portrait), 'cover' would crop away
+   most of the image's WIDTH to fill the screen's height — since this
+   video is wide (16:9) and a phone screen is much taller than that,
+   the math works out to cropping away ~70-75% of the frame's width,
+   leaving only a thin center slice (mostly wing feathers) visible
+   instead of the angel and trophy. Switching to 'contain' here shows
+   the full frame instead — letterboxed top/bottom, but since the
+   video's own background and our scrim are both already near-black,
+   the letterbox bars blend in as more darkness rather than looking
+   like an empty gap. */
+@media (max-aspect-ratio: 1/1){
+  .entrance-video-bg{object-fit:contain;}
+}
 @keyframes entranceVideoZoom{
   0%{transform:scale(1.08);opacity:0.85;}
   100%{transform:scale(1);opacity:1;}
@@ -2603,7 +2616,7 @@ tbody tr:last-child td{border-bottom:none;}
   max-width:90vw;text-align:center;
 }
 .entrance-text-anchor{
-  position:relative;z-index:2;margin-top:auto;padding-bottom:14%;
+  position:relative;z-index:2;margin-top:auto;padding-bottom:22%;
   display:flex;flex-direction:column;align-items:center;
 }
 @media(max-width:480px){
