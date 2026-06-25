@@ -2569,6 +2569,17 @@ tbody tr:last-child td{border-bottom:none;}
     rgba(8,6,5,0.92) 100%
   );
 }
+.entrance-logo{
+  width:64px;height:64px;object-fit:contain;
+  opacity:0;position:relative;z-index:2;margin-bottom:10px;
+  filter:drop-shadow(0 0 0px rgba(242,204,96,0));
+  animation:entranceLogoIn 1.1s cubic-bezier(0.16,0.8,0.3,1) 0.15s forwards;
+}
+@keyframes entranceLogoIn{
+  0%{opacity:0;transform:scale(0.4);filter:drop-shadow(0 0 0px rgba(242,204,96,0));}
+  60%{opacity:1;transform:scale(1.12);filter:drop-shadow(0 0 22px rgba(242,204,96,0.85));}
+  100%{opacity:1;transform:scale(1);filter:drop-shadow(0 0 14px rgba(242,204,96,0.6));}
+}
 .entrance-name{
   font-family:'Spectral',serif;font-weight:800;
   font-size:34px;letter-spacing:1px;color:var(--text-bright);
@@ -2598,17 +2609,17 @@ tbody tr:last-child td{border-bottom:none;}
 @media(max-width:480px){
   .entrance-name{font-size:24px;}
   .entrance-quote{font-size:12px;}
+  .entrance-logo{width:48px;height:48px;}
 }
 @keyframes entranceOverlayFade{
-  0%{opacity:0;}
-  10%{opacity:1;}
+  0%{opacity:1;}
   80%{opacity:1;}
   100%{opacity:0;visibility:hidden;}
 }
 @media (prefers-reduced-motion: reduce){
   .entrance-overlay{animation:entranceOverlayFadeReduced 2.2s ease forwards;}
   .entrance-video-bg{animation:none;}
-  .entrance-name,.entrance-quote,.entrance-welcome{animation:none;opacity:1;}
+  .entrance-logo,.entrance-name,.entrance-quote,.entrance-welcome{animation:none;opacity:1;}
 }
 @keyframes entranceOverlayFadeReduced{
   0%{opacity:1;}85%{opacity:1;}100%{opacity:0;visibility:hidden;}
@@ -2636,6 +2647,7 @@ function EntranceAnimation({ onDone }) {
       </video>
       <div className="entrance-scrim" />
       <div className="entrance-text-anchor">
+        <img src="/images/ymir-logo-gold.png" alt="" className="entrance-logo" />
         <div className="entrance-welcome">{CLAN_SUBTITLE}</div>
         <div className="entrance-name">{CLAN_NAME}</div>
         <div className="entrance-quote">"{CLAN_QUOTE}"</div>
