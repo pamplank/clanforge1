@@ -21,7 +21,16 @@ if (!SUPA_URL || !SUPA_KEY) {
   );
 }
 
-// ─── CLAN BRANDING CONFIG ─────────────────────────────────────────────────────
+// ─── PUSH NOTIFICATIONS CONFIG ───────────────────────────────────────────────
+// The PUBLIC VAPID key is safe to ship in frontend code — it's only used by
+// the browser to identify which app a push subscription belongs to. The
+// matching PRIVATE key lives only in the Vercel serverless function
+// (api/send-push.js), never here. If this isn't set, push notifications are
+// silently unavailable (no permission prompt shown) rather than crashing
+// the app — this feature should be optional, not load-bearing.
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";
+
+
 // Lets each clan's deployment show its own name/quote without forking the
 // code. All four fall back to the original Peaky Blinders branding if a
 // clan's Vercel project doesn't set these — so existing deployments that
@@ -1240,6 +1249,104 @@ async function dbDeleteReliable(table, match, retries = 2) {
     if (attempt < retries) await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
   }
   return false;
+}
+
+// ─── PUSH NOTIFICATIONS ───────────────────────────────────────────────────────
+// Converts the VAPID public key from the base64url format the web-push spec
+// uses into the raw byte array the browser's PushManager API expects.
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+// True if this browser can support web push at all. Notably false on iOS
+// Safari unless the site has been added to the home screen — there's no
+// way to detect that distinction in advance, so we just let the permission
+// prompt fail gracefully on unsupported browsers rather than guessing.
+function pushNotificationsSupported() {
+  return "serviceWorker" in navigator && "PushManager" in window && !!VAPID_PUBLIC_KEY;
+}
+
+// Returns "granted" | "denied" | "default" | "unsupported"
+function getPushPermissionState() {
+  if (!pushNotificationsSupported()) return "unsupported";
+  return Notification.permission; // "granted" | "denied" | "default"
+}
+
+// Registers the service worker (idempotent — safe to call repeatedly),
+// asks the browser for notification permission, subscribes to push, and
+// saves the subscription in Supabase tied to this member's name. Returns
+// true on success, false if the user declined or something failed.
+async function enablePushNotifications(memberName) {
+  if (!pushNotificationsSupported()) return false;
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") return false;
+
+    const registration = await navigator.serviceWorker.register("/sw.js");
+    await navigator.serviceWorker.ready;
+
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    }
+
+    const subJson = subscription.toJSON();
+    await dbUpsert("push_subscriptions", {
+      id: subJson.endpoint,
+      member_name: memberName,
+      endpoint: subJson.endpoint,
+      p256dh: subJson.keys.p256dh,
+      auth: subJson.keys.auth,
+      created_at: Date.now(),
+    });
+    return true;
+  } catch (e) {
+    console.error("enablePushNotifications failed:", e);
+    return false;
+  }
+}
+
+// Unsubscribes this browser from push and removes its subscription row from
+// Supabase, so this device stops receiving notifications for this member.
+async function disablePushNotifications(memberName) {
+  try {
+    if (!("serviceWorker" in navigator)) return true;
+    const registration = await navigator.serviceWorker.getRegistration("/sw.js");
+    if (!registration) return true;
+    const subscription = await registration.pushManager.getSubscription();
+    if (subscription) {
+      const endpoint = subscription.endpoint;
+      await subscription.unsubscribe();
+      await dbDelete("push_subscriptions", { id: endpoint });
+    }
+    return true;
+  } catch (e) {
+    console.error("disablePushNotifications failed:", e);
+    return false;
+  }
+}
+
+// Fire-and-forget call to the backend to send a push to a specific member.
+// Never throws — a failed push should never break the calling code path
+// (e.g. a bid succeeding shouldn't roll back because a notification failed).
+async function sendPushNotification(memberName, title, body, url, tag) {
+  try {
+    await fetchWithTimeout("/api/send-push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberName, title, body, url, tag }),
+    }, 5000);
+  } catch (e) {
+    console.error("sendPushNotification failed:", e);
+  }
 }
 
 // ─── SUPABASE STORAGE (auction images) ───────────────────────────────────────
@@ -3295,8 +3402,16 @@ function AppInner() {
     setAuctionsRaw(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       const safe = next.filter(a => !deletedAuctionIds.current.has(a.id));
+      const prevById = new Map(prev.map(a => [String(a.id), a]));
       safe.forEach(a => {
         const imageData = a.image?.dataUrl || _auctionImageCache.get(String(a.id)) || undefined;
+        const prevAuction = prevById.get(String(a.id));
+        // Whenever the end time changes (a brand-new auction, or an
+        // existing one extended by snipe protection), reset the
+        // "ending soon" notification flag so the cron check can fire
+        // again for the new deadline — otherwise an extended auction
+        // would silently never re-notify its bidder.
+        const endsAtChanged = !prevAuction || prevAuction.endsAt !== a.endsAt;
         const row = {
           id:          String(a.id),
           name:        a.name ?? "",
@@ -3311,6 +3426,7 @@ function AppInner() {
           image_name:  a.image?.name ?? null,
           bids:        JSON.stringify(a.bids ?? []),
         };
+        if (endsAtChanged) row.ending_soon_notified = false;
         // Only write image_data if we actually have it — never overwrite DB with null
         if (imageData) row.image_data = imageData;
         dbUpsert("auctions", row);
@@ -3724,6 +3840,39 @@ function AppInner() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [openUserMenu, setOpenUserMenu] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  // Reflects actual subscription state (not just browser permission) —
+  // checked once on load so the toggle shows correctly if the member
+  // already enabled this in a previous session.
+  useEffect(() => {
+    if (!pushNotificationsSupported() || !("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.getRegistration("/sw.js").then(reg => {
+      if (!reg) return;
+      reg.pushManager.getSubscription().then(sub => setPushEnabled(!!sub));
+    }).catch(() => {});
+  }, []);
+  async function togglePushNotifications() {
+    if (pushBusy) return;
+    setPushBusy(true);
+    if (pushEnabled) {
+      const ok = await disablePushNotifications(currentUser.name);
+      if (ok) { setPushEnabled(false); addToast("Notifications turned off", "blue", "Notifications"); }
+    } else {
+      const permState = getPushPermissionState();
+      if (permState === "unsupported") {
+        addToast("Your browser doesn't support notifications. On iPhone, add this site to your Home Screen first.", "red", "Not Supported");
+      } else if (permState === "denied") {
+        addToast("Notifications are blocked for this site in your browser settings.", "red", "Blocked");
+      } else {
+        const ok = await enablePushNotifications(currentUser.name);
+        if (ok) { setPushEnabled(true); addToast("Notifications enabled!", "gold", "Notifications"); }
+        else addToast("Couldn't enable notifications. Please try again.", "red", "Error");
+      }
+    }
+    setPushBusy(false);
+  }
+
 
   const ctx = { members, setMembers, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
     currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed };
@@ -3862,6 +4011,9 @@ function AppInner() {
                 <div className="user-dd-item" onClick={()=>{setModal({type:"changePassword",data:currentUser});setOpenUserMenu(false);setOpenDropdown(null);}}>
                   {t("changePassword")}
                 </div>
+                <div className="user-dd-item" onClick={togglePushNotifications} style={pushBusy?{opacity:0.6,pointerEvents:"none"}:undefined}>
+                  {pushEnabled ? "🔔 Notifications: On" : "🔕 Enable Notifications"}
+                </div>
                 <div className="user-dd-item danger" onClick={handleLogout}>{t("logOut")}</div>
               </div>
             </div>
@@ -3915,6 +4067,9 @@ function AppInner() {
                 </button>
                 <button className="btn btn-outline btn-sm" onClick={()=>{setModal({type:"changePassword",data:currentUser});setDrawerOpen(false);}}>
                   {t("changePasswordLabel")}
+                </button>
+                <button className="btn btn-outline btn-sm" onClick={togglePushNotifications} disabled={pushBusy}>
+                  {pushEnabled ? "🔔 Notifications: On" : "🔕 Enable Notifications"}
                 </button>
                 <button className="btn btn-ghost btn-sm" onClick={handleLogout}>{t("logOut")}</button>
               </div>
@@ -5620,6 +5775,17 @@ function Auctions({ ctx }) {
       fireBalancePopup(burstX, burstY, fmt(me.coins - amount));
     }
     setBidAmounts(prev=>({...prev,[auctionId]:""}));
+    // Notify the person who just got outbid, if push is set up for them.
+    // Fire-and-forget — never block the bid flow on this.
+    if (prevBidder && prevBidder !== currentUser.name) {
+      sendPushNotification(
+        prevBidder,
+        "You've been outbid!",
+        `${currentUser.name} outbid you on ${a.name} (${fmt(amount)} coins).`,
+        "/?page=auctions",
+        `outbid-${auctionId}`
+      );
+    }
     // Write to bid_events so all other users get a global announcement.
     // (The poll loop in AppInner already skips toasting the bidder's own
     // event via the currentUser.name check, so no local dedupe needed here.)
