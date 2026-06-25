@@ -2552,7 +2552,7 @@ tbody tr:last-child td{border-bottom:none;}
 }
 .entrance-video-bg{
   position:absolute;inset:0;width:100%;height:100%;
-  object-fit:cover;object-position:center 30%;
+  object-fit:cover;object-position:63% center;
   z-index:0;
   animation:entranceVideoZoom 3.6s ease forwards;
 }
