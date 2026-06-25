@@ -18,21 +18,6 @@ const CRON_SECRET = process.env.CRON_SECRET; // set this yourself, see setup not
 const ENDING_SOON_WINDOW_MS = 2 * 60 * 1000; // 2 minutes
 
 export default async function handler(req, res) {
-  // ── TEMPORARY DEBUG — remove this block once the Unauthorized issue is
-  // resolved. It reveals whether CRON_SECRET reached this function at all,
-  // and exactly what key value was received from the URL/header, without
-  // ever printing the real secret value itself.
-  const providedKeyDebug = req.query?.key || req.headers["authorization"]?.replace("Bearer ", "");
-  return res.status(200).json({
-    debug: true,
-    cronSecretIsSet: !!CRON_SECRET,
-    cronSecretLength: CRON_SECRET ? CRON_SECRET.length : 0,
-    providedKeyReceived: providedKeyDebug || null,
-    providedKeyLength: providedKeyDebug ? providedKeyDebug.length : 0,
-    keysMatch: providedKeyDebug === CRON_SECRET,
-  });
-  // ── END TEMPORARY DEBUG ──────────────────────────────────────────────────
-
   // Anyone who finds this URL could otherwise trigger it repeatedly and
   // spam push notifications — require a shared secret, passed either as
   // ?key=... (what cron-job.org will use) or an Authorization header.
