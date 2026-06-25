@@ -2552,9 +2552,17 @@ tbody tr:last-child td{border-bottom:none;}
 }
 .entrance-video-bg{
   position:absolute;inset:0;width:100%;height:100%;
-  object-fit:cover;object-position:63% center;
+  object-fit:cover;object-position:right center;
   z-index:0;
   animation:entranceVideoZoom 3.6s ease forwards;
+}
+@media (max-width:760px){
+  /* Match the login screen's already-proven mobile crop position exactly
+     (see .login-video-bg above) — this is the real value confirmed to
+     correctly frame the angel's face/wings/trophy together on phones,
+     rather than guessing at a new percentage for this second video
+     instance of the same footage. */
+  .entrance-video-bg{object-position:78% center;}
 }
 @keyframes entranceVideoZoom{
   0%{transform:scale(1.08);opacity:0.85;}
@@ -2562,7 +2570,23 @@ tbody tr:last-child td{border-bottom:none;}
 }
 .entrance-scrim{
   position:absolute;inset:0;z-index:1;pointer-events:none;
-  background:radial-gradient(ellipse 65% 45% at 50% 45%, rgba(8,6,5,0) 0%, rgba(8,6,5,0.3) 65%, rgba(8,6,5,0.8) 100%);
+  background:linear-gradient(180deg,
+    rgba(8,6,5,0.35) 0%,
+    rgba(8,6,5,0.15) 30%,
+    rgba(8,6,5,0.4) 60%,
+    rgba(8,6,5,0.85) 100%
+  );
+}
+@media (max-width:760px){
+  /* Match the login screen's proven mobile scrim curve exactly. */
+  .entrance-scrim{
+    background:linear-gradient(180deg,
+      rgba(8,6,5,0.45) 0%,
+      rgba(8,6,5,0.8) 45%,
+      rgba(8,6,5,0.95) 70%,
+      rgba(8,6,5,0.98) 100%
+    );
+  }
 }
 /* Dedicated solid panel behind the text block, independent of the
    scrim above — guarantees strong readable contrast for the logo,
