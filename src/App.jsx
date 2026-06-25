@@ -4426,6 +4426,19 @@ function WorldBossSchedule() {
 // ─── UPDATE NOTES ─────────────────────────────────────────────────────────────
 const UPDATE_NOTES = [
   {
+    version: "v2.1",
+    date: "June 2026",
+    title: "Push Notifications & Coin Economy Fixes",
+    color: "#ff8a65",
+    changes: [
+      { icon: "🔔", text: "New: browser push notifications! Enable them from your profile menu (top right) to get notified the instant you're outbid, and again when an auction you're winning is about to end — even if you don't have ClanForge open. Works on PC and Android out of the box; on iPhone, add ClanForge to your Home Screen first for it to work." },
+      { icon: "🖼️", text: "The Auction House now has its own full background image, matching the treasury theme of the rest of the app." },
+      { icon: "🪙", text: "Fixed a real coin bug: getting outbid on multiple auctions around the same moment could cause part of your refund to be silently lost. Refunds are now applied as a single, indivisible operation so this can no longer happen, no matter how many auctions end at once." },
+      { icon: "📋", text: "Fixed \"My Points History\" showing the same auction win duplicated many times across different timestamps. Existing duplicate entries have been cleaned up; this can no longer happen going forward." },
+      { icon: "📅", text: "Weekly coin decay no longer depends on the Master happening to have the app open at the right time — it now runs on a real, independent schedule every Tuesday at 7:00 AM GMT+8, automatically." },
+    ],
+  },
+  {
     version: "v2.0",
     date: "June 2026",
     title: "Mandarin Support & Major Bug Fixes",
