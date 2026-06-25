@@ -3654,8 +3654,22 @@ function AppInner() {
             endedAuctionIds.current.add(next.id);
             if (next.topBidder) {
               addToast(`${next.topBidder} won ${next.name} for ${fmt(next.currentBid)} coins!`, "gold", "Auction Ended");
-              setMembers(ms => ms.map(m => m.name===next.topBidder ? {...m,auctionWins:m.auctionWins+1,
-                txLog:[...(m.txLog||[]),{change:-next.currentBid,reason:`Won auction: ${next.name}`,date:new Date().toLocaleDateString(),ts:Date.now(),logType:"Auction Win",addedBy:"System"}]} : m));
+              setMembers(ms => ms.map(m => {
+                if (m.name!==next.topBidder) return m;
+                // endedAuctionIds is per-browser-session only (a plain in-memory
+                // ref), so it can't prevent the SAME win from being logged again
+                // by a different tab, a different member's browser, or even
+                // this same browser after a page reload — all of which start
+                // with an empty endedAuctionIds set and rediscover this auction
+                // as "newly ended" the first time they poll it. Checking the
+                // member's own txLog for an entry already tagged with this
+                // auction's id is what actually prevents duplicate entries,
+                // since txLog is the persisted, shared source of truth.
+                const alreadyLogged = (m.txLog||[]).some(e => e.auctionId === next.id);
+                if (alreadyLogged) return m;
+                return {...m,auctionWins:m.auctionWins+1,
+                  txLog:[...(m.txLog||[]),{change:-next.currentBid,reason:`Won auction: ${next.name}`,date:new Date().toLocaleDateString(),ts:Date.now(),logType:"Auction Win",addedBy:"System",auctionId:next.id}]};
+              }));
             }
           }
           return next;
@@ -3733,8 +3747,16 @@ function AppInner() {
           endedAuctionIds.current.add(a.id);
           if (a.topBidder) {
             addToast(`${a.topBidder} won ${a.name} for ${fmt(a.currentBid)} coins!`, "gold", "Auction Ended");
-            setMembers(ms => ms.map(m => m.name===a.topBidder ? {...m,auctionWins:m.auctionWins+1,
-              txLog:[...(m.txLog||[]),{change:-a.currentBid,reason:`Won auction: ${a.name}`,date:new Date().toLocaleDateString(),ts:Date.now(),logType:"Auction Win",addedBy:"System"}]} : m));
+            setMembers(ms => ms.map(m => {
+              if (m.name!==a.topBidder) return m;
+              // Same dedupe reasoning as the other "Won auction" log site above —
+              // endedAuctionIds alone can't prevent a different browser/session
+              // from re-logging the same win, so check txLog itself.
+              const alreadyLogged = (m.txLog||[]).some(e => e.auctionId === a.id);
+              if (alreadyLogged) return m;
+              return {...m,auctionWins:m.auctionWins+1,
+                txLog:[...(m.txLog||[]),{change:-a.currentBid,reason:`Won auction: ${a.name}`,date:new Date().toLocaleDateString(),ts:Date.now(),logType:"Auction Win",addedBy:"System",auctionId:a.id}]};
+            }));
           }
           // Only Master/Elder writes to DB — prevents 50 clients racing each other
           if (canWriteClose) {
@@ -6759,33 +6781,16 @@ function Settings({ ctx }) {
       JUNE_24_2026_WED_7AM_GMT8 <= Date.now() ? JUNE_24_2026_WED_7AM_GMT8 : -Infinity
     );
   }
-  useEffect(() => {
-    const mostRecentScheduled = getMostRecentScheduledDecay();
-    let lastDecay = 0;
-    try { lastDecay = parseInt(localStorage.getItem("last_decay") || "0"); } catch {}
-    if (lastDecay < mostRecentScheduled) {
-      // Auto-trigger decay silently
-      const decayDate = new Date().toLocaleDateString();
-      const decayTs = Date.now();
-      setMembers(ms=>{
-        let totalDecayed = 0;
-        const updated = ms.map(m=>{
-          const d=Math.floor(m.coins*0.05);
-          totalDecayed += d;
-          return{...m,coins:m.coins-d,decayLog:[...(m.decayLog||[]),{amount:-d,date:decayDate,ts:decayTs}]};
-        });
-        // Attach one consolidated announcement (not one per member) so the
-        // Global Points Log shows a single "All Members" row, not a flood.
-        if (updated.length>0) {
-          updated[0] = {...updated[0], txLog:[...(updated[0].txLog||[]),
-            {change:-totalDecayed,reason:`5% weekly coin decay applied to all ${updated.length} members`,date:decayDate,logType:"Weekly Decay",addedBy:"System",ts:decayTs}]};
-        }
-        return updated;
-      });
-      try { localStorage.setItem("last_decay", mostRecentScheduled.toString()); } catch {}
-      addToast(t("autoDecayApplied"),"red",t("autoDecayTitle"));
-    }
-  }, []);
+  // NOTE: the old client-side auto-decay check (which read/wrote a
+  // "last_decay" timestamp in localStorage) was removed from here. It only
+  // ever ran when the Master specifically had this Settings page open on
+  // one particular browser/device — localStorage doesn't sync across
+  // devices or sessions, so decay could silently never trigger if that
+  // exact condition never lined up with the scheduled time. Weekly decay
+  // is now handled server-side by api/check-weekly-decay.js, triggered by
+  // an external cron service, independent of anyone having the app open.
+  // The manual "Trigger Weekly Decay" button below still works as a
+  // manual override for either case.
 
   // ── Auto-reset: attendance counts reset on the 1st of every month, ───────
   // midnight GMT+8 — fixed to this timezone for everyone, same reasoning as
@@ -6827,7 +6832,12 @@ function Settings({ ctx }) {
       return updated;
     });
     addToast(t("decayTriggeredToast"),"red",t("decayTriggeredTitle"));
-    try { localStorage.setItem("last_decay", getMostRecentScheduledDecay().toString()); } catch {}
+    // Record this in the SHARED server-side state (not just localStorage),
+    // so the cron-driven check (api/check-weekly-decay.js) correctly sees
+    // that this week's decay has already happened and doesn't run it
+    // again — regardless of which device/browser this button was clicked
+    // from.
+    dbUpsert("app_state", { key: "last_decay_ts", value: String(getMostRecentScheduledDecay()), updated_at: Date.now() });
   }
   function resetAttendance() {
     setMembers(ms=>ms.map(m=>({...m,attendance:0})));
