@@ -2541,9 +2541,109 @@ tbody tr:last-child td{border-bottom:none;}
 @media(max-width:640px){
   .content{padding:16px 20px;}.grid-2,.grid-3,.grid-4{grid-template-columns:1fr;}
 }
+
+/* ── ENTRANCE ANIMATION (plays once per login, between LoginScreen and dashboard) ── */
+.entrance-overlay{
+  position:fixed;inset:0;z-index:9998;
+  background:var(--bg-void);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  animation:entranceOverlayFade 3.6s ease forwards;
+  overflow:hidden;
+}
+.entrance-video-bg{
+  position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;object-position:center 30%;
+  z-index:0;
+  animation:entranceVideoZoom 3.6s ease forwards;
+}
+@keyframes entranceVideoZoom{
+  0%{transform:scale(1.08);opacity:0.85;}
+  100%{transform:scale(1);opacity:1;}
+}
+.entrance-scrim{
+  position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(180deg,
+    rgba(8,6,5,0.55) 0%,
+    rgba(8,6,5,0.25) 35%,
+    rgba(8,6,5,0.45) 65%,
+    rgba(8,6,5,0.92) 100%
+  );
+}
+.entrance-name{
+  font-family:'Spectral',serif;font-weight:800;
+  font-size:34px;letter-spacing:1px;color:var(--text-bright);
+  margin-top:18px;opacity:0;position:relative;z-index:2;
+  text-shadow:0 2px 20px rgba(0,0,0,0.8),0 0 18px rgba(242,204,96,0.35);
+  animation:fadeInUp 0.7s ease 0.85s forwards;
+  max-width:90vw;text-align:center;word-break:break-word;
+}
+.entrance-quote{
+  font-family:'Spectral',serif;font-style:italic;font-size:14px;
+  color:var(--text-bright);margin-top:10px;opacity:0;position:relative;z-index:2;
+  text-shadow:0 1px 12px rgba(0,0,0,0.85);
+  animation:fadeInUp 0.7s ease 1.25s forwards;
+  max-width:80vw;text-align:center;padding:0 20px;
+}
+.entrance-welcome{
+  font-size:11px;letter-spacing:3px;text-transform:uppercase;font-weight:700;
+  color:var(--gold-bright);opacity:0;position:relative;z-index:2;margin-bottom:8px;
+  text-shadow:0 1px 10px rgba(0,0,0,0.85);
+  animation:fadeInUp 0.6s ease 0.55s forwards;
+  max-width:90vw;text-align:center;
+}
+.entrance-text-anchor{
+  position:relative;z-index:2;margin-top:auto;padding-bottom:14%;
+  display:flex;flex-direction:column;align-items:center;
+}
+@media(max-width:480px){
+  .entrance-name{font-size:24px;}
+  .entrance-quote{font-size:12px;}
+}
+@keyframes entranceOverlayFade{
+  0%{opacity:0;}
+  10%{opacity:1;}
+  80%{opacity:1;}
+  100%{opacity:0;visibility:hidden;}
+}
+@media (prefers-reduced-motion: reduce){
+  .entrance-overlay{animation:entranceOverlayFadeReduced 2.2s ease forwards;}
+  .entrance-video-bg{animation:none;}
+  .entrance-name,.entrance-quote,.entrance-welcome{animation:none;opacity:1;}
+}
+@keyframes entranceOverlayFadeReduced{
+  0%{opacity:1;}85%{opacity:1;}100%{opacity:0;visibility:hidden;}
+}
 `;
 
 // ─── UTILITIES ────────────────────────────────────────────────────────────────
+function EntranceAnimation({ onDone }) {
+  useEffect(() => {
+    const timer = setTimeout(onDone, 3600); // matches entranceOverlayFade duration
+    return () => clearTimeout(timer);
+  }, [onDone]);
+
+  return (
+    <div className="entrance-overlay" onClick={onDone}>
+      <video
+        className="entrance-video-bg"
+        autoPlay
+        loop
+        muted
+        playsInline
+        poster="/video/login-bg-poster.jpg"
+      >
+        <source src="/video/login-bg.webm" type="video/webm" />
+      </video>
+      <div className="entrance-scrim" />
+      <div className="entrance-text-anchor">
+        <div className="entrance-welcome">{CLAN_SUBTITLE}</div>
+        <div className="entrance-name">{CLAN_NAME}</div>
+        <div className="entrance-quote">"{CLAN_QUOTE}"</div>
+      </div>
+    </div>
+  );
+}
+
 function Toast({ toasts, remove }) {
   return (
     <div className="toast-container">
@@ -3240,6 +3340,7 @@ function AppInner() {
   const [auctions, setAuctionsRaw] = useState(SEED_AUCTIONS);
   const [attendanceLogs, setAttendanceLogsRaw] = useState([]);
   const [loggedIn, setLoggedIn] = useState(false);
+  const [showEntrance, setShowEntrance] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [coinBursts, setCoinBursts] = useState([]);
@@ -3823,6 +3924,7 @@ function AppInner() {
   function handleLogin(m) {
     setCurrentUser(m);
     setLoggedIn(true);
+    setShowEntrance(true);
     localStorage.setItem("cf_user_id", m.id);
   }
   function handleLogout() {
@@ -4187,6 +4289,7 @@ function AppInner() {
       <Toast toasts={toasts} remove={removeToast} />
       {coinBursts.map(b => <CoinBurst key={b.id} x={b.x} y={b.y} />)}
       {balancePopups.map(b => <BalancePopup key={b.id} x={b.x} y={b.y} amount={b.amount} label={t("balanceRemaining")} />)}
+      {showEntrance && <EntranceAnimation onDone={()=>setShowEntrance(false)} />}
     </>
   );
 }
