@@ -2575,12 +2575,17 @@ tbody tr:last-child td{border-bottom:none;}
 }
 .entrance-scrim{
   position:absolute;inset:0;z-index:1;pointer-events:none;
-  background:linear-gradient(180deg,
-    rgba(8,6,5,0.55) 0%,
-    rgba(8,6,5,0.25) 35%,
-    rgba(8,6,5,0.45) 65%,
-    rgba(8,6,5,0.92) 100%
-  );
+  background:radial-gradient(ellipse 65% 45% at 50% 45%, rgba(8,6,5,0) 0%, rgba(8,6,5,0.3) 65%, rgba(8,6,5,0.8) 100%);
+}
+/* Dedicated solid panel behind the text block, independent of the
+   scrim above — guarantees strong readable contrast for the logo,
+   clan name, and quote no matter where the video's visible band ends
+   up landing (which shifts depending on cover vs contain / screen
+   shape), instead of relying only on the overall scrim gradient. */
+.entrance-text-backdrop{
+  position:absolute;left:0;right:0;bottom:0;z-index:1;pointer-events:none;
+  height:36%;
+  background:linear-gradient(180deg, rgba(8,6,5,0) 0%, rgba(8,6,5,0.75) 40%, rgba(8,6,5,0.97) 100%);
 }
 .entrance-logo{
   width:64px;height:64px;object-fit:contain;
@@ -2659,6 +2664,7 @@ function EntranceAnimation({ onDone }) {
         <source src="/video/login-bg.webm" type="video/webm" />
       </video>
       <div className="entrance-scrim" />
+      <div className="entrance-text-backdrop" />
       <div className="entrance-text-anchor">
         <img src="/images/ymir-logo-gold.png" alt="" className="entrance-logo" />
         <div className="entrance-welcome">{CLAN_SUBTITLE}</div>
