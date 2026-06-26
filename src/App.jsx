@@ -1847,7 +1847,7 @@ body.bg-auctions::before{
 .sidebar{
   pointer-events:all;
   width:100%;
-  max-width:1200px;
+  max-width:1400px;
   background:linear-gradient(90deg,rgba(14,11,9,0.99),rgba(11,8,6,0.99));
   border:1px solid var(--border-bright);
   border-radius:10px;
