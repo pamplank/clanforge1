@@ -5199,18 +5199,37 @@ function Members({ ctx }) {
 }
 
 // ─── PLAYER INFO PAGE — stat computation helpers ───────────────────────────────
-// Maximum possible attendances per event, over a 4-week window, computed
-// directly from the real weekly schedule (not a guessed number) — e.g.
-// World Boss runs 3x/week (Mon/Wed/Fri) so over 4 weeks the max is 12.
-const EVENT_MAX_PER_4_WEEKS = (() => {
-  const counts = {};
-  WEEKLY_SCHEDULE.forEach(day => day.events.forEach(ev => {
-    counts[ev.id] = (counts[ev.id] || 0) + 1;
-  }));
+// Returns [monthStart, monthEnd) timestamps for the calendar month that
+// `monthsAgo` months before `now` falls in, anchored to GMT+8 — so "this
+// month" always means the 1st through the end of the current GMT+8
+// calendar month, not a rolling 30-day window.
+function getMonthBoundaryGmt8(now, monthsAgo) {
+  const shifted = new Date(now + GMT8_OFFSET_MS_GLOBAL);
+  const y = shifted.getUTCFullYear(), m = shifted.getUTCMonth();
+  const start = Date.UTC(y, m - monthsAgo, 1) - GMT8_OFFSET_MS_GLOBAL;
+  const end = Date.UTC(y, m - monthsAgo + 1, 1) - GMT8_OFFSET_MS_GLOBAL;
+  return [start, end];
+}
+// Maximum possible attendances per event WITHIN A SPECIFIC CALENDAR MONTH —
+// computed by counting how many times each weekday actually falls in that
+// month (4 or 5 times, depending on the month) and multiplying by how many
+// times that event runs on that weekday. This is more accurate than a fixed
+// "x4" estimate, since calendar months don't divide evenly into weeks.
+function getEventMaxForMonth(monthStart, monthEnd) {
+  const weekdayCounts = {};
+  let cursor = monthStart;
+  while (cursor < monthEnd) {
+    const dayName = DAY_NAMES[new Date(cursor + GMT8_OFFSET_MS_GLOBAL).getUTCDay()];
+    weekdayCounts[dayName] = (weekdayCounts[dayName] || 0) + 1;
+    cursor += 24 * 60 * 60 * 1000;
+  }
   const result = {};
-  Object.entries(counts).forEach(([id, perWeek]) => { result[id] = perWeek * 4; });
+  WEEKLY_SCHEDULE.forEach(day => {
+    const occurrences = weekdayCounts[day.day] || 0;
+    day.events.forEach(ev => { result[ev.id] = (result[ev.id] || 0) + occurrences; });
+  });
   return result;
-})();
+}
 // Maps an attendLog entry's stored event NAME back to its schedule id, so
 // "Inter-Server Battle" / "Inter Server Battle" naming differences (seen
 // across different parts of the codebase) don't cause a stat to read 0.
@@ -5221,22 +5240,22 @@ EVENT_NAME_TO_ID["Inter Server Battle"] = "ISB"; // alternate spelling used else
 // Counts how many times a member attended a given event id within the last
 // N days (qualifier !== "afk" matches the existing convention elsewhere —
 // an AFK check-in doesn't count as real participation).
-function countEventAttendance(attendLog, eventId, sinceTs) {
+function countEventAttendance(attendLog, eventId, sinceTs, untilTs = Infinity) {
   return (attendLog || []).filter(e => {
     const id = EVENT_NAME_TO_ID[e.event];
-    return id === eventId && e.qualifier !== "afk" && (e.ts || 0) >= sinceTs;
+    return id === eventId && e.qualifier !== "afk" && (e.ts || 0) >= sinceTs && (e.ts || 0) < untilTs;
   }).length;
 }
 
-// Highly Active: 8+ attendances in the last 2 weeks. Active: 1+. Otherwise Inactive.
-// Thresholds chosen relative to the real schedule (~12 possible attendances
-// in 2 weeks at full attendance), not an arbitrary number.
+// Battle-Ready: 25+ attendances within the current calendar month (roughly
+// two-thirds of a typical month's ~38 total event opportunities across all
+// events combined). Present: 1+. Otherwise Absent.
 function getActivityStatus(attendLog, now = Date.now()) {
-  const twoWeeksAgo = now - 14 * 24 * 60 * 60 * 1000;
-  const recentCount = (attendLog || []).filter(e => e.qualifier !== "afk" && (e.ts || 0) >= twoWeeksAgo).length;
-  if (recentCount >= 8) return "highly_active";
-  if (recentCount >= 1) return "active";
-  return "inactive";
+  const [monthStart] = getMonthBoundaryGmt8(now, 0);
+  const recentCount = (attendLog || []).filter(e => e.qualifier !== "afk" && (e.ts || 0) >= monthStart).length;
+  if (recentCount >= 25) return "battle_ready";
+  if (recentCount >= 1) return "present";
+  return "absent";
 }
 
 // Most recent attendance timestamp, for the "Last activity X days ago" line.
@@ -5246,48 +5265,43 @@ function getLastActivityTs(attendLog) {
   return Math.max(...entries.map(e => e.ts || 0));
 }
 
-// Groups attendLog entries into 4 weekly buckets (oldest to newest) for the
-// "Important Event Activity" chart — counts unique event check-ins per week.
-function getWeeklyEventActivity(attendLog, now = Date.now()) {
-  const weekMs = 7 * 24 * 60 * 60 * 1000;
-  const buckets = [0, 0, 0, 0]; // [3 weeks ago, 2 weeks ago, last week, this week]
-  (attendLog || []).forEach(e => {
-    if (e.qualifier === "afk") return;
-    const ts = e.ts || 0;
-    const weeksAgo = Math.floor((now - ts) / weekMs);
-    if (weeksAgo >= 0 && weeksAgo <= 3) buckets[3 - weeksAgo]++;
-  });
+// Groups attendLog entries into 4 calendar-month buckets (oldest to newest)
+// for the "Call to Arms" chart — counts event check-ins per month.
+function getMonthlyEventActivity(attendLog, now = Date.now()) {
+  const buckets = [0, 0, 0, 0]; // [3 months ago, 2 months ago, last month, this month]
+  for (let i = 3; i >= 0; i--) {
+    const [start, end] = getMonthBoundaryGmt8(now, i);
+    buckets[3-i] = (attendLog || []).filter(e =>
+      e.qualifier !== "afk" && (e.ts||0) >= start && (e.ts||0) < end
+    ).length;
+  }
   return buckets;
 }
 
 // Groups powerLog entries into weekly gains (current power minus the most
-// recent recorded power from the prior week) for the "Growth Power Trend"
-// chart. Returns null for weeks with no recorded data — the chart should
-// show those as empty rather than zero, since zero would falsely imply "no
+// recent recorded power from the prior month) for the "Power Surge" chart.
+// Returns null for months with no recorded data — the chart should show
+// those as empty rather than zero, since zero would falsely imply "no
 // growth" rather than "no data yet".
-function getWeeklyPowerGains(powerLog, now = Date.now()) {
-  const weekMs = 7 * 24 * 60 * 60 * 1000;
+function getMonthlyPowerGains(powerLog, now = Date.now()) {
   const sorted = [...(powerLog || [])].sort((a, b) => (a.ts||0) - (b.ts||0));
   const gains = [null, null, null, null];
-  for (let w = 3; w >= 0; w--) {
-    const weekEnd = now - w * weekMs;
-    const weekStart = weekEnd - weekMs;
-    const upToWeekEnd = sorted.filter(p => (p.ts||0) <= weekEnd);
-    if (upToWeekEnd.length === 0) continue;
-    // Baseline: the most recent point AT OR BEFORE this week's start. If
-    // none exists (this is the very first week ever tracked), fall back
-    // to the earliest point we have at all, so that first partial week
+  for (let i = 3; i >= 0; i--) {
+    const [monthStart, monthEnd] = getMonthBoundaryGmt8(now, i);
+    const upToMonthEnd = sorted.filter(p => (p.ts||0) < monthEnd);
+    if (upToMonthEnd.length === 0) continue;
+    // Baseline: the most recent point AT OR BEFORE this month's start. If
+    // none exists (this is the very first month ever tracked), fall back
+    // to the earliest point we have at all, so that first partial month
     // still shows whatever gain happened between its first and last
     // recorded snapshot instead of nothing.
-    const atOrBeforeWeekStart = upToWeekEnd.filter(p => (p.ts||0) <= weekStart);
-    const startPower = atOrBeforeWeekStart.length > 0
-      ? atOrBeforeWeekStart[atOrBeforeWeekStart.length-1].power
-      : upToWeekEnd[0].power;
-    const endPower = upToWeekEnd[upToWeekEnd.length-1].power;
-    // Skip only if there's truly nothing to compare yet (a single data
-    // point with no earlier baseline at all).
-    if (atOrBeforeWeekStart.length === 0 && upToWeekEnd.length < 2) continue;
-    gains[3-w] = endPower - startPower;
+    const atOrBeforeMonthStart = upToMonthEnd.filter(p => (p.ts||0) < monthStart);
+    const startPower = atOrBeforeMonthStart.length > 0
+      ? atOrBeforeMonthStart[atOrBeforeMonthStart.length-1].power
+      : upToMonthEnd[0].power;
+    const endPower = upToMonthEnd[upToMonthEnd.length-1].power;
+    if (atOrBeforeMonthStart.length === 0 && upToMonthEnd.length < 2) continue;
+    gains[3-i] = endPower - startPower;
   }
   return gains;
 }
@@ -7057,34 +7071,35 @@ function Export({ ctx }) {
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
 function PlayerInfo({ member, onBack }) {
   const now = Date.now();
-  const fourWeeksAgo = now - 28 * 24 * 60 * 60 * 1000;
+  const [monthStart] = getMonthBoundaryGmt8(now, 0);
+  const eventMaxThisMonth = getEventMaxForMonth(...getMonthBoundaryGmt8(now, 0));
 
   const activityStatus = getActivityStatus(member.attendLog, now);
   const lastActivityTs = getLastActivityTs(member.attendLog);
   const daysSinceActivity = lastActivityTs ? Math.floor((now - lastActivityTs) / (24*60*60*1000)) : null;
 
   const eventStats = [
-    { id:"ISB", label:"Server Battle", icon:ShieldIcon, desc:"Server Battle participation in the last 4 weeks." },
-    { id:"STI", label:"Sindris",       icon:ColumnIcon, desc:"Sindris participation in the last 4 weeks." },
-    { id:"CS",  label:"Sanctuary",     icon:CrownIcon,  desc:"Sanctuary participation in the last 4 weeks." },
-    { id:"CA",  label:"Annihilation",  icon:SwordsIcon, desc:"Annihilation participation in the last 4 weeks." },
+    { id:"ISB", label:"Server Battle", icon:ShieldIcon, desc:"Server Battle participation this month." },
+    { id:"STI", label:"Sindris",       icon:ColumnIcon, desc:"Sindris participation this month." },
+    { id:"CS",  label:"Sanctuary",     icon:CrownIcon,  desc:"Sanctuary participation this month." },
+    { id:"CA",  label:"Annihilation",  icon:SwordsIcon, desc:"Annihilation participation this month." },
   ].map(s => ({
     ...s,
-    attended: countEventAttendance(member.attendLog, s.id, fourWeeksAgo),
-    max: EVENT_MAX_PER_4_WEEKS[s.id] || 0,
+    attended: countEventAttendance(member.attendLog, s.id, monthStart),
+    max: eventMaxThisMonth[s.id] || 0,
   }));
 
-  const powerGains = getWeeklyPowerGains(member.powerLog, now);
-  const eventActivity = getWeeklyEventActivity(member.attendLog, now);
-  const weekLabels = ["3 wks ago", "2 wks ago", "Last wk", "This wk"];
+  const powerGains = getMonthlyPowerGains(member.powerLog, now);
+  const eventActivity = getMonthlyEventActivity(member.attendLog, now);
+  const periodLabels = ["3 mo. ago", "2 mo. ago", "Last month", "This month"];
 
   const maxGain = Math.max(1, ...powerGains.filter(g => g !== null).map(g => Math.abs(g)));
   const maxActivity = Math.max(1, ...eventActivity);
 
   const statusConfig = {
-    highly_active: { label: "Highly Active", color: "#58d68d", bg: "rgba(88,214,141,0.12)" },
-    active:        { label: "Active",        color: "var(--gold-bright)", bg: "rgba(242,204,96,0.1)" },
-    inactive:      { label: "Inactive",      color: "var(--text-dim)", bg: "rgba(110,88,64,0.1)" },
+    battle_ready: { label: "Battle-Ready", color: "#58d68d", bg: "rgba(88,214,141,0.12)" },
+    present:      { label: "Present",      color: "var(--gold-bright)", bg: "rgba(242,204,96,0.1)" },
+    absent:       { label: "Absent",       color: "var(--text-dim)", bg: "rgba(110,88,64,0.1)" },
   }[activityStatus];
 
   return (
@@ -7105,7 +7120,7 @@ function PlayerInfo({ member, onBack }) {
             {daysSinceActivity !== null && (
               <div style={{fontSize:11,color:"var(--text-dim)",marginTop:8,display:"flex",alignItems:"center",gap:5,justifyContent:"center"}}>
                 <CalendarIcon size={12} />
-                Last activity {daysSinceActivity === 0 ? "today" : `${daysSinceActivity} day${daysSinceActivity===1?"":"s"} ago`}
+                Last seen {daysSinceActivity === 0 ? "today" : `${daysSinceActivity} day${daysSinceActivity===1?"":"s"} ago`}
               </div>
             )}
           </div>
@@ -7117,13 +7132,13 @@ function PlayerInfo({ member, onBack }) {
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
               <div>
                 <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:4}}>
-                  <PowerIcon size={13} /> Growth Power
+                  <PowerIcon size={13} /> Power
                 </div>
                 <div style={{fontSize:18,fontWeight:800,color:"var(--text-bright)"}}>{fmt(member.power)}</div>
               </div>
               <div>
                 <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:4}}>
-                  <StatIcon src={COINS_ICON} size={13} /> Points
+                  <StatIcon src={COINS_ICON} size={13} /> Coins
                 </div>
                 <div style={{fontSize:18,fontWeight:800,color:"var(--text-bright)"}}>{fmt(member.coins)}</div>
               </div>
@@ -7135,9 +7150,9 @@ function PlayerInfo({ member, onBack }) {
               </div>
               <div>
                 <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:4}}>
-                  <TrophyIcon size={13} /> Clan
+                  <TrophyIcon size={13} /> Role
                 </div>
-                <div style={{fontSize:18,fontWeight:800,color:"var(--text-bright)"}}>{CLAN_NAME}</div>
+                <div style={{fontSize:18,fontWeight:800,color:"var(--text-bright)"}}>{member.role}</div>
               </div>
             </div>
           </div>
@@ -7159,9 +7174,9 @@ function PlayerInfo({ member, onBack }) {
 
       <div className="grid-2" style={{gap:20}}>
         <div className="card" style={{padding:20}}>
-          <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>4 Week Progress</div>
-          <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Growth Power Trend</div>
-          <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Weekly bars show recorded Growth Power gains across the last four weeks.</div>
+          <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Last 4 Months</div>
+          <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Power Surge</div>
+          <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Monthly bars show recorded Power gains across the last four months.</div>
           <div style={{display:"flex",alignItems:"flex-end",gap:10,height:160}}>
             {powerGains.map((gain, i) => (
               <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",height:"100%",justifyContent:"flex-end"}}>
@@ -7180,25 +7195,25 @@ function PlayerInfo({ member, onBack }) {
                 ) : (
                   <div style={{width:"100%",height:6,background:"var(--border-dim)",borderRadius:3}}/>
                 )}
-                <div style={{fontSize:9,color:"var(--text-dim)",marginTop:6,textAlign:"center"}}>{weekLabels[i]}</div>
+                <div style={{fontSize:9,color:"var(--text-dim)",marginTop:6,textAlign:"center"}}>{periodLabels[i]}</div>
               </div>
             ))}
           </div>
           {powerGains.every(g => g === null) && (
             <div style={{fontSize:11,color:"var(--text-dim)",marginTop:14,textAlign:"center"}}>
-              No Growth Power history recorded yet. This chart fills in automatically as power gets updated over the coming weeks.
+              No Power history recorded yet. This chart fills in automatically as Power gets updated over the coming months.
             </div>
           )}
         </div>
 
         <div className="card" style={{padding:20}}>
-          <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>4 Week Important Events</div>
-          <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Important Event Activity</div>
-          <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Bars show how many events this member attended each week.</div>
+          <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Last 4 Months</div>
+          <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Call to Arms</div>
+          <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Bars show how many events this member attended each month.</div>
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
             {eventActivity.map((count, i) => (
               <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
-                <div style={{width:60,fontSize:10,color:"var(--text-dim)",flexShrink:0}}>{weekLabels[i]}</div>
+                <div style={{width:74,fontSize:10,color:"var(--text-dim)",flexShrink:0}}>{periodLabels[i]}</div>
                 <div style={{flex:1,background:"var(--border-dim)",borderRadius:4,height:26,position:"relative",overflow:"hidden"}}>
                   <div style={{
                     height:"100%",width:`${Math.max(4,(count/maxActivity)*100)}%`,
