@@ -3489,6 +3489,7 @@ function AppInner() {
           decayLog:    safeJson(r.decay_log),
           txLog:       safeJson(r.tx_log),
           attendLog:   safeJson(r.attend_log),
+          powerLog:    safeJson(r.power_log),
         })));
       } else if (Array.isArray(mRows) && mRows.length === 0) {
         // Table genuinely empty (confirmed by a successful query) — safe to seed.
@@ -3581,6 +3582,7 @@ function AppInner() {
             decayLog: parseLog(found.decay_log),
             txLog: parseLog(found.tx_log),
             attendLog: parseLog(found.attend_log),
+            powerLog: parseLog(found.power_log),
           });
           setLoggedIn(true);
         }
@@ -3615,6 +3617,7 @@ function AppInner() {
           decay_log: JSON.stringify(m.decayLog || []),
           tx_log: JSON.stringify(m.txLog || []),
           attend_log: JSON.stringify(m.attendLog || []),
+          power_log: JSON.stringify(m.powerLog || []),
           discord: m.discord || "",
         };
         if (!skipCoinsWrite) row.coins = m.coins;
@@ -3784,6 +3787,7 @@ function AppInner() {
           decayLog:    safeJson(r.decay_log),
           txLog:       safeJson(r.tx_log),
           attendLog:   safeJson(r.attend_log),
+          powerLog:    safeJson(r.power_log),
         }));
         // Merge: keep local state for fields not in DB, update coins/auctionWins from DB
         return incoming.map(dbM => {
@@ -3800,6 +3804,7 @@ function AppInner() {
             attendLog:   dbM.attendLog.length >= local.attendLog.length ? dbM.attendLog : local.attendLog,
             decayLog:    dbM.decayLog.length  >= local.decayLog.length  ? dbM.decayLog  : local.decayLog,
             txLog:       dbM.txLog.length     >= local.txLog.length     ? dbM.txLog     : local.txLog,
+            powerLog:    dbM.powerLog.length  >= (local.powerLog||[]).length ? dbM.powerLog : (local.powerLog||[]),
           } : dbM;
         });
       });
@@ -4084,7 +4089,8 @@ function AppInner() {
   }
   function adjustPower(id, power) {
     const m = members.find(x=>x.id===id);
-    setMembers(ms => ms.map(x => x.id===id ? {...x,power} : x));
+    const ts = Date.now();
+    setMembers(ms => ms.map(x => x.id===id ? {...x,power,powerLog:[...(x.powerLog||[]),{power,ts}]} : x));
     addToast(`${m?.name}'s power updated to ${fmt(power)}.`, "gold", "Power Updated");
     setModal(null);
   }
@@ -5059,6 +5065,7 @@ function Members({ ctx }) {
   const [classFilter, setClassFilter] = useState("All");
   const [sortBy, setSortBy] = useState("coins");
   const [selectedMember, setSelectedMember] = useState(null);
+  const [viewingProfile, setViewingProfile] = useState(null);
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
 
   const filtered = members
@@ -5086,6 +5093,11 @@ function Members({ ctx }) {
     });
     addToast(t("memberRemoved"),"red",t("removed"));
     setSelectedMember(null);
+  }
+
+  if (viewingProfile) {
+    const liveMember = members.find(m => m.id === viewingProfile) || viewingProfile;
+    return <PlayerInfo member={liveMember} onBack={()=>setViewingProfile(null)} />;
   }
 
   return (
@@ -5146,6 +5158,7 @@ function Members({ ctx }) {
               <span className={`badge ${selectedMember.role==="Master"?"badge-gold":selectedMember.role==="Elder"?"badge-red":"badge-silver"}`}>{selectedMember.role}</span>
             </div>
             {selectedMember.discord && <div style={{textAlign:"center",marginBottom:10}}><span className="discord-tag">🎮 {selectedMember.discord}</span></div>}
+            <button className="btn btn-outline btn-sm" style={{width:"100%",marginBottom:12}} onClick={()=>setViewingProfile(selectedMember.id)}>View Profile</button>
             <div className="divider" />
             {[[t("statCoins"),fmt(selectedMember.coins)],[t("statAttendance"),selectedMember.attendance],[t("statWins"),selectedMember.auctionWins],[t("statJoined"),selectedMember.joinDate]].map(([k,v]) => (
               <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--border-dim)",fontSize:12}}>
@@ -5185,7 +5198,101 @@ function Members({ ctx }) {
   );
 }
 
-// ─── RANK MULTIPLIER (power leaderboard, attendance coins only) ───────────────
+// ─── PLAYER INFO PAGE — stat computation helpers ───────────────────────────────
+// Maximum possible attendances per event, over a 4-week window, computed
+// directly from the real weekly schedule (not a guessed number) — e.g.
+// World Boss runs 3x/week (Mon/Wed/Fri) so over 4 weeks the max is 12.
+const EVENT_MAX_PER_4_WEEKS = (() => {
+  const counts = {};
+  WEEKLY_SCHEDULE.forEach(day => day.events.forEach(ev => {
+    counts[ev.id] = (counts[ev.id] || 0) + 1;
+  }));
+  const result = {};
+  Object.entries(counts).forEach(([id, perWeek]) => { result[id] = perWeek * 4; });
+  return result;
+})();
+// Maps an attendLog entry's stored event NAME back to its schedule id, so
+// "Inter-Server Battle" / "Inter Server Battle" naming differences (seen
+// across different parts of the codebase) don't cause a stat to read 0.
+const EVENT_NAME_TO_ID = {};
+WEEKLY_SCHEDULE.forEach(day => day.events.forEach(ev => { EVENT_NAME_TO_ID[ev.name] = ev.id; }));
+EVENT_NAME_TO_ID["Inter Server Battle"] = "ISB"; // alternate spelling used elsewhere in the app
+
+// Counts how many times a member attended a given event id within the last
+// N days (qualifier !== "afk" matches the existing convention elsewhere —
+// an AFK check-in doesn't count as real participation).
+function countEventAttendance(attendLog, eventId, sinceTs) {
+  return (attendLog || []).filter(e => {
+    const id = EVENT_NAME_TO_ID[e.event];
+    return id === eventId && e.qualifier !== "afk" && (e.ts || 0) >= sinceTs;
+  }).length;
+}
+
+// Highly Active: 8+ attendances in the last 2 weeks. Active: 1+. Otherwise Inactive.
+// Thresholds chosen relative to the real schedule (~12 possible attendances
+// in 2 weeks at full attendance), not an arbitrary number.
+function getActivityStatus(attendLog, now = Date.now()) {
+  const twoWeeksAgo = now - 14 * 24 * 60 * 60 * 1000;
+  const recentCount = (attendLog || []).filter(e => e.qualifier !== "afk" && (e.ts || 0) >= twoWeeksAgo).length;
+  if (recentCount >= 8) return "highly_active";
+  if (recentCount >= 1) return "active";
+  return "inactive";
+}
+
+// Most recent attendance timestamp, for the "Last activity X days ago" line.
+function getLastActivityTs(attendLog) {
+  const entries = (attendLog || []).filter(e => e.qualifier !== "afk");
+  if (entries.length === 0) return null;
+  return Math.max(...entries.map(e => e.ts || 0));
+}
+
+// Groups attendLog entries into 4 weekly buckets (oldest to newest) for the
+// "Important Event Activity" chart — counts unique event check-ins per week.
+function getWeeklyEventActivity(attendLog, now = Date.now()) {
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  const buckets = [0, 0, 0, 0]; // [3 weeks ago, 2 weeks ago, last week, this week]
+  (attendLog || []).forEach(e => {
+    if (e.qualifier === "afk") return;
+    const ts = e.ts || 0;
+    const weeksAgo = Math.floor((now - ts) / weekMs);
+    if (weeksAgo >= 0 && weeksAgo <= 3) buckets[3 - weeksAgo]++;
+  });
+  return buckets;
+}
+
+// Groups powerLog entries into weekly gains (current power minus the most
+// recent recorded power from the prior week) for the "Growth Power Trend"
+// chart. Returns null for weeks with no recorded data — the chart should
+// show those as empty rather than zero, since zero would falsely imply "no
+// growth" rather than "no data yet".
+function getWeeklyPowerGains(powerLog, now = Date.now()) {
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  const sorted = [...(powerLog || [])].sort((a, b) => (a.ts||0) - (b.ts||0));
+  const gains = [null, null, null, null];
+  for (let w = 3; w >= 0; w--) {
+    const weekEnd = now - w * weekMs;
+    const weekStart = weekEnd - weekMs;
+    const upToWeekEnd = sorted.filter(p => (p.ts||0) <= weekEnd);
+    if (upToWeekEnd.length === 0) continue;
+    // Baseline: the most recent point AT OR BEFORE this week's start. If
+    // none exists (this is the very first week ever tracked), fall back
+    // to the earliest point we have at all, so that first partial week
+    // still shows whatever gain happened between its first and last
+    // recorded snapshot instead of nothing.
+    const atOrBeforeWeekStart = upToWeekEnd.filter(p => (p.ts||0) <= weekStart);
+    const startPower = atOrBeforeWeekStart.length > 0
+      ? atOrBeforeWeekStart[atOrBeforeWeekStart.length-1].power
+      : upToWeekEnd[0].power;
+    const endPower = upToWeekEnd[upToWeekEnd.length-1].power;
+    // Skip only if there's truly nothing to compare yet (a single data
+    // point with no earlier baseline at all).
+    if (atOrBeforeWeekStart.length === 0 && upToWeekEnd.length < 2) continue;
+    gains[3-w] = endPower - startPower;
+  }
+  return gains;
+}
+
+
 function getRankMultiplier(members, memberId) {
   const sorted = [...members].sort((a, b) => b.power - a.power);
   const rank = sorted.findIndex(m => m.id === memberId) + 1; // 1-based
@@ -6948,6 +7055,169 @@ function Export({ ctx }) {
 }
 
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
+function PlayerInfo({ member, onBack }) {
+  const now = Date.now();
+  const fourWeeksAgo = now - 28 * 24 * 60 * 60 * 1000;
+
+  const activityStatus = getActivityStatus(member.attendLog, now);
+  const lastActivityTs = getLastActivityTs(member.attendLog);
+  const daysSinceActivity = lastActivityTs ? Math.floor((now - lastActivityTs) / (24*60*60*1000)) : null;
+
+  const eventStats = [
+    { id:"ISB", label:"Server Battle", icon:ShieldIcon, desc:"Server Battle participation in the last 4 weeks." },
+    { id:"STI", label:"Sindris",       icon:ColumnIcon, desc:"Sindris participation in the last 4 weeks." },
+    { id:"CS",  label:"Sanctuary",     icon:CrownIcon,  desc:"Sanctuary participation in the last 4 weeks." },
+    { id:"CA",  label:"Annihilation",  icon:SwordsIcon, desc:"Annihilation participation in the last 4 weeks." },
+  ].map(s => ({
+    ...s,
+    attended: countEventAttendance(member.attendLog, s.id, fourWeeksAgo),
+    max: EVENT_MAX_PER_4_WEEKS[s.id] || 0,
+  }));
+
+  const powerGains = getWeeklyPowerGains(member.powerLog, now);
+  const eventActivity = getWeeklyEventActivity(member.attendLog, now);
+  const weekLabels = ["3 wks ago", "2 wks ago", "Last wk", "This wk"];
+
+  const maxGain = Math.max(1, ...powerGains.filter(g => g !== null).map(g => Math.abs(g)));
+  const maxActivity = Math.max(1, ...eventActivity);
+
+  const statusConfig = {
+    highly_active: { label: "Highly Active", color: "#58d68d", bg: "rgba(88,214,141,0.12)" },
+    active:        { label: "Active",        color: "var(--gold-bright)", bg: "rgba(242,204,96,0.1)" },
+    inactive:      { label: "Inactive",      color: "var(--text-dim)", bg: "rgba(110,88,64,0.1)" },
+  }[activityStatus];
+
+  return (
+    <div>
+      <button className="btn btn-outline btn-sm" style={{marginBottom:16}} onClick={onBack}>Back to Members</button>
+
+      <div className="card" style={{padding:24,marginBottom:20}}>
+        <div style={{display:"flex",gap:24,flexWrap:"wrap"}}>
+          <div style={{textAlign:"center",flexShrink:0}}>
+            <ClassIcon cls={member.cls} size={100} />
+            <div style={{marginTop:10}}>
+              <span style={{
+                display:"inline-block",padding:"4px 12px",borderRadius:20,
+                fontSize:11,fontWeight:700,color:statusConfig.color,background:statusConfig.bg,
+                border:`1px solid ${statusConfig.color}`,
+              }}>{statusConfig.label}</span>
+            </div>
+            {daysSinceActivity !== null && (
+              <div style={{fontSize:11,color:"var(--text-dim)",marginTop:8,display:"flex",alignItems:"center",gap:5,justifyContent:"center"}}>
+                <CalendarIcon size={12} />
+                Last activity {daysSinceActivity === 0 ? "today" : `${daysSinceActivity} day${daysSinceActivity===1?"":"s"} ago`}
+              </div>
+            )}
+          </div>
+
+          <div style={{flex:1,minWidth:240}}>
+            <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:26,color:"var(--text-bright)"}}>{member.name}</div>
+            <div style={{fontSize:14,color:"var(--text-mid)",marginBottom:18}}>{member.role}</div>
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+              <div>
+                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:4}}>
+                  <PowerIcon size={13} /> Growth Power
+                </div>
+                <div style={{fontSize:18,fontWeight:800,color:"var(--text-bright)"}}>{fmt(member.power)}</div>
+              </div>
+              <div>
+                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:4}}>
+                  <StatIcon src={COINS_ICON} size={13} /> Points
+                </div>
+                <div style={{fontSize:18,fontWeight:800,color:"var(--text-bright)"}}>{fmt(member.coins)}</div>
+              </div>
+              <div>
+                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:4}}>
+                  <SwordsIcon size={13} /> Class
+                </div>
+                <div style={{fontSize:18,fontWeight:800,color:"var(--text-bright)"}}>{member.cls}</div>
+              </div>
+              <div>
+                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:4}}>
+                  <TrophyIcon size={13} /> Clan
+                </div>
+                <div style={{fontSize:18,fontWeight:800,color:"var(--text-bright)"}}>{CLAN_NAME}</div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{flex:1,minWidth:240,display:"flex",flexDirection:"column",gap:10}}>
+            {eventStats.map(s => (
+              <div key={s.id} style={{display:"flex",alignItems:"flex-start",gap:10}}>
+                <div style={{color:"var(--gold)",flexShrink:0,marginTop:2}}><s.icon size={16} /></div>
+                <div>
+                  <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>{s.label}</div>
+                  <div style={{fontSize:14,fontWeight:800,color:"var(--text-bright)"}}>{s.attended} out of {s.max}</div>
+                  <div style={{fontSize:10,color:"var(--text-dim)"}}>{s.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid-2" style={{gap:20}}>
+        <div className="card" style={{padding:20}}>
+          <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>4 Week Progress</div>
+          <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Growth Power Trend</div>
+          <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Weekly bars show recorded Growth Power gains across the last four weeks.</div>
+          <div style={{display:"flex",alignItems:"flex-end",gap:10,height:160}}>
+            {powerGains.map((gain, i) => (
+              <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",height:"100%",justifyContent:"flex-end"}}>
+                {gain !== null ? (
+                  <>
+                    <div style={{fontSize:10,fontWeight:700,color:"var(--gold-bright)",marginBottom:4}}>{gain>=0?"+":""}{fmt(gain)}</div>
+                    <div style={{
+                      width:"100%",
+                      height:`${Math.max(6,(Math.abs(gain)/maxGain)*120)}px`,
+                      background:gain>=0
+                        ? "linear-gradient(180deg, var(--gold-bright), var(--gold-dim))"
+                        : "linear-gradient(180deg, #e07070, #7a1a1a)",
+                      borderRadius:3,
+                    }}/>
+                  </>
+                ) : (
+                  <div style={{width:"100%",height:6,background:"var(--border-dim)",borderRadius:3}}/>
+                )}
+                <div style={{fontSize:9,color:"var(--text-dim)",marginTop:6,textAlign:"center"}}>{weekLabels[i]}</div>
+              </div>
+            ))}
+          </div>
+          {powerGains.every(g => g === null) && (
+            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:14,textAlign:"center"}}>
+              No Growth Power history recorded yet. This chart fills in automatically as power gets updated over the coming weeks.
+            </div>
+          )}
+        </div>
+
+        <div className="card" style={{padding:20}}>
+          <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>4 Week Important Events</div>
+          <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Important Event Activity</div>
+          <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Bars show how many events this member attended each week.</div>
+          <div style={{display:"flex",flexDirection:"column",gap:14}}>
+            {eventActivity.map((count, i) => (
+              <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:60,fontSize:10,color:"var(--text-dim)",flexShrink:0}}>{weekLabels[i]}</div>
+                <div style={{flex:1,background:"var(--border-dim)",borderRadius:4,height:26,position:"relative",overflow:"hidden"}}>
+                  <div style={{
+                    height:"100%",width:`${Math.max(4,(count/maxActivity)*100)}%`,
+                    background:"linear-gradient(90deg, var(--gold-dim), var(--gold-bright))",
+                    display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:8,
+                  }}>
+                    {count > 0 && <span style={{fontSize:11,fontWeight:800,color:"var(--bg-void)"}}>{count}</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 function Donations({ ctx }) {
   const { members, setMembers, currentUser, addToast } = ctx;
   const isAdmin = currentUser.role === "Elder" || currentUser.role === "Master";
@@ -7303,7 +7573,7 @@ function AddMemberModal({ ctx }) {
   const [form, setForm] = useState({name:"",username:"",password:"member123",cls:"Berserker",power:10000,role:"Member"});
   function submit() {
     if(!form.name||!form.username){addToast(t("nameUsernameRequired"),"red",t("errorLabel"));return;}
-    const newM={id:Date.now(),name:form.name,username:form.username,password:form.password,cls:form.cls,power:parseInt(form.power)||10000,role:form.role,coins:0,attendance:0,auctionWins:0,joinDate:new Date().toLocaleDateString(),decayLog:[],txLog:[],attendLog:[],discord:""};
+    const newM={id:Date.now(),name:form.name,username:form.username,password:form.password,cls:form.cls,power:parseInt(form.power)||10000,role:form.role,coins:0,attendance:0,auctionWins:0,joinDate:new Date().toLocaleDateString(),decayLog:[],txLog:[],attendLog:[],powerLog:[],discord:""};
     setMembers(ms=>[...ms,newM]);
     addToast(`${form.name} ${t("addedToClan")}`,"gold",t("memberAddedTitle"));
     setModal(null);
