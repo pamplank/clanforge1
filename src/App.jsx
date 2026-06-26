@@ -1383,6 +1383,49 @@ async function adjustMemberCoinsAtomic(memberName, delta) {
   }
 }
 
+// ─── DIAMOND DONATION REWARDS ─────────────────────────────────────────────────
+// Diamonds are the one donation currency members spend real money on (unlike
+// Silver/Amber, which are pure in-game grind) — rewarding them with coins
+// gives donors something back without touching the existing attendance
+// economy. Rate and cap chosen to stay below a single weekly Inter-Server
+// Battle attendance (~100+ coins) even at max daily donation, so this can't
+// out-earn showing up to events.
+const DIAMOND_COIN_RATE = 0.15;       // coins earned per diamond donated
+const DIAMOND_DAILY_CAP = 500;        // max diamonds that earn a reward per member per day
+
+const GMT8_OFFSET_MS_GLOBAL = 8 * 60 * 60 * 1000;
+// Start-of-today timestamp in GMT+8, used to sum "diamonds donated today"
+// for the daily cap check — donations are timestamped in real UTC ms, so
+// this just needs to find the right boundary to compare against.
+function getStartOfTodayGmt8() {
+  const nowMs = Date.now();
+  const shifted = new Date(nowMs + GMT8_OFFSET_MS_GLOBAL);
+  const dayStartShifted = new Date(shifted);
+  dayStartShifted.setUTCHours(0, 0, 0, 0);
+  return dayStartShifted.getTime() - GMT8_OFFSET_MS_GLOBAL;
+}
+
+// Converts a <input type="datetime-local"> value (e.g. "2026-06-26T15:30",
+// which carries NO timezone of its own) into a real timestamp, treating
+// the typed numbers as GMT+8 wall-clock time regardless of what timezone
+// the Elder's own device/browser happens to be set to. This keeps "ends
+// June 26, 3:30 PM" meaning the same real moment for every Elder, no
+// matter where they're browsing from — matching how the rest of the app
+// (weekly decay, push notification scheduling) is anchored to GMT+8.
+function gmt8StringToTimestamp(datetimeLocalStr) {
+  if (!datetimeLocalStr) return null;
+  const asIfUTC = new Date(datetimeLocalStr + ":00.000Z");
+  if (isNaN(asIfUTC.getTime())) return null;
+  return asIfUTC.getTime() - GMT8_OFFSET_MS_GLOBAL;
+}
+// The inverse — used to pre-fill the picker with a sensible default and to
+// show the picked value back for confirmation.
+function timestampToGmt8String(ts) {
+  const shifted = new Date(ts + GMT8_OFFSET_MS_GLOBAL);
+  const pad = n => String(n).padStart(2, "0");
+  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth()+1)}-${pad(shifted.getUTCDate())}T${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}`;
+}
+
 // ─── SUPABASE STORAGE (auction images) ───────────────────────────────────────
 const STORAGE_BUCKET = "auction-images";
 // Uploads a File/Blob to the auction-images bucket and returns its public URL.
@@ -4087,7 +4130,7 @@ function AppInner() {
   const ctx = { members, setMembers, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
     currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed };
 
-  const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings")};
+  const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings"),donations:"Donations"};
 
   // ── Connection error screen (DB unreachable — do NOT show empty/seed state) ─
   if (dbError) return (
@@ -4140,6 +4183,7 @@ function AppInner() {
         {id:"members",icon:<StatIcon src={WARRIORS_ICON} size={16}/>,label:t("members"),sub:[t("sub_memberRoster"),t("sub_profiles"),t("sub_coinPowerAdjust")]},
         {id:"attendance",icon:<StatIcon src={ATTENDANCE_ICON} size={16}/>,label:t("attendance"),sub:[t("sub_recordAttendance"),t("sub_history"),t("sub_eventTracker")]},
         {id:"auctions",icon:<StatIcon src={AUCTION_ICON} size={16}/>,label:t("auctions"),sub:[t("sub_liveAuctions"),t("sub_history"),t("sub_lootRoulette"),...(isAdmin?[t("sub_createAuction")]:[])]},
+        ...(isAdmin?[{id:"donations",icon:"💎",label:"Donations",sub:["Record Donation","History"]}]:[]),
       ]},
     ...(_reportPages.length>0?[{ section:t("navSection_reports"), items:[{id:"reports",icon:"📊",label:t("reports"),subPages:_reportPages}]}]:[]),
   ];
@@ -4314,6 +4358,7 @@ function AppInner() {
             {page==="leaderboard" && <Leaderboard ctx={ctx} />}
             {page==="export"      && <Export ctx={ctx} />}
             {page==="settings"    && <Settings ctx={ctx} />}
+            {page==="donations"   && <Donations ctx={ctx} />}
 
           </div>
         </main>
@@ -5869,7 +5914,7 @@ function Auctions({ ctx }) {
   const [tab, setTab] = useState("active");
   const [bidAmounts, setBidAmounts] = useState({});
   const [bidSubmitting, setBidSubmitting] = useState({});
-  const [newAuction, setNewAuction] = useState({name:"",image:null,rarity:"epic",desc:"",startBid:100,duration:30});
+  const [newAuction, setNewAuction] = useState({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000)});
   const [sortBy, setSortBy] = useState("default");
   const [viewMode, setViewMode] = useState("grid");
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
@@ -6002,6 +6047,15 @@ function Auctions({ ctx }) {
     if(!newAuction.name){addToast(t("itemNameRequired"),"red",t("errorLabel"));return;}
     const now = Date.now();
     const minBid = parseInt(newAuction.startBid)||100;
+    const endsAt = gmt8StringToTimestamp(newAuction.endsAtInput);
+    if (!endsAt) {
+      addToast("Please pick a valid end date and time.","red",t("errorLabel"));
+      return;
+    }
+    if (endsAt <= now) {
+      addToast("The end time must be in the future.","red",t("errorLabel"));
+      return;
+    }
     const a={
       id: String(now),
       name: newAuction.name,
@@ -6015,13 +6069,13 @@ function Auctions({ ctx }) {
       currentBid: minBid,
       topBidder: null,
       startedAt: now,
-      endsAt: now + (parseInt(newAuction.duration)||30)*60000,
+      endsAt: endsAt,
       status: "active",
       bids: [],
     };
     setAuctions(prev=>[...prev,a]);
     addToast(`${t("auctionStarted")} ${a.name}`,"gold",t("auctionLive"));
-    setNewAuction({name:"",image:null,rarity:"epic",desc:"",startBid:100,duration:30});
+    setNewAuction({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000)});
   }
 
   const RARITY_OPTS=[
@@ -6681,8 +6735,13 @@ function Auctions({ ctx }) {
               <input className="input" type="number" min={1} value={newAuction.startBid} onChange={e=>setNewAuction(p=>({...p,startBid:e.target.value}))} />
             </div>
             <div className="form-group">
-              <label className="form-label">{t("durationLabel")}</label>
-              <input className="input" type="number" min={1} value={newAuction.duration} onChange={e=>setNewAuction(p=>({...p,duration:e.target.value}))} />
+              <label className="form-label">Ends At (GMT+8)</label>
+              <input
+                className="input" type="datetime-local"
+                value={newAuction.endsAtInput}
+                min={timestampToGmt8String(Date.now())}
+                onChange={e=>setNewAuction(p=>({...p,endsAtInput:e.target.value}))}
+              />
             </div>
           </div>
           {/* Preview */}
@@ -6698,6 +6757,11 @@ function Auctions({ ctx }) {
                   <span className={`badge badge-${newAuction.rarity}`}>{rarityLabel(newAuction.rarity,t).toLowerCase()}</span>
                 </div>
                 <div style={{fontSize:12,color:"var(--text-dim)"}}>{newAuction.desc||t("descriptionDefault")}</div>
+                <div style={{fontSize:11,color:"var(--gold)",marginTop:4,fontWeight:600}}>
+                  {newAuction.endsAtInput
+                    ? `Ends ${new Date(gmt8StringToTimestamp(newAuction.endsAtInput)).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",timeZone:"Asia/Manila"})} (GMT+8)`
+                    : "Pick an end date and time"}
+                </div>
               </div>
             </div>
           </div>
@@ -6884,6 +6948,177 @@ function Export({ ctx }) {
 }
 
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
+function Donations({ ctx }) {
+  const { members, setMembers, currentUser, addToast } = ctx;
+  const isAdmin = currentUser.role === "Elder" || currentUser.role === "Master";
+  const [selectedId, setSelectedId] = useState(members[0]?.id ?? "");
+  const [amount, setAmount] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const sortedMembers = useMemo(
+    () => [...members].sort((a, b) => a.name.localeCompare(b.name)),
+    [members]
+  );
+
+  // Sum of diamonds this member has already donated today (GMT+8), pulled
+  // straight from their own txLog — this is the actual source of truth for
+  // the daily cap, not a separate counter that could drift out of sync.
+  function diamondsDonatedToday(member) {
+    const todayStart = getStartOfTodayGmt8();
+    return (member.txLog || [])
+      .filter(e => e.logType === "Diamond Donation" && (e.ts || 0) >= todayStart)
+      .reduce((sum, e) => sum + (e.diamonds || 0), 0);
+  }
+
+  const selectedMember = members.find(m => m.id === selectedId);
+  const alreadyToday = selectedMember ? diamondsDonatedToday(selectedMember) : 0;
+  const remainingToday = Math.max(0, DIAMOND_DAILY_CAP - alreadyToday);
+
+  const parsedAmount = parseInt(amount) || 0;
+  const cappedAmount = Math.min(parsedAmount, remainingToday);
+  const projectedCoins = Math.floor(cappedAmount * DIAMOND_COIN_RATE);
+  const willBeCapped = parsedAmount > remainingToday && parsedAmount > 0;
+
+  async function handleSubmit() {
+    if (!selectedMember || parsedAmount <= 0 || busy) return;
+    if (remainingToday <= 0) {
+      addToast(`${selectedMember.name} has already reached today's ${DIAMOND_DAILY_CAP} diamond cap.`, "red", "Daily Cap Reached");
+      return;
+    }
+    setBusy(true);
+    const diamondsToCredit = cappedAmount;
+    const coinsToAward = projectedCoins;
+    const newBalance = await adjustMemberCoinsAtomic(selectedMember.name, coinsToAward);
+    if (newBalance === null) {
+      addToast("Couldn't reach the database. Please try again.", "red", "Error");
+      setBusy(false);
+      return;
+    }
+    setMembers(ms => ms.map(m => {
+      if (m.id !== selectedMember.id) return m;
+      return {
+        ...m,
+        txLog: [...(m.txLog || []), {
+          change: coinsToAward,
+          diamonds: diamondsToCredit,
+          reason: `Donated ${fmt(diamondsToCredit)} diamonds to clan funds`,
+          date: new Date().toLocaleDateString(),
+          logType: "Diamond Donation",
+          addedBy: currentUser.name,
+          ts: Date.now(),
+        }],
+      };
+    }), true); // skipCoinsWrite — coins already applied atomically above
+    addToast(`${selectedMember.name} earned ${fmt(coinsToAward)} coins for donating ${fmt(diamondsToCredit)} diamonds.`, "gold", "Donation Recorded");
+    setAmount("");
+    setBusy(false);
+  }
+
+  // Recent donation history across all members, most recent first — pulled
+  // from everyone's txLog rather than a separate table, same pattern as
+  // how auction wins/decay are surfaced elsewhere.
+  const recentDonations = useMemo(() => {
+    const all = [];
+    members.forEach(m => {
+      (m.txLog || []).forEach(e => {
+        if (e.logType === "Diamond Donation") all.push({ ...e, memberName: m.name });
+      });
+    });
+    return all.sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 30);
+  }, [members]);
+
+  if (!isAdmin) return (
+    <div className="card" style={{padding:40,textAlign:"center"}}>
+      <div style={{fontSize:13,color:"var(--text-dim)"}}>Only Elders and the Master can record diamond donations.</div>
+    </div>
+  );
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:20}}>
+      <div className="card" style={{padding:24}}>
+        <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:18,color:"var(--gold-light)",marginBottom:4}}>
+          💎 Diamond Donations
+        </div>
+        <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:20,lineHeight:1.5}}>
+          Members who donate diamonds to clan funds earn {fmt(DIAMOND_COIN_RATE*100)} coins per 100 diamonds,
+          up to {fmt(DIAMOND_DAILY_CAP)} diamonds per member per day ({Math.floor(DIAMOND_DAILY_CAP*DIAMOND_COIN_RATE)} coins max/day).
+          Silver and Amber donations don't earn coins — this rewards the currency that actually costs real money.
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Member</label>
+          <select className="input" value={selectedId} onChange={e=>setSelectedId(Number(e.target.value) || e.target.value)}>
+            {sortedMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+        </div>
+
+        {selectedMember && (
+          <div style={{fontSize:12,color:"var(--text-dim)",margin:"-4px 0 14px"}}>
+            Already donated today: <strong style={{color:"var(--text-bright)"}}>{fmt(alreadyToday)}</strong> / {fmt(DIAMOND_DAILY_CAP)} diamonds
+            {remainingToday === 0 && <span style={{color:"#e07070",fontWeight:700}}> — daily cap reached</span>}
+          </div>
+        )}
+
+        <div className="form-group">
+          <label className="form-label">Diamonds Donated</label>
+          <input
+            className="input" type="number" min={0} placeholder="e.g. 300"
+            value={amount} onChange={e=>setAmount(e.target.value)}
+          />
+        </div>
+
+        {parsedAmount > 0 && (
+          <div style={{
+            display:"flex",alignItems:"center",justifyContent:"space-between",
+            padding:"10px 14px",background:"rgba(201,151,42,0.06)",border:"1px solid var(--border)",borderRadius:2,marginBottom:16,
+          }}>
+            <span style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:"var(--text-dim)",fontWeight:600}}>
+              {willBeCapped ? `Capped at ${fmt(cappedAmount)} diamonds (daily limit) →` : "Reward:"}
+            </span>
+            <span style={{fontFamily:"'Inter',sans-serif",fontSize:14,fontWeight:800,color:"#58d68d"}}>
+              +{fmt(projectedCoins)} coins
+            </span>
+          </div>
+        )}
+
+        <button
+          className="btn btn-gold" style={{width:"100%"}}
+          disabled={!selectedMember || parsedAmount<=0 || remainingToday<=0 || busy}
+          onClick={handleSubmit}
+        >
+          {busy ? "Recording…" : "Record Donation"}
+        </button>
+      </div>
+
+      <div className="card" style={{padding:24}}>
+        <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:16,color:"var(--gold-light)",marginBottom:14}}>
+          Recent Donations
+        </div>
+        {recentDonations.length === 0 ? (
+          <div style={{fontSize:12,color:"var(--text-dim)"}}>No diamond donations recorded yet.</div>
+        ) : (
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {recentDonations.map((d, i) => (
+              <div key={i} style={{
+                display:"flex",justifyContent:"space-between",alignItems:"center",
+                padding:"9px 12px",background:"rgba(255,255,255,0.02)",borderRadius:2,
+                fontSize:12,fontFamily:"'Inter',sans-serif",
+              }}>
+                <span>
+                  <strong style={{color:"var(--text-bright)"}}>{d.memberName}</strong>
+                  <span style={{color:"var(--text-dim)"}}> donated {fmt(d.diamonds||0)} diamonds</span>
+                </span>
+                <span style={{color:"#58d68d",fontWeight:700}}>+{fmt(d.change)} coins</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 function Settings({ ctx }) {
   const { currentUser, members, setMembers, addToast } = ctx;
   const { t } = useLang();
