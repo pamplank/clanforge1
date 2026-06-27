@@ -1831,7 +1831,7 @@ body.bg-auctions::before{
    as a background-image — everything else (sizing, layering, the
    fade-to-black gradient) follows that same proven approach exactly. */
 body.bg-leaderboard{
-  background-color:var(--bg-void);
+  background-color:#040301;
   background-image:none;
   position:relative;
 }
@@ -1852,7 +1852,7 @@ body.bg-leaderboard{
   aspect-ratio:2560/1440;
   z-index:0;
   pointer-events:none;
-  background-image:linear-gradient(180deg, rgba(5,4,3,0.5) 0%, rgba(5,4,3,0.2) 12%, rgba(5,4,3,0.25) 50%, rgba(5,4,3,0.8) 82%, rgba(5,4,3,1) 100%);
+  background-image:linear-gradient(180deg, rgba(4,3,1,0.5) 0%, rgba(4,3,1,0.2) 12%, rgba(4,3,1,0.25) 50%, rgba(4,3,1,0.85) 82%, rgba(4,3,1,1) 100%);
 }
 @media(max-width:760px){
   .leaderboard-bg-video{object-position:78% center;}
@@ -2340,7 +2340,7 @@ tbody tr:last-child td{border-bottom:none;}
    than centering on the bright core — dark is the dominant tone with a
    brief bright glint in the middle, like a real metal surface where most
    of what you see is shadow and only a thin edge catches the light. */
-.podium-metal-ring{border-radius:13px;display:inline-block;}
+.podium-metal-ring{border-radius:13px;display:inline-block;position:relative;}
 .podium-rank-1 .podium-metal-ring{
   padding:3px;
   background:linear-gradient(135deg,#211022,#211022,#6d2d7b,#d65cf0,#6d2d7b,#211022,#211022);
@@ -7338,8 +7338,8 @@ function LeaderboardPodium({ topThree, onViewProfile }) {
           return (
             <div key={m.id} className={`podium-slot podium-rank-${rank}`}>
               <div className="podium-metal-ring">
+                {rank === 1 && <div className="podium-crown"><CrownIcon size={34} /></div>}
                 <div className="podium-card-frame">
-                  {rank === 1 && <div className="podium-crown"><CrownIcon size={34} /></div>}
                   <ProfileCard member={m} onClick={()=>onViewProfile(m.id)} />
                 </div>
               </div>
