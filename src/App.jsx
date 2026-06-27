@@ -2387,8 +2387,8 @@ tbody tr:last-child td{border-bottom:none;}
   box-shadow:0 0 8px rgba(220,222,225,0.2);
 }
 .podium-honorable-frame{width:104px;border-radius:9px;overflow:hidden;position:relative;}
-.podium-honorable-rank{font-family:'Spectral',serif;font-weight:800;font-size:14px;color:#dcdee1;margin-top:8px;text-shadow:0 0 6px rgba(220,222,225,0.3);}
-.podium-honorable-name{font-family:'Spectral',serif;font-weight:600;font-size:11px;color:var(--text-mid);margin-top:2px;text-align:center;}
+.podium-honorable-name{font-family:'Spectral',serif;font-weight:700;font-size:11px;color:var(--text-bright);margin-top:8px;text-align:center;}
+.podium-honorable-power{font-size:10px;color:var(--gold-bright);margin-top:2px;text-align:center;}
 @media(max-width:600px){
   .podium-honorable-frame{width:78px;}
   .podium-honorable-row{gap:12px;margin-top:20px;padding-top:14px;}
@@ -7386,7 +7386,7 @@ function LeaderboardPodium({ topThree, honorableMentions, onViewProfile }) {
                   <ProfileCard member={m} onClick={()=>onViewProfile(m.id)} prestigeRank={rank} />
                 </div>
               </div>
-              <div className="podium-name">{m.name}</div>
+              <div className="podium-name">{m.cls}</div>
               <div className="podium-power">{fmt(m.power)} Power</div>
             </div>
           );
@@ -7407,11 +7407,11 @@ function LeaderboardPodium({ topThree, honorableMentions, onViewProfile }) {
               <div key={m.id} className="podium-honorable-slot">
                 <div className="podium-honorable-ring">
                   <div className="podium-honorable-frame">
-                    <ProfileCard member={m} onClick={()=>onViewProfile(m.id)} />
+                    <ProfileCard member={m} onClick={()=>onViewProfile(m.id)} prestigeRank={rank} />
                   </div>
                 </div>
-                <div className="podium-honorable-rank">#{rank}</div>
-                <div className="podium-honorable-name">{m.name}</div>
+                <div className="podium-honorable-name">{m.cls}</div>
+                <div className="podium-honorable-power">{fmt(m.power)} Power</div>
               </div>
             );
           })}
@@ -7527,7 +7527,7 @@ function ProfileCard({ member, onClick, prestigeRank }) {
   const classPortrait = PROFILE_CLASS_PORTRAIT[member.cls];
   const awakeningLevel = member.awakeningLevel || 0;
   const RIBBON_COLORS = { 1: "#c77dff", 2: "#f2cc60", 3: "#fe7e73" };
-  const ribbonColor = RIBBON_COLORS[prestigeRank];
+  const ribbonColor = prestigeRank ? (RIBBON_COLORS[prestigeRank] || "#dcdee1") : null;
 
   return (
     <div
