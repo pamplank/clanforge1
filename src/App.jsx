@@ -7629,18 +7629,13 @@ function PlayerInfo({ member, members, onBack }) {
               }}>
                 <div style={{fontFamily:"'Spectral',serif",fontSize:13,color:"var(--text-mid)",letterSpacing:1,marginBottom:14}}>{member.cls}</div>
 
-                <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginBottom:10}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginBottom:16}}>
                   <PowerIcon size={18} />
                   <span style={{
                   fontFamily:"'Spectral',serif",fontWeight:800,fontSize:26,
                   color:"var(--gold-bright)",
                   textShadow:prestige?`0 0 16px ${prestige.glow}`:"0 0 12px rgba(242,204,96,0.35)",
                 }}>{fmt(member.power)}</span>
-              </div>
-
-              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:16}}>
-                <StatIcon src={COINS_ICON} size={14} />
-                <span style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:15,color:"var(--text-mid)"}}>{fmt(member.coins)}</span>
               </div>
 
               <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:14,flexWrap:"wrap"}}>
@@ -7657,9 +7652,16 @@ function PlayerInfo({ member, members, onBack }) {
                 ))}
               </div>
 
-              <div style={{fontSize:11,color:"var(--text-dim)",borderTop:"1px solid var(--border)",paddingTop:12}}>
-                <span style={{color:statusConfig.color,fontWeight:700}}>{statusConfig.label}</span>
-                {daysSinceActivity !== null && ` \u00b7 ${daysSinceActivity === 0 ? "active today" : `seen ${daysSinceActivity}d ago`}`}
+              <div style={{fontSize:11,color:"var(--text-dim)",borderTop:"1px solid var(--border)",paddingTop:12,display:"flex",alignItems:"center",justifyContent:"center",gap:8,flexWrap:"wrap"}}>
+                <span style={{display:"inline-flex",alignItems:"center",gap:4}}>
+                  <StatIcon src={COINS_ICON} size={13} />
+                  <span style={{fontFamily:"'Spectral',serif",fontWeight:700,color:"var(--text-mid)"}}>{fmt(member.coins)}</span>
+                </span>
+                <span style={{color:"var(--border)"}}>&middot;</span>
+                <span>
+                  <span style={{color:statusConfig.color,fontWeight:700}}>{statusConfig.label}</span>
+                  {daysSinceActivity !== null && ` \u00b7 ${daysSinceActivity === 0 ? "active today" : `seen ${daysSinceActivity}d ago`}`}
+                </span>
               </div>
             </div>
           </div>
