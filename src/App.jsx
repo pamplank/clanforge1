@@ -7402,11 +7402,13 @@ function Export({ ctx }) {
 // badge in the corner — composited as real stacked HTML/CSS layers rather
 // than a flattened image, so it stays crisp at any size and the name text
 // remains real, selectable text rather than baked into a picture.
-function ProfileCard({ member, onClick }) {
+function ProfileCard({ member, onClick, prestigeRank }) {
   const rarity = member.profileRarity || "uncommon";
   const rarityBg = PROFILE_RARITY_BG[rarity] || PROFILE_RARITY_BG.uncommon;
   const classPortrait = PROFILE_CLASS_PORTRAIT[member.cls];
   const awakeningLevel = member.awakeningLevel || 0;
+  const RIBBON_COLORS = { 1: "#f2cc60", 2: "#d4d4d4", 3: "#cd8a52" };
+  const ribbonColor = RIBBON_COLORS[prestigeRank];
 
   return (
     <div
@@ -7435,6 +7437,17 @@ function ProfileCard({ member, onClick }) {
         }}>{member.name}</span>
       </div>
       <img src={PROFILE_FRAME_URL} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",pointerEvents:"none"}} />
+      {ribbonColor && (
+        <div style={{
+          position:"absolute",top:"6%",left:0,zIndex:4,
+          background:ribbonColor,color:"#1a1206",
+          fontSize:"clamp(8px,2.6cqw,13px)",fontWeight:800,letterSpacing:0.5,
+          padding:"4px 10px 4px 8px",borderRadius:"0 3px 3px 0",
+          boxShadow:"-2px 2px 8px rgba(0,0,0,0.4)",
+        }}>
+          RANK {prestigeRank}
+        </div>
+      )}
       {awakeningLevel > 0 && (
         <div style={{
           position:"absolute",width:"18.8%",aspectRatio:"1/1",
@@ -7470,11 +7483,23 @@ function PlayerInfo({ member, members, onBack }) {
   const byPower = [...members].sort((a,b)=>b.power-a.power);
   const byCoins = [...members].sort((a,b)=>b.coins-a.coins);
   const byAttend = [...members].sort((a,b)=>b.attendance-a.attendance);
+  const powerRank = byPower.findIndex(m=>m.id===member.id)+1;
   const rankings = [
-    { label: "Power",  rank: byPower.findIndex(m=>m.id===member.id)+1 },
+    { label: "Power",  rank: powerRank },
     { label: "Richest", rank: byCoins.findIndex(m=>m.id===member.id)+1 },
     { label: "Active", rank: byAttend.findIndex(m=>m.id===member.id)+1 },
   ];
+
+  // Prestige tier — matches the podium's gold/silver/bronze treatment,
+  // based specifically on Power rank (not Richest or Active), so the
+  // Player Info page's special treatment always lines up with whoever
+  // is actually standing on the Leaderboard podium.
+  const PRESTIGE_TIERS = {
+    1: { name: "gold",   color: "#f2cc60", glow: "rgba(242,204,96,0.5)", label: "Most Powerful in the Clan" },
+    2: { name: "silver", color: "#d4d4d4", glow: "rgba(192,192,192,0.4)", label: "2nd Most Powerful in the Clan" },
+    3: { name: "bronze", color: "#cd8a52", glow: "rgba(184,115,51,0.4)", label: "3rd Most Powerful in the Clan" },
+  };
+  const prestige = PRESTIGE_TIERS[powerRank] || null;
 
   const eventStats = [
     { id:"ISB", label:"Server Battle", icon:ShieldIcon, desc:"Server Battle participation this month." },
@@ -7507,19 +7532,49 @@ function PlayerInfo({ member, members, onBack }) {
   }[activityStatus];
 
   return (
-    <div>
+    <div style={{position:"relative",paddingTop:prestige?16:0}}>
+      {prestige && (
+        <div style={{
+          position:"absolute",top:0,left:0,right:0,height:4,borderRadius:2,
+          background:`linear-gradient(90deg, transparent, ${prestige.color}, transparent)`,
+          boxShadow:`0 0 16px ${prestige.glow}`,
+        }} />
+      )}
+      {prestige && (
+        <div style={{textAlign:"center",margin:"4px 0 16px"}}>
+          <span style={{
+            display:"inline-flex",alignItems:"center",gap:8,
+            background:`${prestige.color}1a`,border:`1px solid ${prestige.color}66`,
+            borderRadius:20,padding:"6px 16px",
+          }}>
+            <CrownIcon size={14} style={{color:prestige.color}} />
+            <span style={{fontSize:11,fontWeight:800,color:prestige.color,letterSpacing:1}}>
+              RANK {powerRank} &middot; {prestige.label.toUpperCase()}
+            </span>
+          </span>
+        </div>
+      )}
       <button className="btn btn-outline btn-sm" style={{marginBottom:16}} onClick={onBack}>Back to Members</button>
 
       <div className="card" style={{padding:24,marginBottom:20}}>
         <div className="player-info-layout">
           <div className="player-info-sidebar">
-            <ProfileCard member={member} />
-            <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderTop:"none",borderRadius:"0 0 8px 8px",padding:"20px 16px",textAlign:"center"}}>
+            <ProfileCard member={member} prestigeRank={powerRank <= 3 ? powerRank : null} />
+            <div style={{
+              background:"var(--bg-card)",
+              border:prestige?`1px solid ${prestige.color}`:"1px solid var(--border)",
+              borderTop:"none",borderRadius:"0 0 8px 8px",padding:"20px 16px",textAlign:"center",
+              boxShadow:prestige?`0 4px 20px ${prestige.glow}`:"none",
+            }}>
               <div style={{fontFamily:"'Spectral',serif",fontSize:13,color:"var(--text-mid)",letterSpacing:1,marginBottom:14}}>{member.cls}</div>
 
               <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginBottom:16}}>
                 <PowerIcon size={18} />
-                <span style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:26,color:"var(--gold-bright)",textShadow:"0 0 12px rgba(242,204,96,0.35)"}}>{fmt(member.power)}</span>
+                <span style={{
+                  fontFamily:"'Spectral',serif",fontWeight:800,fontSize:26,
+                  color:prestige?prestige.color:"var(--gold-bright)",
+                  textShadow:prestige?`0 0 16px ${prestige.glow}`:"0 0 12px rgba(242,204,96,0.35)",
+                }}>{fmt(member.power)}</span>
               </div>
 
               <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:14,flexWrap:"wrap"}}>
@@ -7545,8 +7600,9 @@ function PlayerInfo({ member, members, onBack }) {
 
           <div className="player-info-main">
             <div style={{
-              background:"rgba(255,255,255,0.02)",border:"1px solid var(--border)",borderRadius:4,
-              padding:"18px 20px",
+              background:prestige?`${prestige.color}0a`:"rgba(255,255,255,0.02)",
+              border:prestige?`1px solid ${prestige.color}40`:"1px solid var(--border)",
+              borderRadius:4,padding:"18px 20px",
             }}>
               <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:16}}>This Month's Events</div>
               <div style={{display:"flex",flexDirection:"column",gap:14}}>
@@ -7567,8 +7623,9 @@ function PlayerInfo({ member, members, onBack }) {
             </div>
 
             <div style={{
-              background:"rgba(255,255,255,0.02)",border:"1px solid var(--border)",borderRadius:4,
-              padding:"18px 20px",marginTop:16,
+              background:prestige?`${prestige.color}0a`:"rgba(255,255,255,0.02)",
+              border:prestige?`1px solid ${prestige.color}40`:"1px solid var(--border)",
+              borderRadius:4,padding:"18px 20px",marginTop:16,
             }}>
               <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:14}}>Recent Activity</div>
               {recentActivity.length === 0 ? (
@@ -7594,7 +7651,7 @@ function PlayerInfo({ member, members, onBack }) {
           </div>
 
           <div className="player-info-main" style={{display:"flex",flexDirection:"column",gap:16}}>
-            <div className="card" style={{padding:20}}>
+            <div className="card" style={{padding:20,border:prestige?`1px solid ${prestige.color}40`:undefined,background:prestige?`${prestige.color}0a`:undefined}}>
               <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Last 4 Weeks</div>
               <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Power Surge</div>
               <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Weekly bars show recorded Power gains across the last four weeks.</div>
@@ -7627,7 +7684,7 @@ function PlayerInfo({ member, members, onBack }) {
               )}
             </div>
 
-            <div className="card" style={{padding:20}}>
+            <div className="card" style={{padding:20,border:prestige?`1px solid ${prestige.color}40`:undefined,background:prestige?`${prestige.color}0a`:undefined}}>
               <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Last 4 Weeks</div>
               <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Event Activity</div>
               <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Bars show how many events this member attended each week.</div>
