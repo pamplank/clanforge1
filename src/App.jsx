@@ -2330,9 +2330,37 @@ tbody tr:last-child td{border-bottom:none;}
 .podium-slot{display:flex;flex-direction:column;align-items:center;}
 .podium-card-frame{border-radius:10px;overflow:hidden;position:relative;transition:transform 0.2s;}
 .podium-card-frame:hover{transform:translateY(-4px);}
-.podium-rank-1 .podium-card-frame{width:252px;border:3px solid #c77dff;box-shadow:0 0 32px rgba(199,125,255,0.5);}
-.podium-rank-2 .podium-card-frame{width:192px;border:2px solid #f2cc60;box-shadow:0 0 16px rgba(242,204,96,0.35);}
-.podium-rank-3 .podium-card-frame{width:180px;border:2px solid #fe7e73;box-shadow:0 0 14px rgba(254,126,115,0.35);}
+/* Metallic gradient ring around each podium card — border-image (the
+   normal way to do gradient borders) doesn't support border-radius, so
+   instead we use a wrapping element: its own background is the metallic
+   gradient, and padding reveals a ring of it around the rounded card
+   sitting inside. Band sequences mimic real metal photography (alternating
+   light/dark stops of the same hue, like light catching a curved surface),
+   adapted from a proven gold/silver reference rather than guessed. */
+.podium-metal-ring{border-radius:13px;display:inline-block;}
+.podium-rank-1 .podium-metal-ring{
+  padding:3px;
+  background:linear-gradient(135deg,#9d44b2,#c060d6,#e462ff,#e462ff,#b050c8,#9d44b2);
+  box-shadow:0 0 32px rgba(199,125,255,0.5);
+}
+.podium-rank-2 .podium-metal-ring{
+  padding:2px;
+  background:linear-gradient(135deg,#DBB400,#EFAF00,#F5D100,#F5D100,#D1AE15,#DBB400);
+  box-shadow:0 0 16px rgba(242,204,96,0.4);
+}
+.podium-rank-3 .podium-metal-ring{
+  padding:2px;
+  background:linear-gradient(135deg,#dd645b,#fe7e73,#ffab9c,#ffab9c,#e8786d,#dd645b);
+  box-shadow:0 0 14px rgba(254,126,115,0.4);
+}
+.podium-rank-1 .podium-card-frame{width:252px;}
+.podium-rank-2 .podium-card-frame{width:192px;}
+.podium-rank-3 .podium-card-frame{width:180px;}
+@media(max-width:600px){
+  .podium-rank-1 .podium-card-frame{width:130px;}
+  .podium-rank-2 .podium-card-frame{width:98px;}
+  .podium-rank-3 .podium-card-frame{width:92px;}
+}
 .podium-rank-num{font-family:'Spectral',serif;font-weight:800;margin-top:10px;}
 .podium-rank-1 .podium-rank-num{font-size:34px;color:#c77dff;text-shadow:0 0 14px rgba(199,125,255,0.6);}
 .podium-rank-2 .podium-rank-num{font-size:24px;color:#f2cc60;text-shadow:0 0 10px rgba(242,204,96,0.45);}
@@ -2343,9 +2371,6 @@ tbody tr:last-child td{border-bottom:none;}
 .podium-rank-2 .podium-name,.podium-rank-3 .podium-name{font-size:13px;}
 .podium-power{font-size:12px;color:var(--gold-bright);margin-top:2px;}
 @media(max-width:600px){
-  .podium-rank-1 .podium-card-frame{width:130px;}
-  .podium-rank-2 .podium-card-frame{width:98px;}
-  .podium-rank-3 .podium-card-frame{width:92px;}
   .podium-banner{min-height:340px;padding:40px 16px 28px;}
 }
 
@@ -7288,9 +7313,11 @@ function LeaderboardPodium({ topThree, onViewProfile }) {
           const rank = rankOf(m);
           return (
             <div key={m.id} className={`podium-slot podium-rank-${rank}`}>
-              <div className="podium-card-frame">
-                {rank === 1 && <div className="podium-crown"><CrownIcon size={34} /></div>}
-                <ProfileCard member={m} onClick={()=>onViewProfile(m.id)} />
+              <div className="podium-metal-ring">
+                <div className="podium-card-frame">
+                  {rank === 1 && <div className="podium-crown"><CrownIcon size={34} /></div>}
+                  <ProfileCard member={m} onClick={()=>onViewProfile(m.id)} />
+                </div>
               </div>
               <div className="podium-rank-num">#{rank}</div>
               <div className="podium-name">{m.name}</div>
@@ -7574,20 +7601,18 @@ function PlayerInfo({ member, members, onBack }) {
               background:prestigeGlowCss || "none",
             }}>
               <ProfileCard member={member} prestigeRank={powerRank <= 3 ? powerRank : null} />
-            </div>
-            <div style={{
-              background:"var(--bg-card)",
-              border:prestige?`1px solid ${prestige.color}`:"1px solid var(--border)",
-              borderTop:"none",borderRadius:"0 0 8px 8px",padding:"20px 16px",textAlign:"center",
-              boxShadow:prestige?`0 4px 20px ${prestige.glow}`:"none",
-            }}>
-              <div style={{fontFamily:"'Spectral',serif",fontSize:13,color:"var(--text-mid)",letterSpacing:1,marginBottom:14}}>{member.cls}</div>
+              <div style={{
+                background:"var(--bg-card)",
+                border:prestige?`1px solid ${prestige.color}`:"1px solid var(--border)",
+                borderTop:"none",borderRadius:"0 0 8px 8px",padding:"20px 16px",textAlign:"center",
+              }}>
+                <div style={{fontFamily:"'Spectral',serif",fontSize:13,color:"var(--text-mid)",letterSpacing:1,marginBottom:14}}>{member.cls}</div>
 
-              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginBottom:16}}>
-                <PowerIcon size={18} />
-                <span style={{
+                <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginBottom:16}}>
+                  <PowerIcon size={18} />
+                  <span style={{
                   fontFamily:"'Spectral',serif",fontWeight:800,fontSize:26,
-                  color:prestige?prestige.color:"var(--gold-bright)",
+                  color:"var(--gold-bright)",
                   textShadow:prestige?`0 0 16px ${prestige.glow}`:"0 0 12px rgba(242,204,96,0.35)",
                 }}>{fmt(member.power)}</span>
               </div>
@@ -7611,6 +7636,7 @@ function PlayerInfo({ member, members, onBack }) {
                 {daysSinceActivity !== null && ` \u00b7 ${daysSinceActivity === 0 ? "active today" : `seen ${daysSinceActivity}d ago`}`}
               </div>
             </div>
+          </div>
           </div>
 
           <div className="player-info-main">
