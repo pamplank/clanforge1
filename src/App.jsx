@@ -7629,13 +7629,18 @@ function PlayerInfo({ member, members, onBack }) {
               }}>
                 <div style={{fontFamily:"'Spectral',serif",fontSize:13,color:"var(--text-mid)",letterSpacing:1,marginBottom:14}}>{member.cls}</div>
 
-                <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginBottom:16}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginBottom:10}}>
                   <PowerIcon size={18} />
                   <span style={{
                   fontFamily:"'Spectral',serif",fontWeight:800,fontSize:26,
                   color:"var(--gold-bright)",
                   textShadow:prestige?`0 0 16px ${prestige.glow}`:"0 0 12px rgba(242,204,96,0.35)",
                 }}>{fmt(member.power)}</span>
+              </div>
+
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:16}}>
+                <StatIcon src={COINS_ICON} size={14} />
+                <span style={{fontFamily:"'Spectral',serif",fontWeight:700,fontSize:15,color:"var(--text-mid)"}}>{fmt(member.coins)}</span>
               </div>
 
               <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:14,flexWrap:"wrap"}}>
