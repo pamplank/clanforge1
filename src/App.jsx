@@ -3649,6 +3649,17 @@ function AppInner() {
   // Player Info view for a given member, by id, without that page needing
   // to know about Members' own internal state.
   const [globalViewingProfile, setGlobalViewingProfile] = useState(null);
+  // The content area checks globalViewingProfile BEFORE page, so once a
+  // profile is open, regular nav clicks were updating `page` correctly in
+  // the background but never actually showing it — globalViewingProfile
+  // stayed set and kept overriding the view, with "Back to Members" being
+  // the only way out. Routing all real navigation through this wrapper
+  // (instead of calling setPage directly) clears the profile view first,
+  // so clicking any nav item now correctly leaves the profile page.
+  function navigateToPage(newPage) {
+    setGlobalViewingProfile(null);
+    setPage(newPage);
+  }
 
   // Swap the body background image depending on which page is active —
   // same mechanism as the rest of the app's single full-bleed background,
@@ -4269,6 +4280,7 @@ function AppInner() {
   function handleLogout() {
     setLoggedIn(false);
     setCurrentUser(null);
+    setGlobalViewingProfile(null);
     setPage("dashboard");
     localStorage.removeItem("cf_user_id");
   }
@@ -4473,7 +4485,7 @@ function AppInner() {
                   <div className={`nav-item${(item.subPages?item.subPages.some(sp=>sp.id===page):page===item.id)?" active":""}`}
                     onClick={()=>{
                       if(item.subPages){ setOpenDropdown(openDropdown===item.id?null:item.id); }
-                      else { setPage(item.id); setOpenDropdown(openDropdown===item.id?null:item.id); }
+                      else { navigateToPage(item.id); setOpenDropdown(openDropdown===item.id?null:item.id); }
                     }}>
                     {item.icon && <span className="nav-icon">{item.icon}</span>}
                     {item.label}
@@ -4485,7 +4497,7 @@ function AppInner() {
                         <div className="nav-dd-label">{item.label}</div>
                         <div className="nav-dd-sep"/>
                         {item.sub.map(s=>(
-                          <div key={s} className={`nav-dd-item${page===item.id?" active":""}`} onClick={()=>{ setPage(item.id); setOpenDropdown(null); }}>{s}</div>
+                          <div key={s} className={`nav-dd-item${page===item.id?" active":""}`} onClick={()=>{ navigateToPage(item.id); setOpenDropdown(null); }}>{s}</div>
                         ))}
                       </div>
                     </div>
@@ -4496,7 +4508,7 @@ function AppInner() {
                         <div className="nav-dd-label">{item.label}</div>
                         <div className="nav-dd-sep"/>
                         {item.subPages.map(sp=>(
-                          <div key={sp.id} className={`nav-dd-item${page===sp.id?" active":""}`} onClick={()=>{ setPage(sp.id); setOpenDropdown(null); }}>{sp.label}</div>
+                          <div key={sp.id} className={`nav-dd-item${page===sp.id?" active":""}`} onClick={()=>{ navigateToPage(sp.id); setOpenDropdown(null); }}>{sp.label}</div>
                         ))}
                       </div>
                     </div>
@@ -4563,12 +4575,12 @@ function AppInner() {
                   {section.items.map(item => (
                     item.subPages ? item.subPages.map(sp=>(
                       <div key={sp.id} className={`drawer-nav-item${page===sp.id?" active":""}`}
-                        onClick={()=>{setPage(sp.id);setDrawerOpen(false);}}>
+                        onClick={()=>{navigateToPage(sp.id);setDrawerOpen(false);}}>
                         {item.icon && <span style={{display:"flex",alignItems:"center",opacity:0.8}}>{item.icon}</span>}{sp.label}
                       </div>
                     )) : (
                       <div key={item.id} className={`drawer-nav-item${page===item.id?" active":""}`}
-                        onClick={()=>{setPage(item.id);setDrawerOpen(false);}}>
+                        onClick={()=>{navigateToPage(item.id);setDrawerOpen(false);}}>
                         {item.icon && <span style={{display:"flex",alignItems:"center",opacity:0.8}}>{item.icon}</span>}{item.label}
                       </div>
                     )
@@ -4640,7 +4652,7 @@ function AppInner() {
                     <div className="leaderboard-page-scrim" />
                   </>
                 )}
-                {page==="dashboard"   && <Dashboard ctx={ctx} setPage={setPage} />}
+                {page==="dashboard"   && <Dashboard ctx={ctx} setPage={navigateToPage} />}
                 {page==="members"     && <Members ctx={ctx} />}
                 {page==="attendance"  && <Attendance ctx={ctx} />}
                 {page==="auctions"    && <Auctions ctx={ctx} />}
@@ -7601,7 +7613,7 @@ function PlayerInfo({ member, members, onBack }) {
           </span>
         </div>
       )}
-      <button className="btn btn-outline btn-sm" style={{marginBottom:16}} onClick={onBack}>Back to Members</button>
+      <button className="btn btn-outline btn-sm" style={{marginBottom:16}} onClick={onBack}>Back</button>
 
       <div className="card" style={{padding:24,marginBottom:20}}>
         <div className="player-info-layout">
