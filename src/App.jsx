@@ -7663,8 +7663,8 @@ function PlayerInfo({ member, members, onBack }) {
   // reads as a moody radiant glow rather than a wash of bright color.
   const PRESTIGE_TIERS = {
     1: { name: "mythical", color: "#c77dff", glow: "rgba(199,125,255,0.4)", gradient: ["#d65cf0", "#6d2d7b", "#211022"], label: "The Clan's Strongest" },
-    2: { name: "gold",     color: "#f2cc60", glow: "rgba(242,204,96,0.3)",  gradient: ["#f3e79d", "#725f38", "#2b2215"], label: "2nd Most Powerful in the Clan" },
-    3: { name: "epic",     color: "#fe7e73", glow: "rgba(254,126,115,0.3)", gradient: ["#fca699", "#99463f", "#311714"], label: "3rd Most Powerful in the Clan" },
+    2: { name: "gold",     color: "#f2cc60", glow: "rgba(242,204,96,0.3)",  gradient: ["#f3e79d", "#725f38", "#2b2215"], label: "The Clan's Champion" },
+    3: { name: "epic",     color: "#fe7e73", glow: "rgba(254,126,115,0.3)", gradient: ["#fca699", "#99463f", "#311714"], label: "The Clan's Vanguard" },
   };
   // Ranks 4-10 get the same silver tone as the podium's honorable
   // mentions ring, so clicking through from there to a Player Info page
