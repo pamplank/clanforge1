@@ -5361,6 +5361,7 @@ function Members({ ctx }) {
   const [sortBy, setSortBy] = useState("coins");
   const [selectedMember, setSelectedMember] = useState(null);
   const [viewingProfile, setViewingProfile] = useState(null);
+  const [page, setPage] = useState(0);
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
 
   const filtered = members
@@ -5373,6 +5374,16 @@ function Members({ ctx }) {
       if(sortBy==="name") return a.name.localeCompare(b.name);
       return 0;
     });
+
+  // Same paging approach as the Leaderboard's LBList (10 per page) — reset
+  // to page 0 whenever the search/filter/sort changes the underlying list,
+  // so a stale page index never points past the end of a newly-shortened
+  // filtered result.
+  const MEMBERS_PAGE_SIZE = 10;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / MEMBERS_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const visibleMembers = filtered.slice(safePage*MEMBERS_PAGE_SIZE, (safePage+1)*MEMBERS_PAGE_SIZE);
+  useEffect(() => { setPage(0); }, [search, classFilter, sortBy]);
 
   function removeMember(id) {
     if(!isAdmin) return;
@@ -5416,10 +5427,10 @@ function Members({ ctx }) {
               <table className="table-stack members-table">
                 <thead><tr><th>{t("colRank")}</th><th>{t("colCharacter")}</th><th>{t("colPower")}</th><th>{t("colCoins")}</th><th>{t("colAttend")}</th><th>{t("colWins")}</th><th>{t("colRole")}</th>{isAdmin&&<th>{t("colActions")}</th>}</tr></thead>
                 <tbody>
-                  {filtered.map((m,i) => (
+                  {visibleMembers.map((m,i) => (
                     <>
                     <tr key={m.id} style={{cursor:"pointer",background:selectedMember?.id===m.id?"rgba(201,151,42,0.05)":""}} onClick={()=>setSelectedMember(m)}>
-                      <td data-label="#" style={{color:"var(--text-dim)",fontWeight:700,fontSize:11}}>{rankIcon(i)}</td>
+                      <td data-label="#" style={{color:"var(--text-dim)",fontWeight:700,fontSize:11}}>{rankIcon(safePage*MEMBERS_PAGE_SIZE+i)}</td>
                       <td data-label="Character">
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
                           <ClassIcon cls={m.cls} size={40} />
@@ -5441,6 +5452,17 @@ function Members({ ctx }) {
                 </tbody>
               </table>
             </div>
+            {totalPages>1 && (
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderTop:"1px solid var(--border-dim)",flexWrap:"wrap",gap:8}}>
+                <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
+                  {safePage*MEMBERS_PAGE_SIZE+1}&ndash;{Math.min((safePage+1)*MEMBERS_PAGE_SIZE,filtered.length)} {t("ofPagination")} {filtered.length}
+                </span>
+                <div style={{display:"flex",gap:6}}>
+                  <button className="btn btn-outline btn-sm" disabled={safePage===0} onClick={()=>setPage(p=>p-1)} style={{opacity:safePage===0?0.4:1,fontSize:10,padding:"3px 10px"}}>{t("prevPage")}</button>
+                  <button className="btn btn-outline btn-sm" disabled={safePage>=totalPages-1} onClick={()=>setPage(p=>p+1)} style={{opacity:safePage>=totalPages-1?0.4:1,fontSize:10,padding:"3px 10px"}}>{t("nextPage")}</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
