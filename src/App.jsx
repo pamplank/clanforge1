@@ -4460,7 +4460,7 @@ function AppInner() {
       <div className="app-shell">
         <div className="nav-wrapper">
         <nav className="sidebar">
-          <div className="sidebar-logo">
+          <div className="sidebar-logo" onClick={()=>setGlobalViewingProfile(currentUser.id)} style={{cursor:"pointer"}} title="View your profile">
             <img src="/images/ymir-logo-gold.png" alt="" className="sidebar-logo-mark" />
           </div>
           {NAV.map((section, si) => (
@@ -4524,6 +4524,10 @@ function AppInner() {
               <div className="user-dropdown-inner">
                 <div className="nav-dd-label">{currentUser.name}</div>
                 <div className="nav-dd-sep"/>
+                <div className="user-dd-item" onClick={()=>{setGlobalViewingProfile(currentUser.id);setOpenUserMenu(false);setOpenDropdown(null);}}>
+                  Your Profile
+                </div>
+                <div className="nav-dd-sep"/>
                 <div className="user-dd-item" style={{fontSize:10,color:"var(--gold)",pointerEvents:"none"}}>
                   <StatIcon src={COINS_ICON} size={22}/>{fmt(currentUser.coins)} {t("coinsLabel")}
                 </div>
@@ -4582,6 +4586,9 @@ function AppInner() {
                 <div className="user-coins" style={{marginLeft:"auto"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={24}/>{fmt(currentUser.coins)}</span></div>
               </div>
               <div className="drawer-user-actions">
+                <button className="btn btn-gold btn-sm" onClick={()=>{setGlobalViewingProfile(currentUser.id);setDrawerOpen(false);}}>
+                  Your Profile
+                </button>
                 <button className="btn btn-discord btn-sm" onClick={()=>{setModal({type:"discord",data:currentUser});setDrawerOpen(false);}}>
                   {currentUser.discord?t("discord"):t("linkDiscord")}
                 </button>
