@@ -5447,6 +5447,47 @@ function getMonthlyPowerGains(powerLog, now = Date.now()) {
   return gains;
 }
 
+// Groups attendLog entries into 4 weekly buckets (oldest to newest) for the
+// "Event Activity" chart — counts event check-ins per week. Same logic as
+// getMonthlyEventActivity, just on a 7-day cadence instead of calendar
+// months, per a later correction: the two charts (Power Surge, Event
+// Activity) stay weekly, while the four named-event breakdown stats
+// (Server Battle, Sindris, Sanctuary, Annihilation) stay on a monthly
+// cadence.
+function getWeeklyEventActivity(attendLog, now = Date.now()) {
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  const buckets = [0, 0, 0, 0]; // [3 weeks ago, 2 weeks ago, last week, this week]
+  (attendLog || []).forEach(e => {
+    if (e.qualifier === "afk") return;
+    const ts = e.ts || 0;
+    const weeksAgo = Math.floor((now - ts) / weekMs);
+    if (weeksAgo >= 0 && weeksAgo <= 3) buckets[3 - weeksAgo]++;
+  });
+  return buckets;
+}
+
+// Weekly version of getMonthlyPowerGains — same verified baseline-fallback
+// logic, on a 7-day cadence.
+function getWeeklyPowerGains(powerLog, now = Date.now()) {
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  const sorted = [...(powerLog || [])].sort((a, b) => (a.ts||0) - (b.ts||0));
+  const gains = [null, null, null, null];
+  for (let w = 3; w >= 0; w--) {
+    const weekEnd = now - w * weekMs;
+    const weekStart = weekEnd - weekMs;
+    const upToWeekEnd = sorted.filter(p => (p.ts||0) <= weekEnd);
+    if (upToWeekEnd.length === 0) continue;
+    const atOrBeforeWeekStart = upToWeekEnd.filter(p => (p.ts||0) <= weekStart);
+    const startPower = atOrBeforeWeekStart.length > 0
+      ? atOrBeforeWeekStart[atOrBeforeWeekStart.length-1].power
+      : upToWeekEnd[0].power;
+    const endPower = upToWeekEnd[upToWeekEnd.length-1].power;
+    if (atOrBeforeWeekStart.length === 0 && upToWeekEnd.length < 2) continue;
+    gains[3-w] = endPower - startPower;
+  }
+  return gains;
+}
+
 
 function getRankMultiplier(members, memberId) {
   const sorted = [...members].sort((a, b) => b.power - a.power);
@@ -7293,9 +7334,9 @@ function PlayerInfo({ member, members, onBack }) {
     max: eventMaxThisMonth[s.id] || 0,
   }));
 
-  const powerGains = getMonthlyPowerGains(member.powerLog, now);
-  const eventActivity = getMonthlyEventActivity(member.attendLog, now);
-  const periodLabels = ["3 mo. ago", "2 mo. ago", "Last month", "This month"];
+  const powerGains = getWeeklyPowerGains(member.powerLog, now);
+  const eventActivity = getWeeklyEventActivity(member.attendLog, now);
+  const periodLabels = ["3 wks ago", "2 wks ago", "Last week", "This week"];
 
   const maxGain = Math.max(1, ...powerGains.filter(g => g !== null).map(g => Math.abs(g)));
   const maxActivity = Math.max(1, ...eventActivity);
@@ -7330,58 +7371,33 @@ function PlayerInfo({ member, members, onBack }) {
             </div>
           </div>
 
-          <div style={{flex:1,minWidth:240}}>
-            <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:26,color:"var(--text-bright)"}}>{member.name}</div>
-            <div style={{fontSize:14,color:"var(--text-mid)",marginBottom:18}}>{member.role}</div>
-
+          <div style={{flex:1,minWidth:280}}>
+            <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:12}}>This Month's Events</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-              <div>
-                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:4}}>
-                  <PowerIcon size={13} /> Power
+              {eventStats.map(s => (
+                <div key={s.id} style={{
+                  display:"flex",alignItems:"flex-start",gap:10,
+                  padding:"14px 16px",background:"rgba(255,255,255,0.02)",
+                  border:"1px solid var(--border)",borderRadius:4,
+                }}>
+                  <div style={{color:"var(--gold)",flexShrink:0,marginTop:2}}><s.icon size={18} /></div>
+                  <div>
+                    <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>{s.label}</div>
+                    <div style={{fontSize:16,fontWeight:800,color:"var(--text-bright)",margin:"2px 0"}}>{s.attended} out of {s.max}</div>
+                    <div style={{fontSize:10,color:"var(--text-dim)"}}>{s.desc}</div>
+                  </div>
                 </div>
-                <div style={{fontSize:18,fontWeight:800,color:"var(--text-bright)"}}>{fmt(member.power)}</div>
-              </div>
-              <div>
-                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:4}}>
-                  <StatIcon src={COINS_ICON} size={13} /> Coins
-                </div>
-                <div style={{fontSize:18,fontWeight:800,color:"var(--text-bright)"}}>{fmt(member.coins)}</div>
-              </div>
-              <div>
-                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:4}}>
-                  <SwordsIcon size={13} /> Class
-                </div>
-                <div style={{fontSize:18,fontWeight:800,color:"var(--text-bright)"}}>{member.cls}</div>
-              </div>
-              <div>
-                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:4}}>
-                  <TrophyIcon size={13} /> Role
-                </div>
-                <div style={{fontSize:18,fontWeight:800,color:"var(--text-bright)"}}>{member.role}</div>
-              </div>
+              ))}
             </div>
-          </div>
-
-          <div style={{flex:1,minWidth:240,display:"flex",flexDirection:"column",gap:10}}>
-            {eventStats.map(s => (
-              <div key={s.id} style={{display:"flex",alignItems:"flex-start",gap:10}}>
-                <div style={{color:"var(--gold)",flexShrink:0,marginTop:2}}><s.icon size={16} /></div>
-                <div>
-                  <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>{s.label}</div>
-                  <div style={{fontSize:14,fontWeight:800,color:"var(--text-bright)"}}>{s.attended} out of {s.max}</div>
-                  <div style={{fontSize:10,color:"var(--text-dim)"}}>{s.desc}</div>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </div>
 
       <div className="grid-2" style={{gap:20}}>
         <div className="card" style={{padding:20}}>
-          <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Last 4 Months</div>
+          <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Last 4 Weeks</div>
           <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Power Surge</div>
-          <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Monthly bars show recorded Power gains across the last four months.</div>
+          <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Weekly bars show recorded Power gains across the last four weeks.</div>
           <div style={{display:"flex",alignItems:"flex-end",gap:10,height:160}}>
             {powerGains.map((gain, i) => (
               <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",height:"100%",justifyContent:"flex-end"}}>
@@ -7406,15 +7422,15 @@ function PlayerInfo({ member, members, onBack }) {
           </div>
           {powerGains.every(g => g === null) && (
             <div style={{fontSize:11,color:"var(--text-dim)",marginTop:14,textAlign:"center"}}>
-              No Power history recorded yet. This chart fills in automatically as Power gets updated over the coming months.
+              No Power history recorded yet. This chart fills in automatically as Power gets updated over the coming weeks.
             </div>
           )}
         </div>
 
         <div className="card" style={{padding:20}}>
-          <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Last 4 Months</div>
-          <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Call to Arms</div>
-          <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Bars show how many events this member attended each month.</div>
+          <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Last 4 Weeks</div>
+          <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Event Activity</div>
+          <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Bars show how many events this member attended each week.</div>
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
             {eventActivity.map((count, i) => (
               <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
