@@ -1638,66 +1638,138 @@ function VolumeOnIcon(p) { return <Icon {...p}><path d="M11 5 6 9H3v6h3l5 4V5Z"/
 function VolumeMutedIcon(p) { return <Icon {...p}><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M16 9l5 6M21 9l-5 6"/></Icon>; }
 
 // ─── BACKGROUND MUSIC (ambient audio for Login + Leaderboard pages) ──────────
-// Two royalty-free tracks living in /public/audio/, swapped automatically
-// based on which page is showing. Browsers block autoplay-with-sound until
-// the user's first click/tap anywhere on the page, so we start the <audio>
-// element muted and "arm" real playback on that first interaction — after
-// that it behaves like a normal page that just happens to have music.
+// One persistent <audio> element lives for the whole app session (mounted
+// once in AppRoot, never unmounted) so we can fade it smoothly instead of
+// hard-cutting playback every time the page changes. `desiredTrack` is
+// "login" | "leaderboard" | null — the component crossfades to match.
+//
+// Browsers block autoplay-with-sound until the user's first click/tap
+// anywhere on the page. That "unlock" only ever needs to happen ONCE per
+// tab, so it's tracked in a module-level variable (not component state) —
+// otherwise remounting the component (e.g. switching pages) would forget
+// the unlock and silently fail to play, which was the leaderboard bug.
 const BGM_TRACKS = { login: "/audio/loginscreen.mp3", leaderboard: "/audio/leaderboards.mp3" };
 const BGM_VOLUME_KEY = "cf_bgm_volume";   // 0..1, persisted
 const BGM_MUTED_KEY  = "cf_bgm_muted";    // "true"/"false", persisted
-function BackgroundMusic({ active, track }) {
+const BGM_TARGET_VOLUME = 0.45;           // moderate default level
+const BGM_FADE_MS = 900;                  // fade duration for both directions
+let _bgmUnlocked = false;                 // shared across remounts, once per tab
+const _bgmUnlockListeners = new Set();
+function _bgmTriggerUnlock() {
+  if (_bgmUnlocked) return;
+  _bgmUnlocked = true;
+  _bgmUnlockListeners.forEach(fn => fn());
+}
+if (typeof window !== "undefined") {
+  window.addEventListener("click", _bgmTriggerUnlock, { once: true });
+  window.addEventListener("keydown", _bgmTriggerUnlock, { once: true });
+  window.addEventListener("touchstart", _bgmTriggerUnlock, { once: true });
+}
+
+function BackgroundMusic({ desiredTrack }) {
   const audioRef = React.useRef(null);
+  const fadeRef = React.useRef(null); // requestAnimationFrame handle for in-flight fade
+  const loadedTrackRef = React.useRef(null); // which track's src is currently loaded
   const [muted, setMuted] = useState(() => {
     try { return localStorage.getItem(BGM_MUTED_KEY) === "true"; } catch { return false; }
   });
-  const [unlocked, setUnlocked] = useState(false); // becomes true after first user gesture
-  const volumeRef = React.useRef(0.45); // moderate default; loaded from storage below
+  const [, forceTick] = useState(0); // re-render once unlock fires, to (re)attempt play
+  const targetVolumeRef = React.useRef(BGM_TARGET_VOLUME);
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem(BGM_VOLUME_KEY);
-      if (saved !== null) volumeRef.current = parseFloat(saved);
+      if (saved !== null) targetVolumeRef.current = parseFloat(saved);
     } catch {}
   }, []);
 
-  // Unlock audio on the very first click/keydown/touch anywhere on the page.
+  // Listen for the shared one-time unlock event (works even if it already
+  // fired before this instance mounted).
   useEffect(() => {
-    if (unlocked) return;
-    function onFirstGesture() { setUnlocked(true); }
-    window.addEventListener("click", onFirstGesture, { once: true });
-    window.addEventListener("keydown", onFirstGesture, { once: true });
-    window.addEventListener("touchstart", onFirstGesture, { once: true });
-    return () => {
-      window.removeEventListener("click", onFirstGesture);
-      window.removeEventListener("keydown", onFirstGesture);
-      window.removeEventListener("touchstart", onFirstGesture);
-    };
-  }, [unlocked]);
+    if (_bgmUnlocked) return; // already unlocked elsewhere — nothing to wait for
+    const onUnlock = () => forceTick(t => t + 1);
+    _bgmUnlockListeners.add(onUnlock);
+    return () => _bgmUnlockListeners.delete(onUnlock);
+  }, []);
 
-  // Swap source when track changes, keep playback position reset between tracks.
-  useEffect(() => {
-    const el = audioRef.current;
-    if (!el || !track) return;
-    const src = BGM_TRACKS[track];
-    if (!src) return;
-    if (!el.src || !el.src.endsWith(src)) {
-      el.src = src;
-      el.currentTime = 0;
+  // Smoothly ramp an <audio> element's volume from its current value to
+  // `to` over BGM_FADE_MS, using an ease-out exponential curve (fast at
+  // first, gently settling) rather than a linear ramp. Cancels any fade
+  // already in progress on this element first.
+  function fadeTo(el, to, onDone) {
+    if (!el) return;
+    if (fadeRef.current) { cancelAnimationFrame(fadeRef.current); fadeRef.current = null; }
+    const from = el.volume;
+    if (Math.abs(to - from) < 0.001) { onDone && onDone(); return; }
+    const start = performance.now();
+    function step(now) {
+      const p = Math.min(1, (now - start) / BGM_FADE_MS);
+      // Exponential ease-out: moves fast initially, eases into the target.
+      const eased = 1 - Math.pow(1 - p, 3);
+      el.volume = from + (to - from) * eased;
+      if (p < 1) {
+        fadeRef.current = requestAnimationFrame(step);
+      } else {
+        el.volume = to;
+        fadeRef.current = null;
+        onDone && onDone();
+      }
     }
-  }, [track]);
+    fadeRef.current = requestAnimationFrame(step);
+  }
 
-  // Play/pause based on whether this page should have music, whether we're
-  // unlocked yet, and the mute state.
+  // Core reconciliation: whenever the desired track, mute state, or unlock
+  // status changes, fade the current audio out (if playing something else
+  // or going silent), swap source if needed, then fade in the new target.
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
-    el.volume = muted ? 0 : volumeRef.current;
-    if (active && track && unlocked && !muted) {
-      el.play().catch(() => {}); // ignore races (e.g. rapid page switches)
-    } else {
-      el.pause();
+    const wantsSrc = desiredTrack ? BGM_TRACKS[desiredTrack] : null;
+    const targetVol = (!muted && _bgmUnlocked && wantsSrc) ? targetVolumeRef.current : 0;
+
+    if (!wantsSrc) {
+      // Nothing should be playing on this page — fade out, then pause.
+      fadeTo(el, 0, () => el.pause());
+      return;
     }
-  }, [active, track, unlocked, muted]);
+
+    if (loadedTrackRef.current !== desiredTrack) {
+      // Switching tracks: fade current one out, swap source, fade new one in.
+      fadeTo(el, 0, () => {
+        el.src = wantsSrc;
+        el.currentTime = 0;
+        loadedTrackRef.current = desiredTrack;
+        if (targetVol > 0) {
+          el.play().then(() => fadeTo(el, targetVol)).catch(() => {});
+        }
+      });
+    } else {
+      // Same track, just volume/mute/unlock state changed.
+      if (targetVol > 0 && el.paused) {
+        el.volume = 0;
+        el.play().then(() => fadeTo(el, targetVol)).catch(() => {});
+      } else if (targetVol === 0 && !el.paused) {
+        fadeTo(el, 0, () => el.pause());
+      } else {
+        fadeTo(el, targetVol);
+      }
+    }
+  }, [desiredTrack, muted]);
+
+  // Re-evaluate once unlock fires (forceTick bump above triggers this render).
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el || !_bgmUnlocked || muted || !desiredTrack) return;
+    if (el.paused) {
+      el.volume = 0;
+      if (loadedTrackRef.current !== desiredTrack) {
+        el.src = BGM_TRACKS[desiredTrack];
+        el.currentTime = 0;
+        loadedTrackRef.current = desiredTrack;
+      }
+      el.play().then(() => fadeTo(el, targetVolumeRef.current)).catch(() => {});
+    }
+  });
 
   function toggleMute() {
     const next = !muted;
@@ -1705,10 +1777,12 @@ function BackgroundMusic({ active, track }) {
     try { localStorage.setItem(BGM_MUTED_KEY, next ? "true" : "false"); } catch {}
   }
 
-  if (!active) return null;
+  if (!desiredTrack) return (
+    <audio ref={audioRef} loop preload="auto" style={{display:"none"}} />
+  );
   return (
     <>
-      <audio ref={audioRef} loop preload="auto" />
+      <audio ref={audioRef} loop preload="auto" style={{display:"none"}} />
       <button className="bgm-toggle" onClick={toggleMute}
         aria-label={muted ? "Unmute background music" : "Mute background music"}
         title={muted ? "Unmute music" : "Mute music"}>
@@ -3765,7 +3839,7 @@ function LootRoulette({ ctx }) {
 }
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
-function AppInner() {
+function AppInner({ onMusicTrackChange }) {
   const { t } = useLang();
   // ── Browser tab title + favicon ──────────────────────────────────────────────
   useEffect(() => {
@@ -3812,6 +3886,15 @@ function AppInner() {
   const [auctions, setAuctionsRaw] = useState(SEED_AUCTIONS);
   const [attendanceLogs, setAttendanceLogsRaw] = useState([]);
   const [loggedIn, setLoggedIn] = useState(false);
+  // ── Background music: tell the persistent <BackgroundMusic> player (mounted
+  // in App, above AppInner, so it survives login/logout) which track — if
+  // any — should be playing for the current screen.
+  useEffect(() => {
+    if (!onMusicTrackChange) return;
+    if (!loggedIn) onMusicTrackChange("login");
+    else if (page === "leaderboard") onMusicTrackChange("leaderboard");
+    else onMusicTrackChange(null);
+  }, [loggedIn, page, onMusicTrackChange]);
   const [showEntrance, setShowEntrance] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [toasts, setToasts] = useState([]);
@@ -4626,7 +4709,6 @@ function AppInner() {
   if (!loggedIn) return (
     <>
       <style>{GLOBAL_CSS}</style>
-      <BackgroundMusic active={true} track="login" />
       <LoginScreen members={members} onLogin={handleLogin} />
       <Toast toasts={toasts} remove={removeToast} />
     </>
@@ -4655,7 +4737,6 @@ function AppInner() {
   return (
     <>
       <style>{GLOBAL_CSS}</style>
-      <BackgroundMusic active={page==="leaderboard"} track="leaderboard" />
       {page==="leaderboard" && !globalViewingProfile && createPortal(
         <>
           <video className="leaderboard-bg-video" autoPlay loop muted playsInline poster="/video/login-bg-poster.jpg">
@@ -4873,9 +4954,14 @@ function AppInner() {
 }
 
 export default function App() {
+  // Lives here (not in AppInner) so the single <audio> element survives
+  // login/logout and every page navigation, which is what makes the
+  // crossfade between tracks possible — nothing remounts it mid-transition.
+  const [musicTrack, setMusicTrack] = useState(null); // "login" | "leaderboard" | null
   return (
     <LangProvider>
-      <AppInner />
+      <BackgroundMusic desiredTrack={musicTrack} />
+      <AppInner onMusicTrackChange={setMusicTrack} />
     </LangProvider>
   );
 }
