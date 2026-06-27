@@ -2254,6 +2254,51 @@ tbody tr:last-child td{border-bottom:none;}
 }
 @media(max-width:700px){.members-layout{flex-direction:column;}}
 
+/* ── LEADERBOARD PODIUM (top 3 Most Powerful) ── */
+.podium-banner{
+  position:relative;border-radius:8px;overflow:hidden;
+  padding:48px 24px 36px;margin-bottom:30px;
+  min-height:420px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+}
+.podium-video-bg{
+  position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;object-position:right center;z-index:0;
+}
+.podium-scrim{
+  position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(180deg,
+    rgba(4,3,8,0.55) 0%,
+    rgba(4,3,8,0.35) 30%,
+    rgba(4,3,8,0.55) 60%,
+    rgba(4,3,8,0.93) 100%
+  );
+}
+@media(max-width:760px){
+  .podium-video-bg{object-position:78% center;}
+}
+.podium-row{position:relative;z-index:2;display:flex;align-items:flex-end;justify-content:center;gap:18px;flex-wrap:wrap;width:100%;}
+.podium-slot{display:flex;flex-direction:column;align-items:center;}
+.podium-card-frame{border-radius:10px;overflow:hidden;position:relative;transition:transform 0.2s;}
+.podium-card-frame:hover{transform:translateY(-4px);}
+.podium-rank-1 .podium-card-frame{width:168px;border:3px solid #f2cc60;box-shadow:0 0 32px rgba(242,204,96,0.5);}
+.podium-rank-2 .podium-card-frame{width:128px;border:2px solid #c0c0c0;box-shadow:0 0 16px rgba(192,192,192,0.3);}
+.podium-rank-3 .podium-card-frame{width:120px;border:2px solid #b87333;box-shadow:0 0 14px rgba(184,115,51,0.3);}
+.podium-rank-num{font-family:'Spectral',serif;font-weight:800;margin-top:10px;}
+.podium-rank-1 .podium-rank-num{font-size:28px;color:#f2cc60;text-shadow:0 0 12px rgba(242,204,96,0.6);}
+.podium-rank-2 .podium-rank-num{font-size:20px;color:#d4d4d4;text-shadow:0 0 8px rgba(192,192,192,0.4);}
+.podium-rank-3 .podium-rank-num{font-size:18px;color:#cd8a52;text-shadow:0 0 8px rgba(184,115,51,0.4);}
+.podium-crown{position:absolute;top:-16px;left:50%;transform:translateX(-50%);z-index:3;color:#f2cc60;filter:drop-shadow(0 0 6px rgba(242,204,96,0.6));}
+.podium-name{font-family:'Spectral',serif;font-weight:700;color:var(--text-bright);margin-top:6px;text-align:center;}
+.podium-rank-1 .podium-name{font-size:15px;}
+.podium-rank-2 .podium-name,.podium-rank-3 .podium-name{font-size:12px;}
+.podium-power{font-size:11px;color:var(--gold-bright);margin-top:2px;}
+@media(max-width:600px){
+  .podium-rank-1 .podium-card-frame{width:130px;}
+  .podium-rank-2 .podium-card-frame{width:98px;}
+  .podium-rank-3 .podium-card-frame{width:92px;}
+  .podium-banner{min-height:340px;padding:40px 16px 28px;}
+}
+
 /* ── MEMBER CARD GRID (compact roster view) ── */
 .member-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;}
 .member-row-card{display:flex;align-items:center;gap:10px;
@@ -7073,7 +7118,7 @@ function Auctions({ ctx }) {
 // ─── LEADERBOARD ──────────────────────────────────────────────────────────────
 const LB_PAGE = 10;
 
-function LBList({ data, valueKey, label, format, color, currentUser, showMultiplier }) {
+function LBList({ data, valueKey, label, format, color, currentUser, showMultiplier, rankOffset=0 }) {
   const { t } = useLang();
   const [page, setPage] = React.useState(0);
   const max=data[0]?.[valueKey]||1;
@@ -7095,15 +7140,15 @@ function LBList({ data, valueKey, label, format, color, currentUser, showMultipl
             display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",rowGap:6
           }}>
             <span style={{fontSize:10,color:"rgba(200,146,42,0.7)",fontFamily:"'Inter',sans-serif",fontWeight:700,letterSpacing:2,textTransform:"uppercase",flexShrink:0}}>{t("yourRank")}</span>
-            <span style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:18,color:"var(--gold-light)",flexShrink:0}}>#{myRank+1}</span>
+            <span style={{fontFamily:"'Spectral',serif",fontWeight:900,fontSize:18,color:"var(--gold-light)",flexShrink:0}}>#{myRank+1+rankOffset}</span>
             <div style={{flex:"1 1 0%",minWidth:0,fontSize:11,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
               {format?format(myEntry[valueKey]):myEntry[valueKey]}
               {myRank>0&&<span style={{color:"rgba(200,146,42,0.5)",fontSize:10}}>
-                {" "}{valueKey==="coins"?`${fmt(data[myRank-1][valueKey]-myEntry[valueKey])} ${t("behindLabel")} #${myRank}`:
-                 valueKey==="power"?`${fmt(data[myRank-1][valueKey]-myEntry[valueKey])} ${t("bpBehind")} #${myRank}`:
-                 `${data[myRank-1][valueKey]-myEntry[valueKey]} ${t("attBehind")} #${myRank}`}
+                {" "}{valueKey==="coins"?`${fmt(data[myRank-1][valueKey]-myEntry[valueKey])} ${t("behindLabel")} #${myRank+rankOffset}`:
+                 valueKey==="power"?`${fmt(data[myRank-1][valueKey]-myEntry[valueKey])} ${t("bpBehind")} #${myRank+rankOffset}`:
+                 `${data[myRank-1][valueKey]-myEntry[valueKey]} ${t("attBehind")} #${myRank+rankOffset}`}
               </span>}
-              {myRank===0&&<span style={{color:"var(--gold)",fontSize:10}}> <CrownIcon size={11}/> {t("leadingLabel")}</span>}
+              {myRank===0&&rankOffset===0&&<span style={{color:"var(--gold)",fontSize:10}}> <CrownIcon size={11}/> {t("leadingLabel")}</span>}
             </div>
             {showMultiplier && (
               <span style={{flexShrink:0,fontSize:11,fontWeight:800,color:"var(--gold-light)",background:"rgba(201,151,42,0.15)",border:"1px solid rgba(201,151,42,0.35)",borderRadius:3,padding:"3px 8px",fontFamily:"'Inter',sans-serif",whiteSpace:"nowrap"}}>
@@ -7115,7 +7160,7 @@ function LBList({ data, valueKey, label, format, color, currentUser, showMultipl
 
         {/* Ranked list */}
         {visible.map((m,i)=>{
-          const globalRank = page*LB_PAGE+i;
+          const globalRank = page*LB_PAGE+i+rankOffset;
           const isMe = m.name===currentUser.name;
           return (
             <div key={m.id} className="lb-row" style={{background:isMe?"rgba(201,151,42,0.06)":"transparent",borderRadius:isMe?3:0,padding:isMe?"6px 8px":"10px 0"}}>
@@ -7154,12 +7199,51 @@ function LBList({ data, valueKey, label, format, color, currentUser, showMultipl
     );
 }
 
+// Top-3 "Most Powerful" podium — reuses the real ProfileCard (same
+// rarity/portrait/frame/awakening composition as the Player Info page),
+// arranged gold/silver/bronze, over the same angel/trophy video already
+// used on the login screen.
+function LeaderboardPodium({ topThree }) {
+  // Render order left-to-right is #2, #1, #3 (classic podium arrangement)
+  // even though the data order is #1, #2, #3.
+  const ordered = [topThree[1], topThree[0], topThree[2]];
+  const rankOf = m => topThree.findIndex(x => x?.id === m?.id) + 1;
+
+  return (
+    <div className="podium-banner">
+      <video className="podium-video-bg" autoPlay loop muted playsInline poster="/video/login-bg-poster.jpg">
+        <source src="/video/login-bg.webm" type="video/webm" />
+      </video>
+      <div className="podium-scrim" />
+      <div className="podium-row">
+        {ordered.map(m => {
+          if (!m) return null;
+          const rank = rankOf(m);
+          return (
+            <div key={m.id} className={`podium-slot podium-rank-${rank}`}>
+              <div className="podium-card-frame">
+                {rank === 1 && <div className="podium-crown"><CrownIcon size={26} /></div>}
+                <ProfileCard member={m} />
+              </div>
+              <div className="podium-rank-num">#{rank}</div>
+              <div className="podium-name">{m.name}</div>
+              <div className="podium-power">{fmt(m.power)} Power</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Leaderboard({ ctx }) {
   const { members, currentUser } = ctx;
   const { t } = useLang();
   const byCoins=[...members].sort((a,b)=>b.coins-a.coins);
   const byPower=[...members].sort((a,b)=>b.power-a.power);
   const byAttend=[...members].sort((a,b)=>b.attendance-a.attendance);
+  const powerTopThree = byPower.slice(0,3);
+  const powerRest = byPower.slice(3);
 
   return (
     <div>
@@ -7172,8 +7256,11 @@ function Leaderboard({ ctx }) {
         <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:28,color:"var(--gold-light)",letterSpacing:2}}>{t("hallOfFame")}</div>
         <div style={{color:"var(--text-dim)",marginTop:6,fontSize:13,fontWeight:500,letterSpacing:2}}>{possessive(CLAN_NAME)} {t("mightiestWarriors")}</div>
       </div>
+
+      {powerTopThree.length > 0 && <LeaderboardPodium topThree={powerTopThree} />}
+
       <div className="lb-grid">
-        <LBList data={byPower} valueKey="power" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={POWER_ICON} size={22} />{t("mostPowerful")}</span>} format={v=>fmt(v)} color="linear-gradient(90deg,#071824,#2e86c1)" currentUser={currentUser} showMultiplier />
+        <LBList data={powerRest} valueKey="power" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={POWER_ICON} size={22} />{t("mostPowerful")}</span>} format={v=>fmt(v)} color="linear-gradient(90deg,#071824,#2e86c1)" currentUser={currentUser} showMultiplier rankOffset={3} />
         <LBList data={byCoins} valueKey="coins" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={RICHEST_ICON} size={22} />{t("richestWarriors")}</span>} format={v=>`${fmt(v)}`} currentUser={currentUser} />
         <LBList data={byAttend} valueKey="attendance" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={MOSTACTIVE_ICON} size={22} />{t("mostActive")}</span>} format={v=>`${v} ${t("attSuffix")}`} color="linear-gradient(90deg,#071a0f,#27ae60)" currentUser={currentUser} />
       </div>
