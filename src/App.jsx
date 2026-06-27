@@ -2330,14 +2330,14 @@ tbody tr:last-child td{border-bottom:none;}
 .podium-slot{display:flex;flex-direction:column;align-items:center;}
 .podium-card-frame{border-radius:10px;overflow:hidden;position:relative;transition:transform 0.2s;}
 .podium-card-frame:hover{transform:translateY(-4px);}
-.podium-rank-1 .podium-card-frame{width:252px;border:3px solid #f2cc60;box-shadow:0 0 32px rgba(242,204,96,0.5);}
-.podium-rank-2 .podium-card-frame{width:192px;border:2px solid #c0c0c0;box-shadow:0 0 16px rgba(192,192,192,0.3);}
-.podium-rank-3 .podium-card-frame{width:180px;border:2px solid #b87333;box-shadow:0 0 14px rgba(184,115,51,0.3);}
+.podium-rank-1 .podium-card-frame{width:252px;border:3px solid #c77dff;box-shadow:0 0 32px rgba(199,125,255,0.5);}
+.podium-rank-2 .podium-card-frame{width:192px;border:2px solid #f2cc60;box-shadow:0 0 16px rgba(242,204,96,0.35);}
+.podium-rank-3 .podium-card-frame{width:180px;border:2px solid #d4d4d4;box-shadow:0 0 14px rgba(192,192,192,0.3);}
 .podium-rank-num{font-family:'Spectral',serif;font-weight:800;margin-top:10px;}
-.podium-rank-1 .podium-rank-num{font-size:34px;color:#f2cc60;text-shadow:0 0 14px rgba(242,204,96,0.6);}
-.podium-rank-2 .podium-rank-num{font-size:24px;color:#d4d4d4;text-shadow:0 0 10px rgba(192,192,192,0.4);}
-.podium-rank-3 .podium-rank-num{font-size:21px;color:#cd8a52;text-shadow:0 0 10px rgba(184,115,51,0.4);}
-.podium-crown{position:absolute;top:-20px;left:50%;transform:translateX(-50%);z-index:3;color:#f2cc60;filter:drop-shadow(0 0 6px rgba(242,204,96,0.6));}
+.podium-rank-1 .podium-rank-num{font-size:34px;color:#c77dff;text-shadow:0 0 14px rgba(199,125,255,0.6);}
+.podium-rank-2 .podium-rank-num{font-size:24px;color:#f2cc60;text-shadow:0 0 10px rgba(242,204,96,0.45);}
+.podium-rank-3 .podium-rank-num{font-size:21px;color:#d4d4d4;text-shadow:0 0 10px rgba(192,192,192,0.4);}
+.podium-crown{position:absolute;top:-20px;left:50%;transform:translateX(-50%);z-index:3;color:#c77dff;filter:drop-shadow(0 0 6px rgba(199,125,255,0.6));}
 .podium-name{font-family:'Spectral',serif;font-weight:700;color:var(--text-bright);margin-top:6px;text-align:center;}
 .podium-rank-1 .podium-name{font-size:17px;}
 .podium-rank-2 .podium-name,.podium-rank-3 .podium-name{font-size:13px;}
@@ -7407,7 +7407,7 @@ function ProfileCard({ member, onClick, prestigeRank }) {
   const rarityBg = PROFILE_RARITY_BG[rarity] || PROFILE_RARITY_BG.uncommon;
   const classPortrait = PROFILE_CLASS_PORTRAIT[member.cls];
   const awakeningLevel = member.awakeningLevel || 0;
-  const RIBBON_COLORS = { 1: "#f2cc60", 2: "#d4d4d4", 3: "#cd8a52" };
+  const RIBBON_COLORS = { 1: "#c77dff", 2: "#f2cc60", 3: "#d4d4d4" };
   const ribbonColor = RIBBON_COLORS[prestigeRank];
 
   return (
@@ -7495,9 +7495,9 @@ function PlayerInfo({ member, members, onBack }) {
   // Player Info page's special treatment always lines up with whoever
   // is actually standing on the Leaderboard podium.
   const PRESTIGE_TIERS = {
-    1: { name: "gold",   color: "#f2cc60", glow: "rgba(242,204,96,0.5)", label: "Most Powerful in the Clan" },
-    2: { name: "silver", color: "#d4d4d4", glow: "rgba(192,192,192,0.4)", label: "2nd Most Powerful in the Clan" },
-    3: { name: "bronze", color: "#cd8a52", glow: "rgba(184,115,51,0.4)", label: "3rd Most Powerful in the Clan" },
+    1: { name: "mythical", color: "#c77dff", glow: "rgba(199,125,255,0.5)", label: "Most Powerful in the Clan" },
+    2: { name: "gold",     color: "#f2cc60", glow: "rgba(242,204,96,0.4)", label: "2nd Most Powerful in the Clan" },
+    3: { name: "silver",   color: "#d4d4d4", glow: "rgba(192,192,192,0.4)", label: "3rd Most Powerful in the Clan" },
   };
   const prestige = PRESTIGE_TIERS[powerRank] || null;
 
@@ -7559,7 +7559,12 @@ function PlayerInfo({ member, members, onBack }) {
       <div className="card" style={{padding:24,marginBottom:20}}>
         <div className="player-info-layout">
           <div className="player-info-sidebar">
-            <ProfileCard member={member} prestigeRank={powerRank <= 3 ? powerRank : null} />
+            <div style={{
+              borderRadius:14,
+              boxShadow:prestige?`0 0 28px ${prestige.glow}, 0 4px 20px ${prestige.glow}`:"none",
+            }}>
+              <ProfileCard member={member} prestigeRank={powerRank <= 3 ? powerRank : null} />
+            </div>
             <div style={{
               background:"var(--bg-card)",
               border:prestige?`1px solid ${prestige.color}`:"1px solid var(--border)",
