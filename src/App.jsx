@@ -3578,6 +3578,10 @@ function AppInner() {
   }, []);
 
   const [page, setPage] = useState("dashboard");
+  // Lets ANY page (Leaderboard podium, Members list, etc.) trigger the
+  // Player Info view for a given member, by id, without that page needing
+  // to know about Members' own internal state.
+  const [globalViewingProfile, setGlobalViewingProfile] = useState(null);
 
   // Swap the body background image depending on which page is active —
   // same mechanism as the rest of the app's single full-bleed background,
@@ -4324,7 +4328,7 @@ function AppInner() {
 
 
   const ctx = { members, setMembers, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
-    currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed };
+    currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile };
 
   const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings")};
 
@@ -4546,22 +4550,31 @@ function AppInner() {
             </div>
           </div>
           <div className="content">
-            {page==="leaderboard" && (
+            {globalViewingProfile ? (
+              <PlayerInfo
+                member={members.find(m => m.id === globalViewingProfile) || globalViewingProfile}
+                members={members}
+                onBack={() => setGlobalViewingProfile(null)}
+              />
+            ) : (
               <>
-                <video className="leaderboard-page-video-bg" autoPlay loop muted playsInline poster="/video/login-bg-poster.jpg">
-                  <source src="/video/login-bg.webm" type="video/webm" />
-                </video>
-                <div className="leaderboard-page-scrim" />
+                {page==="leaderboard" && (
+                  <>
+                    <video className="leaderboard-page-video-bg" autoPlay loop muted playsInline poster="/video/login-bg-poster.jpg">
+                      <source src="/video/login-bg.webm" type="video/webm" />
+                    </video>
+                    <div className="leaderboard-page-scrim" />
+                  </>
+                )}
+                {page==="dashboard"   && <Dashboard ctx={ctx} setPage={setPage} />}
+                {page==="members"     && <Members ctx={ctx} />}
+                {page==="attendance"  && <Attendance ctx={ctx} />}
+                {page==="auctions"    && <Auctions ctx={ctx} />}
+                {page==="leaderboard" && <Leaderboard ctx={ctx} />}
+                {page==="export"      && <Export ctx={ctx} />}
+                {page==="settings"    && <Settings ctx={ctx} />}
               </>
             )}
-            {page==="dashboard"   && <Dashboard ctx={ctx} setPage={setPage} />}
-            {page==="members"     && <Members ctx={ctx} />}
-            {page==="attendance"  && <Attendance ctx={ctx} />}
-            {page==="auctions"    && <Auctions ctx={ctx} />}
-            {page==="leaderboard" && <Leaderboard ctx={ctx} />}
-            {page==="export"      && <Export ctx={ctx} />}
-            {page==="settings"    && <Settings ctx={ctx} />}
-
           </div>
         </main>
       </div>
@@ -7222,7 +7235,7 @@ function LBList({ data, valueKey, label, format, color, currentUser, showMultipl
 // rarity/portrait/frame/awakening composition as the Player Info page),
 // arranged gold/silver/bronze, over the same angel/trophy video already
 // used on the login screen.
-function LeaderboardPodium({ topThree }) {
+function LeaderboardPodium({ topThree, onViewProfile }) {
   // Render order left-to-right is #2, #1, #3 (classic podium arrangement)
   // even though the data order is #1, #2, #3.
   const ordered = [topThree[1], topThree[0], topThree[2]];
@@ -7238,7 +7251,7 @@ function LeaderboardPodium({ topThree }) {
             <div key={m.id} className={`podium-slot podium-rank-${rank}`}>
               <div className="podium-card-frame">
                 {rank === 1 && <div className="podium-crown"><CrownIcon size={34} /></div>}
-                <ProfileCard member={m} />
+                <ProfileCard member={m} onClick={()=>onViewProfile(m.id)} />
               </div>
               <div className="podium-rank-num">#{rank}</div>
               <div className="podium-name">{m.name}</div>
@@ -7252,7 +7265,7 @@ function LeaderboardPodium({ topThree }) {
 }
 
 function Leaderboard({ ctx }) {
-  const { members, currentUser } = ctx;
+  const { members, currentUser, setGlobalViewingProfile } = ctx;
   const { t } = useLang();
   const byCoins=[...members].sort((a,b)=>b.coins-a.coins);
   const byPower=[...members].sort((a,b)=>b.power-a.power);
@@ -7276,7 +7289,7 @@ function Leaderboard({ ctx }) {
         <div style={{flex:1,maxWidth:140,height:1,background:"linear-gradient(90deg, var(--gold-dim), transparent)"}} />
       </div>
 
-      {powerTopThree.length > 0 && <LeaderboardPodium topThree={powerTopThree} />}
+      {powerTopThree.length > 0 && <LeaderboardPodium topThree={powerTopThree} onViewProfile={setGlobalViewingProfile} />}
 
       <div className="lb-grid">
         <LBList data={powerRest} valueKey="power" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={POWER_ICON} size={22} />{t("mostPowerful")}</span>} format={v=>fmt(v)} color="linear-gradient(90deg,#071824,#2e86c1)" currentUser={currentUser} showMultiplier rankOffset={3} />
@@ -7356,14 +7369,20 @@ function Export({ ctx }) {
 // badge in the corner — composited as real stacked HTML/CSS layers rather
 // than a flattened image, so it stays crisp at any size and the name text
 // remains real, selectable text rather than baked into a picture.
-function ProfileCard({ member }) {
+function ProfileCard({ member, onClick }) {
   const rarity = member.profileRarity || "uncommon";
   const rarityBg = PROFILE_RARITY_BG[rarity] || PROFILE_RARITY_BG.uncommon;
   const classPortrait = PROFILE_CLASS_PORTRAIT[member.cls];
   const awakeningLevel = member.awakeningLevel || 0;
 
   return (
-    <div style={{position:"relative",width:"100%",aspectRatio:"1142/1875",borderRadius:14,overflow:"hidden",containerType:"inline-size"}}>
+    <div
+      onClick={onClick}
+      style={{
+        position:"relative",width:"100%",aspectRatio:"1142/1875",borderRadius:14,overflow:"hidden",containerType:"inline-size",
+        cursor:onClick?"pointer":"default",
+      }}
+    >
       <img src={rarityBg} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} />
       {classPortrait && (
         <img src={classPortrait} alt={member.cls} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} />
