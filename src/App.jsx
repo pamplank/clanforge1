@@ -1827,14 +1827,25 @@ body.bg-auctions::before{
    through the podium and the long ranked lists below, instead of
    scrolling away and leaving blank space. Uses the same proven crop
    position as .login-video-bg so the angel stays correctly centered on
-   both desktop and mobile, rather than re-deriving it. */
+   both desktop and mobile, rather than re-deriving it.
+
+   Height uses 100dvh (dynamic viewport height) instead of inset:0 +
+   height:100% — on mobile, the browser's address bar shows and hides as
+   the page scrolls, which changes the actual visible viewport size in
+   real time. A plain height:100% recalculates against that changing
+   layout viewport, which is exactly what caused the background to
+   visibly "enlarge and shift" partway through scrolling. dvh tracks the
+   real visible viewport smoothly instead of jumping. */
 .leaderboard-page-video-bg{
-  position:fixed;inset:0;width:100%;height:100%;
+  position:fixed;top:0;left:0;right:0;
+  width:100%;height:100dvh;
   object-fit:cover;object-position:right center;
   z-index:-2;pointer-events:none;
 }
 .leaderboard-page-scrim{
-  position:fixed;inset:0;z-index:-1;pointer-events:none;
+  position:fixed;top:0;left:0;right:0;
+  width:100%;height:100dvh;
+  z-index:-1;pointer-events:none;
   background:linear-gradient(180deg,
     rgba(5,4,3,0.55) 0%,
     rgba(5,4,3,0.35) 20%,
@@ -1845,6 +1856,34 @@ body.bg-auctions::before{
 }
 @media(max-width:760px){
   .leaderboard-page-video-bg{object-position:78% center;}
+}
+
+/* Leaderboard headline — wraps and shrinks properly on narrow screens
+   instead of forcing one line that overflows the viewport. The
+   flourish lines shrink out of the way on mobile (rather than fighting
+   the text for the same limited width), and the text itself is allowed
+   to wrap to two lines and use a smaller, viewport-aware font size. */
+.leaderboard-headline-row{
+  display:flex;align-items:center;justify-content:center;gap:18px;
+  margin-bottom:30px;padding:0 20px;
+}
+.leaderboard-headline-flourish{
+  flex:1;max-width:140px;height:1px;
+}
+.leaderboard-headline-flourish--left{background:linear-gradient(90deg, transparent, var(--gold-dim));}
+.leaderboard-headline-flourish--right{background:linear-gradient(90deg, var(--gold-dim), transparent);}
+.leaderboard-headline-text{
+  flex-shrink:1;min-width:0;text-align:center;
+  font-family:'Spectral',serif;font-weight:800;
+  font-size:clamp(18px,3.6vw,32px);
+  color:var(--gold-light);letter-spacing:1.5px;line-height:1.25;
+  text-shadow:0 0 28px rgba(201,151,42,0.5), 0 2px 8px rgba(0,0,0,0.8);
+  word-wrap:break-word;
+}
+@media(max-width:600px){
+  .leaderboard-headline-row{gap:10px;padding:0 12px;}
+  .leaderboard-headline-flourish{max-width:36px;}
+  .leaderboard-headline-text{font-size:18px;letter-spacing:0.5px;}
 }
 
 /* ── ORNAMENTAL ELEMENTS ── */
@@ -7275,18 +7314,12 @@ function Leaderboard({ ctx }) {
 
   return (
     <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:18,marginBottom:30,padding:"0 20px"}}>
-        <div style={{flex:1,maxWidth:140,height:1,background:"linear-gradient(90deg, transparent, var(--gold-dim))"}} />
-        <div style={{textAlign:"center",flexShrink:0}}>
-          <div style={{
-            fontFamily:"'Spectral',serif",fontWeight:800,fontSize:"clamp(20px,3.6vw,32px)",
-            color:"var(--gold-light)",letterSpacing:1.5,lineHeight:1.1,
-            textShadow:"0 0 28px rgba(201,151,42,0.5), 0 2px 8px rgba(0,0,0,0.8)",
-          }}>
-            {possessive(CLAN_NAME)} {t("mightiestWarriors")}
-          </div>
+      <div className="leaderboard-headline-row">
+        <div className="leaderboard-headline-flourish leaderboard-headline-flourish--left" />
+        <div className="leaderboard-headline-text">
+          {possessive(CLAN_NAME)} {t("mightiestWarriors")}
         </div>
-        <div style={{flex:1,maxWidth:140,height:1,background:"linear-gradient(90deg, var(--gold-dim), transparent)"}} />
+        <div className="leaderboard-headline-flourish leaderboard-headline-flourish--right" />
       </div>
 
       {powerTopThree.length > 0 && <LeaderboardPodium topThree={powerTopThree} onViewProfile={setGlobalViewingProfile} />}
