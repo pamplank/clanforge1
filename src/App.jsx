@@ -7743,54 +7743,42 @@ function PlayerInfo({ member, members, onBack }) {
         }} />
       )}
       {(prestige || richestTier || activeTier) && (
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8,margin:"14px 0 16px"}}>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8,margin:"4px 0 16px"}}>
           {prestige && (
-            <div style={{
-              display:"inline-block",padding:2,borderRadius:10,
-              background:`linear-gradient(135deg, ${prestige.gradient[1]}55, ${prestige.gradient[1]}, ${prestige.gradient[0]}, ${prestige.gradient[1]}, ${prestige.gradient[1]}55)`,
-              boxShadow:`0 0 16px ${prestige.glow}`,
+            <span style={{
+              display:"inline-flex",alignItems:"center",gap:8,
+              background:`${prestige.color}1a`,border:`1px solid ${prestige.color}66`,
+              borderRadius:20,padding:"6px 16px",
             }}>
-              <div style={{
-                background:`radial-gradient(ellipse at 50% 0%, ${prestige.gradient[1]}40, #08060488 70%)`,
-                border:`1px solid ${prestige.color}4d`,borderRadius:8,padding:"7px 18px",
-              }}>
-                <span style={{fontSize:12,fontWeight:800,letterSpacing:1,color:"#fff"}}>RANK {powerRank}</span>
-                <span style={{fontSize:9,color:"var(--text-dim)",margin:"0 6px"}}>&middot;</span>
-                <span style={{fontSize:11,fontWeight:800,letterSpacing:1.5,color:prestige.color}}>{prestige.label.toUpperCase()}</span>
-              </div>
-            </div>
+              <CrownIcon size={14} style={{color:prestige.color}} />
+              <span style={{fontSize:11,fontWeight:800,color:prestige.color,letterSpacing:1}}>
+                RANK {powerRank} &middot; {prestige.label.toUpperCase()}
+              </span>
+            </span>
           )}
           {richestTier && (
-            <div style={{
-              display:"inline-block",padding:2,borderRadius:10,
-              background:`linear-gradient(135deg, ${richestTier.accent}55, ${richestTier.accent}, ${richestTier.color}, ${richestTier.accent}, ${richestTier.accent}55)`,
-              boxShadow:`0 0 16px ${richestTier.glow}`,
+            <span style={{
+              display:"inline-flex",alignItems:"center",gap:8,
+              background:`${richestTier.color}1a`,border:`1px solid ${richestTier.color}66`,
+              borderRadius:20,padding:"6px 16px",
             }}>
-              <div style={{
-                background:`radial-gradient(ellipse at 50% 0%, ${richestTier.accent}40, #08060488 70%)`,
-                border:`1px solid ${richestTier.color}4d`,borderRadius:8,padding:"7px 18px",
-              }}>
-                <span style={{fontSize:12,fontWeight:800,letterSpacing:1,color:"#fff"}}>RANK {coinsRank}</span>
-                <span style={{fontSize:9,color:"var(--text-dim)",margin:"0 6px"}}>&middot;</span>
-                <span style={{fontSize:11,fontWeight:800,letterSpacing:1.5,color:richestTier.color}}>{richestTier.title.toUpperCase()}</span>
-              </div>
-            </div>
+              <CrownIcon size={14} style={{color:richestTier.color}} />
+              <span style={{fontSize:11,fontWeight:800,color:richestTier.color,letterSpacing:1}}>
+                RANK {coinsRank} &middot; {richestTier.title.toUpperCase()}
+              </span>
+            </span>
           )}
           {activeTier && (
-            <div style={{
-              display:"inline-block",padding:2,borderRadius:10,
-              background:`linear-gradient(135deg, ${activeTier.accent}55, ${activeTier.accent}, ${activeTier.color}, ${activeTier.accent}, ${activeTier.accent}55)`,
-              boxShadow:`0 0 16px ${activeTier.glow}`,
+            <span style={{
+              display:"inline-flex",alignItems:"center",gap:8,
+              background:`${activeTier.color}1a`,border:`1px solid ${activeTier.color}66`,
+              borderRadius:20,padding:"6px 16px",
             }}>
-              <div style={{
-                background:`radial-gradient(ellipse at 50% 0%, ${activeTier.accent}40, #08060488 70%)`,
-                border:`1px solid ${activeTier.color}4d`,borderRadius:8,padding:"7px 18px",
-              }}>
-                <span style={{fontSize:12,fontWeight:800,letterSpacing:1,color:"#fff"}}>RANK {attendRank}</span>
-                <span style={{fontSize:9,color:"var(--text-dim)",margin:"0 6px"}}>&middot;</span>
-                <span style={{fontSize:11,fontWeight:800,letterSpacing:1.5,color:activeTier.color}}>{activeTier.title.toUpperCase()}</span>
-              </div>
-            </div>
+              <ShieldIcon size={14} style={{color:activeTier.color}} />
+              <span style={{fontSize:11,fontWeight:800,color:activeTier.color,letterSpacing:1}}>
+                RANK {attendRank} &middot; {activeTier.title.toUpperCase()}
+              </span>
+            </span>
           )}
         </div>
       )}
