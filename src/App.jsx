@@ -4362,8 +4362,25 @@ function AppInner() {
     if (!m) return;
     const req = { id: Date.now()+Math.random(), memberId, member_id: memberId, memberName: m.name, member_name: m.name, amount: parseInt(amount)||0, type, reason: reason||"_", requestedBy: currentUser.name, requested_by: currentUser.name, requestedAt: new Date().toLocaleString(), requested_at: new Date().toISOString() };
     setPendingCoinRequests(prev=>[...prev, req]);
-    dbUpsert("coin_requests", { id: req.id, member_id: req.memberId, member_name: req.memberName, amount: req.amount, type: req.type, reason: req.reason, requested_by: req.requestedBy, requested_at: req.requested_at });
-    addToast("Coin request sent for approval.", "gold", "Pending Approval");
+    // ROOT CAUSE FIX: this previously fired dbUpsert (which silently
+    // swallows failures, no retry, no caller feedback) and showed "sent
+    // for approval" unconditionally regardless of whether the write
+    // actually succeeded. An Elder could see a success toast while the
+    // request never reached the database at all — appearing nowhere for
+    // the Master to approve, with no error on either side to explain why.
+    // Using the *Reliable variant (retries + real success/failure result)
+    // and only confirming success after it actually lands fixes that.
+    dbUpsertReliable("coin_requests", { id: req.id, member_id: req.memberId, member_name: req.memberName, amount: req.amount, type: req.type, reason: req.reason, requested_by: req.requestedBy, requested_at: req.requested_at }).then(ok => {
+      if (ok) {
+        addToast("Coin request sent for approval.", "gold", "Pending Approval");
+      } else {
+        setPendingCoinRequests(prev=>prev.filter(r=>r.id!==req.id));
+        addToast(
+          <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't send the coin request — please try again.</span>,
+          "red", "Request Failed"
+        );
+      }
+    });
   }
   function approveCoinRequest(reqId) {
     const req = pendingCoinRequests.find(r=>r.id===reqId);
