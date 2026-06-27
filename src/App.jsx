@@ -2364,10 +2364,6 @@ tbody tr:last-child td{border-bottom:none;}
   .podium-rank-2 .podium-card-frame{width:98px;}
   .podium-rank-3 .podium-card-frame{width:92px;}
 }
-.podium-rank-num{font-family:'Spectral',serif;font-weight:800;margin-top:10px;}
-.podium-rank-1 .podium-rank-num{font-size:34px;color:#c77dff;text-shadow:0 0 14px rgba(199,125,255,0.6);}
-.podium-rank-2 .podium-rank-num{font-size:24px;color:#f2cc60;text-shadow:0 0 10px rgba(242,204,96,0.45);}
-.podium-rank-3 .podium-rank-num{font-size:21px;color:#fe7e73;text-shadow:0 0 10px rgba(254,126,115,0.45);}
 .podium-crown{position:absolute;top:-20px;left:50%;transform:translateX(-50%);z-index:3;color:#c77dff;filter:drop-shadow(0 0 6px rgba(199,125,255,0.6));}
 .podium-name{font-family:'Spectral',serif;font-weight:700;color:var(--text-bright);margin-top:6px;text-align:center;}
 .podium-rank-1 .podium-name{font-size:17px;}
@@ -7328,6 +7324,10 @@ function LeaderboardPodium({ topThree, onViewProfile }) {
   // even though the data order is #1, #2, #3.
   const ordered = [topThree[1], topThree[0], topThree[2]];
   const rankOf = m => topThree.findIndex(x => x?.id === m?.id) + 1;
+  // Same tier colors already used for the card's metallic ring and rank
+  // number, reused here so the new rank-pill badge matches exactly
+  // instead of introducing a fourth slightly-different color set.
+  const RANK_COLORS = { 1: "#c77dff", 2: "#f2cc60", 3: "#fe7e73" };
 
   return (
     <div className="podium-banner">
@@ -7335,6 +7335,7 @@ function LeaderboardPodium({ topThree, onViewProfile }) {
         {ordered.map(m => {
           if (!m) return null;
           const rank = rankOf(m);
+          const rankColor = RANK_COLORS[rank];
           return (
             <div key={m.id} className={`podium-slot podium-rank-${rank}`}>
               <div className="podium-metal-ring">
@@ -7343,7 +7344,18 @@ function LeaderboardPodium({ topThree, onViewProfile }) {
                   <ProfileCard member={m} onClick={()=>onViewProfile(m.id)} />
                 </div>
               </div>
-              <div className="podium-rank-num">#{rank}</div>
+              <div style={{textAlign:"center",margin:"10px 0 6px"}}>
+                <span style={{
+                  display:"inline-flex",alignItems:"center",gap:6,
+                  background:`${rankColor}1a`,border:`1px solid ${rankColor}66`,
+                  borderRadius:20,padding:"4px 12px",
+                }}>
+                  <CrownIcon size={11} style={{color:rankColor}} />
+                  <span style={{fontFamily:"'Spectral',serif",fontSize:11,fontWeight:800,color:rankColor,letterSpacing:1}}>
+                    RANK {rank}
+                  </span>
+                </span>
+              </div>
               <div className="podium-name">{m.name}</div>
               <div className="podium-power">{fmt(m.power)} Power</div>
             </div>
