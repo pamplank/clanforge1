@@ -7567,47 +7567,6 @@ function Export({ ctx }) {
 // badge in the corner — composited as real stacked HTML/CSS layers rather
 // than a flattened image, so it stays crisp at any size and the name text
 // remains real, selectable text rather than baked into a picture.
-// Reusable plaque for the Richest/Most Active prestige tiers — layered
-// metallic border, a radial glow behind the content, a small corner icon,
-// and a divider above the rank line. Visually distinct from Power's own
-// treatment (which lives on the card itself) since these are a different
-// kind of achievement, but built with the same level of ornamentation so
-// neither feels like an afterthought next to Power's.
-function AchievementPlaque({ tier, icon: PlaqueIcon, value, rankLabel, rank }) {
-  return (
-    <div style={{
-      position:"relative",borderRadius:14,padding:3,
-      background:`linear-gradient(135deg, ${tier.accent}33, ${tier.accent}, ${tier.color}, ${tier.accent}, ${tier.accent}33)`,
-      boxShadow:`0 0 26px ${tier.glow}, 0 4px 12px rgba(0,0,0,0.5)`,
-    }}>
-      <div style={{borderRadius:11,padding:2,background:`linear-gradient(135deg, ${tier.accent}22, #0a0706)`}}>
-        <div style={{
-          borderRadius:9,padding:"16px 14px",textAlign:"center",position:"relative",overflow:"hidden",
-          background:`radial-gradient(ellipse at 50% 0%, ${tier.accent}1f, #08060488 70%)`,
-          border:`1px solid ${tier.color}33`,
-        }}>
-          {PlaqueIcon && <PlaqueIcon size={18} style={{position:"absolute",top:6,left:6,color:tier.color,opacity:0.55}} />}
-          {PlaqueIcon && <PlaqueIcon size={18} style={{position:"absolute",top:6,right:6,color:tier.color,opacity:0.55,transform:"scaleX(-1)"}} />}
-          <div style={{fontFamily:"'Spectral',serif",fontSize:10,color:tier.color,letterSpacing:3,fontWeight:700,marginBottom:8,textShadow:"0 1px 2px rgba(0,0,0,0.8)"}}>
-            &#10022; {tier.title.toUpperCase()} &#10022;
-          </div>
-          <div style={{fontFamily:"'Spectral',serif",fontSize:22,fontWeight:800,color:"var(--text-bright)",textShadow:`0 0 18px ${tier.glow}, 0 2px 4px rgba(0,0,0,0.6)`}}>
-            {value}
-          </div>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,margin:"8px 0"}}>
-            <div style={{width:26,height:1,background:`linear-gradient(90deg, transparent, ${tier.accent})`}} />
-            <div style={{width:4,height:4,borderRadius:"50%",background:tier.color}} />
-            <div style={{width:26,height:1,background:`linear-gradient(90deg, ${tier.accent}, transparent)`}} />
-          </div>
-          <div style={{fontSize:9,color:tier.accent,letterSpacing:1.5,fontWeight:700}}>
-            {rankLabel.toUpperCase()} &middot; RANK {rank}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function ProfileCard({ member, onClick, prestigeRank }) {
   const rarity = member.profileRarity || "uncommon";
   const rarityBg = PROFILE_RARITY_BG[rarity] || PROFILE_RARITY_BG.uncommon;
@@ -7783,18 +7742,56 @@ function PlayerInfo({ member, members, onBack }) {
           boxShadow:`0 0 16px ${prestige.glow}`,
         }} />
       )}
-      {prestige && (
-        <div style={{textAlign:"center",margin:"4px 0 16px"}}>
-          <span style={{
-            display:"inline-flex",alignItems:"center",gap:8,
-            background:`${prestige.color}1a`,border:`1px solid ${prestige.color}66`,
-            borderRadius:20,padding:"6px 16px",
-          }}>
-            <CrownIcon size={14} style={{color:prestige.color}} />
-            <span style={{fontSize:11,fontWeight:800,color:prestige.color,letterSpacing:1}}>
-              RANK {powerRank} &middot; {prestige.label.toUpperCase()}
-            </span>
-          </span>
+      {(prestige || richestTier || activeTier) && (
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8,margin:"14px 0 16px"}}>
+          {prestige && (
+            <div style={{
+              display:"inline-block",padding:2,borderRadius:10,
+              background:`linear-gradient(135deg, ${prestige.gradient[1]}55, ${prestige.gradient[1]}, ${prestige.gradient[0]}, ${prestige.gradient[1]}, ${prestige.gradient[1]}55)`,
+              boxShadow:`0 0 16px ${prestige.glow}`,
+            }}>
+              <div style={{
+                background:`radial-gradient(ellipse at 50% 0%, ${prestige.gradient[1]}40, #08060488 70%)`,
+                border:`1px solid ${prestige.color}4d`,borderRadius:8,padding:"7px 18px",
+              }}>
+                <span style={{fontSize:12,fontWeight:800,letterSpacing:1,color:"#fff"}}>RANK {powerRank}</span>
+                <span style={{fontSize:9,color:"var(--text-dim)",margin:"0 6px"}}>&middot;</span>
+                <span style={{fontSize:11,fontWeight:800,letterSpacing:1.5,color:prestige.color}}>{prestige.label.toUpperCase()}</span>
+              </div>
+            </div>
+          )}
+          {richestTier && (
+            <div style={{
+              display:"inline-block",padding:2,borderRadius:10,
+              background:`linear-gradient(135deg, ${richestTier.accent}55, ${richestTier.accent}, ${richestTier.color}, ${richestTier.accent}, ${richestTier.accent}55)`,
+              boxShadow:`0 0 16px ${richestTier.glow}`,
+            }}>
+              <div style={{
+                background:`radial-gradient(ellipse at 50% 0%, ${richestTier.accent}40, #08060488 70%)`,
+                border:`1px solid ${richestTier.color}4d`,borderRadius:8,padding:"7px 18px",
+              }}>
+                <span style={{fontSize:12,fontWeight:800,letterSpacing:1,color:"#fff"}}>RANK {coinsRank}</span>
+                <span style={{fontSize:9,color:"var(--text-dim)",margin:"0 6px"}}>&middot;</span>
+                <span style={{fontSize:11,fontWeight:800,letterSpacing:1.5,color:richestTier.color}}>{richestTier.title.toUpperCase()}</span>
+              </div>
+            </div>
+          )}
+          {activeTier && (
+            <div style={{
+              display:"inline-block",padding:2,borderRadius:10,
+              background:`linear-gradient(135deg, ${activeTier.accent}55, ${activeTier.accent}, ${activeTier.color}, ${activeTier.accent}, ${activeTier.accent}55)`,
+              boxShadow:`0 0 16px ${activeTier.glow}`,
+            }}>
+              <div style={{
+                background:`radial-gradient(ellipse at 50% 0%, ${activeTier.accent}40, #08060488 70%)`,
+                border:`1px solid ${activeTier.color}4d`,borderRadius:8,padding:"7px 18px",
+              }}>
+                <span style={{fontSize:12,fontWeight:800,letterSpacing:1,color:"#fff"}}>RANK {attendRank}</span>
+                <span style={{fontSize:9,color:"var(--text-dim)",margin:"0 6px"}}>&middot;</span>
+                <span style={{fontSize:11,fontWeight:800,letterSpacing:1.5,color:activeTier.color}}>{activeTier.title.toUpperCase()}</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
       <button className="btn btn-outline btn-sm" style={{marginBottom:16}} onClick={onBack}>Back</button>
@@ -7839,34 +7836,17 @@ function PlayerInfo({ member, members, onBack }) {
                 ))}
               </div>
 
-              {richestTier && (
-                <div style={{marginBottom:12}}>
-                  <AchievementPlaque tier={richestTier} icon={CrownIcon} value={fmt(member.coins)} rankLabel="Richest" rank={coinsRank} />
-                </div>
-              )}
-              {activeTier && (
-                <div style={{marginBottom:12}}>
-                  <AchievementPlaque tier={activeTier} icon={ShieldIcon} value={statusConfig.label} rankLabel="Most Active" rank={attendRank} />
-                </div>
-              )}
-              {!richestTier && !activeTier && (
-                <div style={{fontSize:11,color:"var(--text-dim)",borderTop:"1px solid var(--border)",paddingTop:12,display:"flex",alignItems:"center",justifyContent:"center",gap:8,flexWrap:"wrap"}}>
-                  <span style={{display:"inline-flex",alignItems:"center",gap:4}}>
-                    <StatIcon src={COINS_ICON} size={13} />
-                    <span style={{fontFamily:"'Spectral',serif",fontWeight:700,color:"var(--text-mid)"}}>{fmt(member.coins)}</span>
-                  </span>
-                  <span style={{color:"var(--border)"}}>&middot;</span>
-                  <span>
-                    <span style={{color:statusConfig.color,fontWeight:700}}>{statusConfig.label}</span>
-                    {daysSinceActivity !== null && ` \u00b7 ${daysSinceActivity === 0 ? "active today" : `seen ${daysSinceActivity}d ago`}`}
-                  </span>
-                </div>
-              )}
-              {(richestTier || activeTier) && daysSinceActivity !== null && (
-                <div style={{fontSize:10,color:"var(--text-dim)",textAlign:"center"}}>
-                  {daysSinceActivity === 0 ? "active today" : `seen ${daysSinceActivity}d ago`}
-                </div>
-              )}
+              <div style={{fontSize:11,color:"var(--text-dim)",borderTop:"1px solid var(--border)",paddingTop:12,display:"flex",alignItems:"center",justifyContent:"center",gap:8,flexWrap:"wrap"}}>
+                <span style={{display:"inline-flex",alignItems:"center",gap:4}}>
+                  <StatIcon src={COINS_ICON} size={13} />
+                  <span style={{fontFamily:"'Spectral',serif",fontWeight:700,color:"var(--text-mid)"}}>{fmt(member.coins)}</span>
+                </span>
+                <span style={{color:"var(--border)"}}>&middot;</span>
+                <span>
+                  <span style={{color:statusConfig.color,fontWeight:700}}>{statusConfig.label}</span>
+                  {daysSinceActivity !== null && ` \u00b7 ${daysSinceActivity === 0 ? "active today" : `seen ${daysSinceActivity}d ago`}`}
+                </span>
+              </div>
             </div>
           </div>
           </div>
