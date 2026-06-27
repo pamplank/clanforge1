@@ -1820,41 +1820,54 @@ body.bg-auctions::before{
 }
 #root{position:relative;z-index:1;}
 
-/* Leaderboard page background — a fixed full-viewport video (the same
-   angel/trophy footage used on the login screen and, previously, just
-   the podium banner) sitting behind the ENTIRE page, not just one
-   section. Fixed positioning means it stays put as the page scrolls
-   through the podium and the long ranked lists below, instead of
-   scrolling away and leaving blank space. Uses the same proven crop
-   position as .login-video-bg so the angel stays correctly centered on
-   both desktop and mobile, rather than re-deriving it.
+/* Leaderboard hero section — the angel/trophy video (same footage as the
+   login screen) sits behind the headline and podium specifically, then
+   fades to plain black at the bottom of this section. Unlike the earlier
+   fixed-position approach, this scrolls normally with the page — no
+   mobile address-bar viewport-resizing quirks, since a normal in-flow
+   element doesn't depend on viewport height units at all.
 
-   Height uses 100dvh (dynamic viewport height) instead of inset:0 +
-   height:100% — on mobile, the browser's address bar shows and hides as
-   the page scrolls, which changes the actual visible viewport size in
-   real time. A plain height:100% recalculates against that changing
-   layout viewport, which is exactly what caused the background to
-   visibly "enlarge and shift" partway through scrolling. dvh tracks the
-   real visible viewport smoothly instead of jumping. */
+   min-height (not a hard aspect-ratio) sets the video's natural crop
+   height — like a hero banner showing a deliberately cropped slice of
+   the 2560x1440 source video, not its full frame — while still letting
+   the section grow taller if its content (headline + podium) needs more
+   room than that on narrow screens, instead of clipping it. */
+.leaderboard-hero{
+  position:relative;
+  width:calc(100% + 160px);
+  margin:-28px -80px 0;
+  min-height:560px;
+  display:flex;flex-direction:column;justify-content:center;
+}
 .leaderboard-page-video-bg{
-  position:fixed;top:0;left:0;right:0;
-  width:100%;height:100dvh;
+  position:absolute;top:0;left:0;right:0;bottom:0;
+  width:100%;height:100%;
   object-fit:cover;object-position:right center;
-  z-index:-2;pointer-events:none;
+  z-index:0;pointer-events:none;
 }
 .leaderboard-page-scrim{
-  position:fixed;top:0;left:0;right:0;
-  width:100%;height:100dvh;
-  z-index:-1;pointer-events:none;
+  position:absolute;top:0;left:0;right:0;bottom:0;
+  z-index:1;pointer-events:none;
   background:linear-gradient(180deg,
-    rgba(5,4,3,0.55) 0%,
-    rgba(5,4,3,0.35) 20%,
-    rgba(5,4,3,0.55) 55%,
-    rgba(5,4,3,0.88) 85%,
-    rgba(5,4,3,0.97) 100%
+    rgba(5,4,3,0.45) 0%,
+    rgba(5,4,3,0.25) 25%,
+    rgba(5,4,3,0.55) 60%,
+    rgba(5,4,3,0.92) 88%,
+    rgba(5,4,3,1) 100%
   );
 }
-@media(max-width:760px){
+.leaderboard-hero-content{position:relative;z-index:2;padding:40px 80px 30px;}
+@media(max-width:1100px){
+  .leaderboard-hero{width:calc(100% + 80px);margin:-28px -40px 0;min-height:480px;}
+  .leaderboard-hero-content{padding:34px 40px 24px;}
+}
+@media(max-width:900px){
+  .leaderboard-hero{width:calc(100% + 40px);margin:-20px -20px 0;min-height:400px;}
+  .leaderboard-hero-content{padding:28px 20px 20px;}
+}
+@media(max-width:700px){
+  .leaderboard-hero{width:calc(100% + 32px);margin:-14px -16px 0;min-height:340px;}
+  .leaderboard-hero-content{padding:22px 16px 16px;}
   .leaderboard-page-video-bg{object-position:78% center;}
 }
 
@@ -4644,14 +4657,6 @@ function AppInner() {
               />
             ) : (
               <>
-                {page==="leaderboard" && (
-                  <>
-                    <video className="leaderboard-page-video-bg" autoPlay loop muted playsInline poster="/video/login-bg-poster.jpg">
-                      <source src="/video/login-bg.webm" type="video/webm" />
-                    </video>
-                    <div className="leaderboard-page-scrim" />
-                  </>
-                )}
                 {page==="dashboard"   && <Dashboard ctx={ctx} setPage={navigateToPage} />}
                 {page==="members"     && <Members ctx={ctx} />}
                 {page==="attendance"  && <Attendance ctx={ctx} />}
@@ -7363,15 +7368,23 @@ function Leaderboard({ ctx }) {
 
   return (
     <div>
-      <div className="leaderboard-headline-row">
-        <div className="leaderboard-headline-flourish leaderboard-headline-flourish--left" />
-        <div className="leaderboard-headline-text">
-          {possessive(CLAN_NAME)} {t("mightiestWarriors")}
-        </div>
-        <div className="leaderboard-headline-flourish leaderboard-headline-flourish--right" />
-      </div>
+      <div className="leaderboard-hero">
+        <video className="leaderboard-page-video-bg" autoPlay loop muted playsInline poster="/video/login-bg-poster.jpg">
+          <source src="/video/login-bg.webm" type="video/webm" />
+        </video>
+        <div className="leaderboard-page-scrim" />
+        <div className="leaderboard-hero-content">
+          <div className="leaderboard-headline-row">
+            <div className="leaderboard-headline-flourish leaderboard-headline-flourish--left" />
+            <div className="leaderboard-headline-text">
+              {possessive(CLAN_NAME)} {t("mightiestWarriors")}
+            </div>
+            <div className="leaderboard-headline-flourish leaderboard-headline-flourish--right" />
+          </div>
 
-      {powerTopThree.length > 0 && <LeaderboardPodium topThree={powerTopThree} onViewProfile={setGlobalViewingProfile} />}
+          {powerTopThree.length > 0 && <LeaderboardPodium topThree={powerTopThree} onViewProfile={setGlobalViewingProfile} />}
+        </div>
+      </div>
 
       <div className="lb-grid">
         <LBList data={powerRest} valueKey="power" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={POWER_ICON} size={22} />{t("mostPowerful")}</span>} format={v=>fmt(v)} color="linear-gradient(90deg,#071824,#2e86c1)" currentUser={currentUser} showMultiplier rankOffset={3} />
