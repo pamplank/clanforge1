@@ -2364,7 +2364,6 @@ tbody tr:last-child td{border-bottom:none;}
   .podium-rank-2 .podium-card-frame{width:98px;}
   .podium-rank-3 .podium-card-frame{width:92px;}
 }
-.podium-crown{position:absolute;top:-20px;left:50%;transform:translateX(-50%);z-index:3;color:#c77dff;filter:drop-shadow(0 0 6px rgba(199,125,255,0.6));}
 .podium-name{font-family:'Spectral',serif;font-weight:700;color:var(--text-bright);margin-top:6px;text-align:center;}
 .podium-rank-1 .podium-name{font-size:17px;}
 .podium-rank-2 .podium-name,.podium-rank-3 .podium-name{font-size:13px;}
@@ -7381,7 +7380,6 @@ function LeaderboardPodium({ topThree, honorableMentions, onViewProfile }) {
           return (
             <div key={m.id} className={`podium-slot podium-rank-${rank}`}>
               <div className="podium-metal-ring">
-                {rank === 1 && <div className="podium-crown"><CrownIcon size={34} /></div>}
                 <div className="podium-card-frame">
                   <ProfileCard member={m} onClick={()=>onViewProfile(m.id)} prestigeRank={rank} />
                 </div>
