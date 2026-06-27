@@ -7662,7 +7662,7 @@ function PlayerInfo({ member, members, onBack }) {
   // across the full image) as the podium's metallic ring, so the aura
   // reads as a moody radiant glow rather than a wash of bright color.
   const PRESTIGE_TIERS = {
-    1: { name: "mythical", color: "#c77dff", glow: "rgba(199,125,255,0.4)", gradient: ["#d65cf0", "#6d2d7b", "#211022"], label: "Most Powerful in the Clan" },
+    1: { name: "mythical", color: "#c77dff", glow: "rgba(199,125,255,0.4)", gradient: ["#d65cf0", "#6d2d7b", "#211022"], label: "The Clan's Strongest" },
     2: { name: "gold",     color: "#f2cc60", glow: "rgba(242,204,96,0.3)",  gradient: ["#f3e79d", "#725f38", "#2b2215"], label: "2nd Most Powerful in the Clan" },
     3: { name: "epic",     color: "#fe7e73", glow: "rgba(254,126,115,0.3)", gradient: ["#fca699", "#99463f", "#311714"], label: "3rd Most Powerful in the Clan" },
   };
@@ -7678,19 +7678,19 @@ function PlayerInfo({ member, members, onBack }) {
   // their own color families and plaque titles, since they're celebrating
   // a different kind of achievement, not a weaker version of Power's.
   const RICHEST_TIERS = {
-    1: { title: "Vault Keeper", color: "#f3e79d", accent: "#cba968", glow: "rgba(243,231,157,0.35)" },
-    2: { title: "Treasure Lord", color: "#e8d488", accent: "#b89850", glow: "rgba(232,212,136,0.3)" },
-    3: { title: "Gilded Hand", color: "#d4bc78", accent: "#a8854a", glow: "rgba(212,188,120,0.28)" },
+    1: { title: "The Clan's Treasurer", color: "#f3e79d", accent: "#cba968", glow: "rgba(243,231,157,0.35)" },
+    2: { title: "The Clan's Big Saver", color: "#e8d488", accent: "#b89850", glow: "rgba(232,212,136,0.3)" },
+    3: { title: "The Clan's Coin Hoarder", color: "#d4bc78", accent: "#a8854a", glow: "rgba(212,188,120,0.28)" },
   };
-  const richestSilver = { title: "Coin Collector", color: "#dcdee1", accent: "#9a9da0", glow: "rgba(220,222,225,0.2)" };
+  const richestSilver = { title: "Among the Wealthiest in the Clan", color: "#dcdee1", accent: "#9a9da0", glow: "rgba(220,222,225,0.2)" };
   const richestTier = RICHEST_TIERS[coinsRank] || (coinsRank >= 4 && coinsRank <= 10 ? richestSilver : null);
 
   const ACTIVE_TIERS = {
-    1: { title: "Unyielding", color: "#7fe8ab", accent: "#3a8f5c", glow: "rgba(127,232,171,0.35)" },
-    2: { title: "Tireless", color: "#6fd99c", accent: "#357f53", glow: "rgba(111,217,156,0.3)" },
-    3: { title: "Steadfast", color: "#5fc98d", accent: "#2f704a", glow: "rgba(95,201,141,0.28)" },
+    1: { title: "The Clan's Grinder", color: "#7fe8ab", accent: "#3a8f5c", glow: "rgba(127,232,171,0.35)" },
+    2: { title: "The Clan's Night Owl", color: "#6fd99c", accent: "#357f53", glow: "rgba(111,217,156,0.3)" },
+    3: { title: "The Clan's Regular", color: "#5fc98d", accent: "#2f704a", glow: "rgba(95,201,141,0.28)" },
   };
-  const activeSilver = { title: "Dependable", color: "#dcdee1", accent: "#9a9da0", glow: "rgba(220,222,225,0.2)" };
+  const activeSilver = { title: "Among the Most Active in the Clan", color: "#dcdee1", accent: "#9a9da0", glow: "rgba(220,222,225,0.2)" };
   const activeTier = ACTIVE_TIERS[attendRank] || (attendRank >= 4 && attendRank <= 10 ? activeSilver : null);
 
   // Sidebar rank badges (Power/Richest/Active) pick up their tier's color
