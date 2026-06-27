@@ -2615,6 +2615,7 @@ tbody tr:last-child td{border-bottom:none;}
 @keyframes slideOut{from{transform:translateX(0) scale(1);opacity:1;}to{transform:translateX(40px) scale(0.96);opacity:0;}}
 .toast-exit{animation:slideOut 0.22s ease forwards!important;}
 @keyframes spin{to{transform:rotate(360deg);}}
+@keyframes profileCardShimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
 @keyframes fadeInUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
 
 /* ── MISC ── */
@@ -2958,6 +2959,25 @@ function AuctionImage({ auction, alt="", style, fallback }) {
   }, [cacheKey, auction?.image?.name, dataUrl]);
 
   if (dataUrl) return <img src={dataUrl} alt={alt} style={style} />;
+  // ROOT CAUSE: this component has a genuine async gap — the bulk auction
+  // load intentionally omits full image data (kept out for load speed),
+  // so dbLoadAuctionImage above is a real separate fetch, not instant
+  // decode time. Previously this fell straight to the generic auction
+  // icon while that fetch was in flight, identical to "this item simply
+  // has no photo" — no way to tell the two apart. A real photo is named
+  // (auction.image.name) but not yet loaded; show a shimmer for that
+  // case specifically, and only fall back to the plain icon when there's
+  // genuinely no image at all.
+  if (auction?.image?.name) {
+    return (
+      <div style={{
+        ...style, position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",
+        width:"80%",height:"80%",borderRadius:6,
+        background:"linear-gradient(110deg, #1a1410 30%, #2a2118 50%, #1a1410 70%)",
+        backgroundSize:"200% 100%",animation:"profileCardShimmer 1.6s ease-in-out infinite",
+      }} />
+    );
+  }
   return fallback || null;
 }
 
@@ -7575,17 +7595,33 @@ function ProfileCard({ member, onClick, prestigeRank }) {
   const RIBBON_COLORS = { 1: "#c77dff", 2: "#f2cc60", 3: "#fe7e73" };
   const ribbonColor = prestigeRank ? (RIBBON_COLORS[prestigeRank] || "#dcdee1") : null;
 
+  // Skeleton loading state — these images come from Supabase Storage on
+  // every render (rarity background, class portrait, frame), so on a
+  // slower connection there's a real gap before anything shows. Track
+  // the base rarity image specifically (it's always present, unlike the
+  // class portrait) and show a shimmering placeholder, shaped like the
+  // real card, until at least that much has loaded — better than a
+  // blank box or a layout jump once images pop in late.
+  const [loaded, setLoaded] = useState(false);
+
   return (
     <div
       onClick={onClick}
       style={{
         position:"relative",width:"100%",aspectRatio:"1142/1875",borderRadius:"14px 14px 0 0",overflow:"hidden",containerType:"inline-size",
         cursor:onClick?"pointer":"default",
+        background:!loaded?"linear-gradient(110deg, #1a1410 30%, #2a2118 50%, #1a1410 70%)":undefined,
+        backgroundSize:!loaded?"200% 100%":undefined,
+        animation:!loaded?"profileCardShimmer 1.6s ease-in-out infinite":undefined,
       }}
     >
-      <img src={rarityBg} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} />
+      <img
+        src={rarityBg} alt=""
+        onLoad={()=>setLoaded(true)}
+        style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",opacity:loaded?1:0,transition:"opacity 0.3s"}}
+      />
       {classPortrait && (
-        <img src={classPortrait} alt={member.cls} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} />
+        <img src={classPortrait} alt={member.cls} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",opacity:loaded?1:0,transition:"opacity 0.3s"}} />
       )}
       {/* Name banner sits beneath the frame so the frame's own border draws on top of it,
           matching the reference card where the frame overlaps the band's edges. */}
@@ -7594,6 +7630,7 @@ function ProfileCard({ member, onClick, prestigeRank }) {
         aspectRatio:"414/90",
         backgroundImage:`url(${PROFILE_NAME_CONTAINER_URL})`,backgroundSize:"100% 100%",
         display:"flex",alignItems:"center",justifyContent:"center",
+        opacity:loaded?1:0,transition:"opacity 0.3s",
       }}>
         <span style={{
           fontFamily:"'Spectral',serif",fontWeight:700,
@@ -7601,7 +7638,7 @@ function ProfileCard({ member, onClick, prestigeRank }) {
           textShadow:"0 2px 4px rgba(0,0,0,0.6)",
         }}>{member.name}</span>
       </div>
-      <img src={PROFILE_FRAME_URL} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",pointerEvents:"none"}} />
+      <img src={PROFILE_FRAME_URL} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",pointerEvents:"none",opacity:loaded?1:0,transition:"opacity 0.3s"}} />
       {ribbonColor && (
         <div style={{
           position:"absolute",top:"6%",left:0,zIndex:4,
