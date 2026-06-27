@@ -7355,16 +7355,29 @@ function PlayerInfo({ member, members, onBack }) {
         <div style={{display:"flex",gap:24,flexWrap:"wrap"}}>
           <div style={{width:220,flexShrink:0}}>
             <ProfileCard member={member} />
-            <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderTop:"none",borderRadius:"0 0 8px 8px",padding:"16px 14px",textAlign:"center"}}>
-              <div style={{fontFamily:"'Spectral',serif",fontSize:13,color:"var(--text-mid)",marginBottom:10}}>{member.cls}</div>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:10}}>
-                <PowerIcon size={15} />
-                <span style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:19,color:"var(--gold-bright)"}}>{fmt(member.power)}</span>
+            <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderTop:"none",borderRadius:"0 0 8px 8px",padding:"20px 16px",textAlign:"center"}}>
+              <div style={{fontFamily:"'Spectral',serif",fontSize:13,color:"var(--text-mid)",letterSpacing:1,marginBottom:14}}>{member.cls}</div>
+
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginBottom:16}}>
+                <PowerIcon size={18} />
+                <span style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:26,color:"var(--gold-bright)",textShadow:"0 0 12px rgba(242,204,96,0.35)"}}>{fmt(member.power)}</span>
               </div>
-              <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:3}}>
-                {rankings.map(r => `${r.label} #${r.rank}`).join(" \u00b7 ")}
+
+              <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+                {rankings.map(r => (
+                  <div key={r.label} style={{
+                    display:"flex",flexDirection:"column",alignItems:"center",gap:2,
+                    padding:"6px 9px",borderRadius:3,
+                    background:"linear-gradient(135deg, rgba(242,204,96,0.1), rgba(124,84,15,0.06))",
+                    border:"1px solid rgba(201,151,42,0.3)",
+                  }}>
+                    <span style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:14,color:"var(--gold-bright)"}}>#{r.rank}</span>
+                    <span style={{fontSize:8,color:"var(--text-dim)",letterSpacing:0.5,textTransform:"uppercase",fontWeight:700}}>{r.label}</span>
+                  </div>
+                ))}
               </div>
-              <div style={{fontSize:11,color:"var(--text-dim)"}}>
+
+              <div style={{fontSize:11,color:"var(--text-dim)",borderTop:"1px solid var(--border)",paddingTop:12}}>
                 <span style={{color:statusConfig.color,fontWeight:700}}>{statusConfig.label}</span>
                 {daysSinceActivity !== null && ` \u00b7 ${daysSinceActivity === 0 ? "active today" : `seen ${daysSinceActivity}d ago`}`}
               </div>
@@ -7372,83 +7385,88 @@ function PlayerInfo({ member, members, onBack }) {
           </div>
 
           <div style={{flex:1,minWidth:280}}>
-            <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:12}}>This Month's Events</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-              {eventStats.map(s => (
-                <div key={s.id} style={{
-                  display:"flex",alignItems:"flex-start",gap:10,
-                  padding:"14px 16px",background:"rgba(255,255,255,0.02)",
-                  border:"1px solid var(--border)",borderRadius:4,
-                }}>
-                  <div style={{color:"var(--gold)",flexShrink:0,marginTop:2}}><s.icon size={18} /></div>
-                  <div>
-                    <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>{s.label}</div>
-                    <div style={{fontSize:16,fontWeight:800,color:"var(--text-bright)",margin:"2px 0"}}>{s.attended} out of {s.max}</div>
-                    <div style={{fontSize:10,color:"var(--text-dim)"}}>{s.desc}</div>
+            <div style={{
+              background:"rgba(255,255,255,0.02)",border:"1px solid var(--border)",borderRadius:4,
+              padding:"18px 20px",
+            }}>
+              <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:16}}>This Month's Events</div>
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                {eventStats.map(s => (
+                  <div key={s.id} style={{display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{color:"var(--gold)",flexShrink:0,width:18}}><s.icon size={16} /></div>
+                    <div style={{width:90,fontSize:11,color:"var(--text-dim)",flexShrink:0}}>{s.label}</div>
+                    <div style={{flex:1,height:8,background:"var(--border)",borderRadius:4,overflow:"hidden"}}>
+                      <div style={{
+                        width:`${Math.min(100,(s.attended/Math.max(1,s.max))*100)}%`,height:"100%",
+                        background:"linear-gradient(90deg, var(--gold-dim), var(--gold-bright))",
+                      }}/>
+                    </div>
+                    <div style={{width:46,fontSize:12,fontWeight:800,color:"var(--text-bright)",textAlign:"right",flexShrink:0}}>{s.attended}/{s.max}</div>
                   </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div style={{flex:1,minWidth:280,display:"flex",flexDirection:"column",gap:16}}>
+            <div className="card" style={{padding:20}}>
+              <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Last 4 Weeks</div>
+              <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Power Surge</div>
+              <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Weekly bars show recorded Power gains across the last four weeks.</div>
+              <div style={{display:"flex",alignItems:"flex-end",gap:10,height:140}}>
+                {powerGains.map((gain, i) => (
+                  <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",height:"100%",justifyContent:"flex-end"}}>
+                    {gain !== null ? (
+                      <>
+                        <div style={{fontSize:10,fontWeight:700,color:"var(--gold-bright)",marginBottom:4}}>{gain>=0?"+":""}{fmt(gain)}</div>
+                        <div style={{
+                          width:"100%",
+                          height:`${Math.max(6,(Math.abs(gain)/maxGain)*100)}px`,
+                          background:gain>=0
+                            ? "linear-gradient(180deg, var(--gold-bright), var(--gold-dim))"
+                            : "linear-gradient(180deg, #e07070, #7a1a1a)",
+                          borderRadius:3,
+                        }}/>
+                      </>
+                    ) : (
+                      <div style={{width:"100%",height:6,background:"var(--border-dim)",borderRadius:3}}/>
+                    )}
+                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:6,textAlign:"center"}}>{periodLabels[i]}</div>
+                  </div>
+                ))}
+              </div>
+              {powerGains.every(g => g === null) && (
+                <div style={{fontSize:11,color:"var(--text-dim)",marginTop:14,textAlign:"center"}}>
+                  No Power history recorded yet. This chart fills in automatically as Power gets updated over the coming weeks.
                 </div>
-              ))}
+              )}
+            </div>
+
+            <div className="card" style={{padding:20}}>
+              <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Last 4 Weeks</div>
+              <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Event Activity</div>
+              <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Bars show how many events this member attended each week.</div>
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                {eventActivity.map((count, i) => (
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{width:64,fontSize:10,color:"var(--text-dim)",flexShrink:0}}>{periodLabels[i]}</div>
+                    <div style={{flex:1,background:"var(--border-dim)",borderRadius:4,height:22,position:"relative",overflow:"hidden"}}>
+                      <div style={{
+                        height:"100%",width:`${Math.max(4,(count/maxActivity)*100)}%`,
+                        background:"linear-gradient(90deg, var(--gold-dim), var(--gold-bright))",
+                        display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:8,
+                      }}>
+                        {count > 0 && <span style={{fontSize:10,fontWeight:800,color:"var(--bg-void)"}}>{count}</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="grid-2" style={{gap:20}}>
-        <div className="card" style={{padding:20}}>
-          <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Last 4 Weeks</div>
-          <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Power Surge</div>
-          <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Weekly bars show recorded Power gains across the last four weeks.</div>
-          <div style={{display:"flex",alignItems:"flex-end",gap:10,height:160}}>
-            {powerGains.map((gain, i) => (
-              <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",height:"100%",justifyContent:"flex-end"}}>
-                {gain !== null ? (
-                  <>
-                    <div style={{fontSize:10,fontWeight:700,color:"var(--gold-bright)",marginBottom:4}}>{gain>=0?"+":""}{fmt(gain)}</div>
-                    <div style={{
-                      width:"100%",
-                      height:`${Math.max(6,(Math.abs(gain)/maxGain)*120)}px`,
-                      background:gain>=0
-                        ? "linear-gradient(180deg, var(--gold-bright), var(--gold-dim))"
-                        : "linear-gradient(180deg, #e07070, #7a1a1a)",
-                      borderRadius:3,
-                    }}/>
-                  </>
-                ) : (
-                  <div style={{width:"100%",height:6,background:"var(--border-dim)",borderRadius:3}}/>
-                )}
-                <div style={{fontSize:9,color:"var(--text-dim)",marginTop:6,textAlign:"center"}}>{periodLabels[i]}</div>
-              </div>
-            ))}
-          </div>
-          {powerGains.every(g => g === null) && (
-            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:14,textAlign:"center"}}>
-              No Power history recorded yet. This chart fills in automatically as Power gets updated over the coming weeks.
-            </div>
-          )}
-        </div>
-
-        <div className="card" style={{padding:20}}>
-          <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Last 4 Weeks</div>
-          <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Event Activity</div>
-          <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Bars show how many events this member attended each week.</div>
-          <div style={{display:"flex",flexDirection:"column",gap:14}}>
-            {eventActivity.map((count, i) => (
-              <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
-                <div style={{width:74,fontSize:10,color:"var(--text-dim)",flexShrink:0}}>{periodLabels[i]}</div>
-                <div style={{flex:1,background:"var(--border-dim)",borderRadius:4,height:26,position:"relative",overflow:"hidden"}}>
-                  <div style={{
-                    height:"100%",width:`${Math.max(4,(count/maxActivity)*100)}%`,
-                    background:"linear-gradient(90deg, var(--gold-dim), var(--gold-bright))",
-                    display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:8,
-                  }}>
-                    {count > 0 && <span style={{fontSize:11,fontWeight:800,color:"var(--bg-void)"}}>{count}</span>}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
