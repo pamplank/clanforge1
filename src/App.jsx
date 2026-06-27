@@ -7651,11 +7651,7 @@ function PlayerInfo({ member, members, onBack }) {
   const powerRank = byPower.findIndex(m=>m.id===member.id)+1;
   const coinsRank = byCoins.findIndex(m=>m.id===member.id)+1;
   const attendRank = byAttend.findIndex(m=>m.id===member.id)+1;
-  const rankings = [
-    { label: "Power",  rank: powerRank },
-    { label: "Richest", rank: coinsRank },
-    { label: "Active", rank: attendRank },
-  ];
+  // (rankings array moved below, after the prestige tier objects it now references)
 
   // Prestige tier — matches the podium's gold/silver/bronze treatment,
   // based specifically on Power rank (not Richest or Active), so the
@@ -7696,6 +7692,18 @@ function PlayerInfo({ member, members, onBack }) {
   };
   const activeSilver = { title: "Dependable", color: "#dcdee1", accent: "#9a9da0", glow: "rgba(220,222,225,0.2)" };
   const activeTier = ACTIVE_TIERS[attendRank] || (attendRank >= 4 && attendRank <= 10 ? activeSilver : null);
+
+  // Sidebar rank badges (Power/Richest/Active) pick up their tier's color
+  // ONLY for ranks 1-10 — matching the same cutoff used for the top
+  // banners and the podium/honorable-mentions row, so this is consistent
+  // with every other prestige surface rather than a fourth, looser rule.
+  // Outside the top 10, the badge falls back to the original plain gold
+  // look (color: null signals that to the renderer below).
+  const rankings = [
+    { label: "Power",  rank: powerRank,  color: prestige?.color || null },
+    { label: "Richest", rank: coinsRank, color: richestTier?.color || null },
+    { label: "Active", rank: attendRank, color: activeTier?.color || null },
+  ];
   // Dark/mid tones dominate most of the radius (matching the real images'
   // proportions), with the bright highlight confined to a small core
   // instead of bleeding outward as a bright wash.
@@ -7815,10 +7823,10 @@ function PlayerInfo({ member, members, onBack }) {
                   <div key={r.label} style={{
                     display:"flex",flexDirection:"column",alignItems:"center",gap:2,
                     padding:"6px 9px",borderRadius:3,
-                    background:"linear-gradient(135deg, rgba(242,204,96,0.1), rgba(124,84,15,0.06))",
-                    border:"1px solid rgba(201,151,42,0.3)",
+                    background:r.color ? `${r.color}1a` : "linear-gradient(135deg, rgba(242,204,96,0.1), rgba(124,84,15,0.06))",
+                    border:r.color ? `1px solid ${r.color}66` : "1px solid rgba(201,151,42,0.3)",
                   }}>
-                    <span style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:14,color:"var(--gold-bright)"}}>#{r.rank}</span>
+                    <span style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:14,color:r.color || "var(--gold-bright)"}}>#{r.rank}</span>
                     <span style={{fontSize:8,color:"var(--text-dim)",letterSpacing:0.5,textTransform:"uppercase",fontWeight:700}}>{r.label}</span>
                   </div>
                 ))}
