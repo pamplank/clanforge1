@@ -2369,6 +2369,31 @@ tbody tr:last-child td{border-bottom:none;}
 .podium-rank-1 .podium-name{font-size:17px;}
 .podium-rank-2 .podium-name,.podium-rank-3 .podium-name{font-size:13px;}
 .podium-power{font-size:12px;color:var(--gold-bright);margin-top:2px;}
+
+/* Honorable mentions (ranks 4-5) — same metallic-ring technique as the
+   podium's gold/mythical/epic tiers, in a dark-dominant silver sequence,
+   but noticeably smaller and without the crown or oversized glow that
+   the actual podium uses, so #4/#5 read as quieter runners-up rather
+   than a 4th medal tier competing with the top 3. */
+.podium-honorable-row{
+  display:flex;align-items:flex-end;justify-content:center;gap:20px;
+  margin-top:28px;padding-top:20px;border-top:1px solid rgba(255,255,255,0.06);
+  flex-wrap:wrap;
+}
+.podium-honorable-slot{display:flex;flex-direction:column;align-items:center;}
+.podium-honorable-ring{
+  border-radius:11px;display:inline-block;padding:2px;
+  background:linear-gradient(135deg,#1c1c1c,#1c1c1c,#6e7073,#dcdee1,#6e7073,#1c1c1c,#1c1c1c);
+  box-shadow:0 0 8px rgba(220,222,225,0.2);
+}
+.podium-honorable-frame{width:104px;border-radius:9px;overflow:hidden;position:relative;}
+.podium-honorable-rank{font-family:'Spectral',serif;font-weight:800;font-size:14px;color:#dcdee1;margin-top:8px;text-shadow:0 0 6px rgba(220,222,225,0.3);}
+.podium-honorable-name{font-family:'Spectral',serif;font-weight:600;font-size:11px;color:var(--text-mid);margin-top:2px;text-align:center;}
+@media(max-width:600px){
+  .podium-honorable-frame{width:78px;}
+  .podium-honorable-row{gap:12px;margin-top:20px;padding-top:14px;}
+}
+
 @media(max-width:600px){
   .podium-banner{min-height:340px;padding:40px 16px 28px;}
 }
@@ -7341,7 +7366,7 @@ function LBList({ data, valueKey, label, format, color, currentUser, showMultipl
 // rarity/portrait/frame/awakening composition as the Player Info page),
 // arranged gold/silver/bronze, over the same angel/trophy video already
 // used on the login screen.
-function LeaderboardPodium({ topThree, onViewProfile }) {
+function LeaderboardPodium({ topThree, fourFive, onViewProfile }) {
   // Render order left-to-right is #2, #1, #3 (classic podium arrangement)
   // even though the data order is #1, #2, #3.
   const ordered = [topThree[1], topThree[0], topThree[2]];
@@ -7367,6 +7392,30 @@ function LeaderboardPodium({ topThree, onViewProfile }) {
           );
         })}
       </div>
+
+      {/* Honorable mentions — ranks 4-5. Deliberately smaller and quieter
+          than the podium (silver metallic ring only, no crown, no
+          oversized glow), so the top 3 stay the clear visual focus while
+          still giving #4/#5 a real card instead of just plain text. */}
+      {fourFive && fourFive.length > 0 && (
+        <div className="podium-honorable-row">
+          {fourFive.map((m, i) => {
+            if (!m) return null;
+            const rank = i + 4;
+            return (
+              <div key={m.id} className="podium-honorable-slot">
+                <div className="podium-honorable-ring">
+                  <div className="podium-honorable-frame">
+                    <ProfileCard member={m} onClick={()=>onViewProfile(m.id)} />
+                  </div>
+                </div>
+                <div className="podium-honorable-rank">#{rank}</div>
+                <div className="podium-honorable-name">{m.name}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -7378,7 +7427,8 @@ function Leaderboard({ ctx }) {
   const byPower=[...members].sort((a,b)=>b.power-a.power);
   const byAttend=[...members].sort((a,b)=>b.attendance-a.attendance);
   const powerTopThree = byPower.slice(0,3);
-  const powerRest = byPower.slice(3);
+  const powerFourFive = byPower.slice(3,5);
+  const powerRest = byPower.slice(5);
 
   return (
     <div>
@@ -7390,10 +7440,10 @@ function Leaderboard({ ctx }) {
         <div className="leaderboard-headline-flourish leaderboard-headline-flourish--right" />
       </div>
 
-      {powerTopThree.length > 0 && <LeaderboardPodium topThree={powerTopThree} onViewProfile={setGlobalViewingProfile} />}
+      {powerTopThree.length > 0 && <LeaderboardPodium topThree={powerTopThree} fourFive={powerFourFive} onViewProfile={setGlobalViewingProfile} />}
 
       <div className="lb-grid">
-        <LBList data={powerRest} valueKey="power" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={POWER_ICON} size={22} />{t("mostPowerful")}</span>} format={v=>fmt(v)} color="linear-gradient(90deg,#071824,#2e86c1)" currentUser={currentUser} showMultiplier rankOffset={3} />
+        <LBList data={powerRest} valueKey="power" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={POWER_ICON} size={22} />{t("mostPowerful")}</span>} format={v=>fmt(v)} color="linear-gradient(90deg,#071824,#2e86c1)" currentUser={currentUser} showMultiplier rankOffset={5} />
         <LBList data={byCoins} valueKey="coins" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={RICHEST_ICON} size={22} />{t("richestWarriors")}</span>} format={v=>`${fmt(v)}`} currentUser={currentUser} />
         <LBList data={byAttend} valueKey="attendance" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={MOSTACTIVE_ICON} size={22} />{t("mostActive")}</span>} format={v=>`${v} ${t("attSuffix")}`} color="linear-gradient(90deg,#071a0f,#27ae60)" currentUser={currentUser} />
       </div>
