@@ -1634,6 +1634,89 @@ function CalendarIcon(p) { return <Icon {...p}><rect x="3" y="5" width="18" heig
 function WarningIcon(p) { return <Icon {...p}><path d="M12 3 2 20h20L12 3Z"/><path d="M12 10v4M12 17h.01"/></Icon>; }
 function ColumnIcon(p) { return <Icon {...p}><path d="M4 21h16M5 21V8M19 21V8M3 8h18l-9-5-9 5Z M9 21V8M15 21V8"/></Icon>; }
 function GearIcon(p) { return <Icon {...p}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></Icon>; }
+function VolumeOnIcon(p) { return <Icon {...p}><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></Icon>; }
+function VolumeMutedIcon(p) { return <Icon {...p}><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M16 9l5 6M21 9l-5 6"/></Icon>; }
+
+// ─── BACKGROUND MUSIC (ambient audio for Login + Leaderboard pages) ──────────
+// Two royalty-free tracks living in /public/audio/, swapped automatically
+// based on which page is showing. Browsers block autoplay-with-sound until
+// the user's first click/tap anywhere on the page, so we start the <audio>
+// element muted and "arm" real playback on that first interaction — after
+// that it behaves like a normal page that just happens to have music.
+const BGM_TRACKS = { login: "/audio/loginscreen.mp3", leaderboard: "/audio/leaderboards.mp3" };
+const BGM_VOLUME_KEY = "cf_bgm_volume";   // 0..1, persisted
+const BGM_MUTED_KEY  = "cf_bgm_muted";    // "true"/"false", persisted
+function BackgroundMusic({ active, track }) {
+  const audioRef = React.useRef(null);
+  const [muted, setMuted] = useState(() => {
+    try { return localStorage.getItem(BGM_MUTED_KEY) === "true"; } catch { return false; }
+  });
+  const [unlocked, setUnlocked] = useState(false); // becomes true after first user gesture
+  const volumeRef = React.useRef(0.45); // moderate default; loaded from storage below
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(BGM_VOLUME_KEY);
+      if (saved !== null) volumeRef.current = parseFloat(saved);
+    } catch {}
+  }, []);
+
+  // Unlock audio on the very first click/keydown/touch anywhere on the page.
+  useEffect(() => {
+    if (unlocked) return;
+    function onFirstGesture() { setUnlocked(true); }
+    window.addEventListener("click", onFirstGesture, { once: true });
+    window.addEventListener("keydown", onFirstGesture, { once: true });
+    window.addEventListener("touchstart", onFirstGesture, { once: true });
+    return () => {
+      window.removeEventListener("click", onFirstGesture);
+      window.removeEventListener("keydown", onFirstGesture);
+      window.removeEventListener("touchstart", onFirstGesture);
+    };
+  }, [unlocked]);
+
+  // Swap source when track changes, keep playback position reset between tracks.
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el || !track) return;
+    const src = BGM_TRACKS[track];
+    if (!src) return;
+    if (!el.src || !el.src.endsWith(src)) {
+      el.src = src;
+      el.currentTime = 0;
+    }
+  }, [track]);
+
+  // Play/pause based on whether this page should have music, whether we're
+  // unlocked yet, and the mute state.
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    el.volume = muted ? 0 : volumeRef.current;
+    if (active && track && unlocked && !muted) {
+      el.play().catch(() => {}); // ignore races (e.g. rapid page switches)
+    } else {
+      el.pause();
+    }
+  }, [active, track, unlocked, muted]);
+
+  function toggleMute() {
+    const next = !muted;
+    setMuted(next);
+    try { localStorage.setItem(BGM_MUTED_KEY, next ? "true" : "false"); } catch {}
+  }
+
+  if (!active) return null;
+  return (
+    <>
+      <audio ref={audioRef} loop preload="auto" />
+      <button className="bgm-toggle" onClick={toggleMute}
+        aria-label={muted ? "Unmute background music" : "Mute background music"}
+        title={muted ? "Unmute music" : "Mute music"}>
+        {muted ? <VolumeMutedIcon size={18}/> : <VolumeOnIcon size={18}/>}
+      </button>
+    </>
+  );
+}
 
 const EVENTS = [
   { id:"ISB", name:"Inter Server Battle", coins:100, color:"#e74c3c" },
@@ -2862,6 +2945,19 @@ tbody tr:last-child td{border-bottom:none;}
 }
 @keyframes entranceOverlayFadeReduced{
   0%{opacity:1;}85%{opacity:1;}100%{opacity:0;visibility:hidden;}
+}
+.bgm-toggle{
+  position:fixed;bottom:24px;left:24px;z-index:300;
+  width:42px;height:42px;border-radius:50%;
+  background:rgba(20,16,12,0.85);border:1px solid var(--border-bright);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:background 0.15s,border-color 0.15s,transform 0.15s;
+}
+.bgm-toggle:hover{background:rgba(30,24,18,0.92);border-color:var(--gold);}
+.bgm-toggle:active{transform:scale(0.94);}
+.bgm-toggle svg{color:var(--gold-light);}
+@media(max-width:480px){
+  .bgm-toggle{bottom:16px;left:16px;width:38px;height:38px;}
 }
 `;
 
@@ -4530,6 +4626,7 @@ function AppInner() {
   if (!loggedIn) return (
     <>
       <style>{GLOBAL_CSS}</style>
+      <BackgroundMusic active={true} track="login" />
       <LoginScreen members={members} onLogin={handleLogin} />
       <Toast toasts={toasts} remove={removeToast} />
     </>
@@ -4558,6 +4655,7 @@ function AppInner() {
   return (
     <>
       <style>{GLOBAL_CSS}</style>
+      <BackgroundMusic active={page==="leaderboard"} track="leaderboard" />
       {page==="leaderboard" && !globalViewingProfile && createPortal(
         <>
           <video className="leaderboard-bg-video" autoPlay loop muted playsInline poster="/video/login-bg-poster.jpg">
