@@ -7622,7 +7622,12 @@ function PlayerInfo({ member, members, onBack }) {
     2: { name: "gold",     color: "#f2cc60", glow: "rgba(242,204,96,0.3)",  gradient: ["#f3e79d", "#725f38", "#2b2215"], label: "2nd Most Powerful in the Clan" },
     3: { name: "epic",     color: "#fe7e73", glow: "rgba(254,126,115,0.3)", gradient: ["#fca699", "#99463f", "#311714"], label: "3rd Most Powerful in the Clan" },
   };
-  const prestige = PRESTIGE_TIERS[powerRank] || null;
+  // Ranks 4-10 get the same silver tone as the podium's honorable
+  // mentions ring, so clicking through from there to a Player Info page
+  // shows a consistent (if quieter) version of the same treatment,
+  // instead of no prestige styling at all.
+  const silverTier = { name: "silver", color: "#dcdee1", glow: "rgba(220,222,225,0.25)", gradient: ["#dcdee1", "#6e7073", "#1c1c1c"], label: "Among the Mightiest in the Clan" };
+  const prestige = PRESTIGE_TIERS[powerRank] || (powerRank >= 4 && powerRank <= 10 ? silverTier : null);
   // Dark/mid tones dominate most of the radius (matching the real images'
   // proportions), with the bright highlight confined to a small core
   // instead of bleeding outward as a bright wash.
