@@ -1820,6 +1820,33 @@ body.bg-auctions::before{
 }
 #root{position:relative;z-index:1;}
 
+/* Leaderboard page background — a fixed full-viewport video (the same
+   angel/trophy footage used on the login screen and, previously, just
+   the podium banner) sitting behind the ENTIRE page, not just one
+   section. Fixed positioning means it stays put as the page scrolls
+   through the podium and the long ranked lists below, instead of
+   scrolling away and leaving blank space. Uses the same proven crop
+   position as .login-video-bg so the angel stays correctly centered on
+   both desktop and mobile, rather than re-deriving it. */
+.leaderboard-page-video-bg{
+  position:fixed;inset:0;width:100%;height:100%;
+  object-fit:cover;object-position:right center;
+  z-index:-2;pointer-events:none;
+}
+.leaderboard-page-scrim{
+  position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:linear-gradient(180deg,
+    rgba(5,4,3,0.55) 0%,
+    rgba(5,4,3,0.35) 20%,
+    rgba(5,4,3,0.55) 55%,
+    rgba(5,4,3,0.88) 85%,
+    rgba(5,4,3,0.97) 100%
+  );
+}
+@media(max-width:760px){
+  .leaderboard-page-video-bg{object-position:78% center;}
+}
+
 /* ── ORNAMENTAL ELEMENTS ── */
 .orn-border{
   position:relative;
@@ -2256,25 +2283,9 @@ tbody tr:last-child td{border-bottom:none;}
 
 /* ── LEADERBOARD PODIUM (top 3 Most Powerful) ── */
 .podium-banner{
-  position:relative;border-radius:8px;overflow:hidden;
+  position:relative;
   padding:48px 24px 36px;margin-bottom:30px;
   min-height:420px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
-}
-.podium-video-bg{
-  position:absolute;inset:0;width:100%;height:100%;
-  object-fit:cover;object-position:right center;z-index:0;
-}
-.podium-scrim{
-  position:absolute;inset:0;z-index:1;pointer-events:none;
-  background:linear-gradient(180deg,
-    rgba(4,3,8,0.55) 0%,
-    rgba(4,3,8,0.35) 30%,
-    rgba(4,3,8,0.55) 60%,
-    rgba(4,3,8,0.93) 100%
-  );
-}
-@media(max-width:760px){
-  .podium-video-bg{object-position:78% center;}
 }
 .podium-row{position:relative;z-index:2;display:flex;align-items:flex-end;justify-content:center;gap:18px;flex-wrap:wrap;width:100%;}
 .podium-slot{display:flex;flex-direction:column;align-items:center;}
@@ -4535,6 +4546,14 @@ function AppInner() {
             </div>
           </div>
           <div className="content">
+            {page==="leaderboard" && (
+              <>
+                <video className="leaderboard-page-video-bg" autoPlay loop muted playsInline poster="/video/login-bg-poster.jpg">
+                  <source src="/video/login-bg.webm" type="video/webm" />
+                </video>
+                <div className="leaderboard-page-scrim" />
+              </>
+            )}
             {page==="dashboard"   && <Dashboard ctx={ctx} setPage={setPage} />}
             {page==="members"     && <Members ctx={ctx} />}
             {page==="attendance"  && <Attendance ctx={ctx} />}
@@ -7211,10 +7230,6 @@ function LeaderboardPodium({ topThree }) {
 
   return (
     <div className="podium-banner">
-      <video className="podium-video-bg" autoPlay loop muted playsInline poster="/video/login-bg-poster.jpg">
-        <source src="/video/login-bg.webm" type="video/webm" />
-      </video>
-      <div className="podium-scrim" />
       <div className="podium-row">
         {ordered.map(m => {
           if (!m) return null;
@@ -7247,14 +7262,8 @@ function Leaderboard({ ctx }) {
 
   return (
     <div>
-      <div style={{
-        background:"linear-gradient(135deg,#0a0b0f,#14101a)",border:"1px solid var(--border)",
-        borderRadius:4,padding:"18px 20px",marginBottom:26,textAlign:"center",position:"relative",overflow:"hidden"
-      }}>
-        <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,var(--gold-dim),transparent)"}} />
-        <div style={{fontSize:42,marginBottom:10}}><LBIcon src={LEADERBOARD_ICON} size={56} /></div>
-        <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:28,color:"var(--gold-light)",letterSpacing:2}}>{t("hallOfFame")}</div>
-        <div style={{color:"var(--text-dim)",marginTop:6,fontSize:13,fontWeight:500,letterSpacing:2}}>{possessive(CLAN_NAME)} {t("mightiestWarriors")}</div>
+      <div style={{textAlign:"center",marginBottom:26,color:"var(--text-bright)",fontSize:13,fontWeight:500,letterSpacing:2,textShadow:"0 2px 6px rgba(0,0,0,0.7)"}}>
+        {possessive(CLAN_NAME)} {t("mightiestWarriors")}
       </div>
 
       {powerTopThree.length > 0 && <LeaderboardPodium topThree={powerTopThree} />}
