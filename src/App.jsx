@@ -2332,11 +2332,11 @@ tbody tr:last-child td{border-bottom:none;}
 .podium-card-frame:hover{transform:translateY(-4px);}
 .podium-rank-1 .podium-card-frame{width:252px;border:3px solid #c77dff;box-shadow:0 0 32px rgba(199,125,255,0.5);}
 .podium-rank-2 .podium-card-frame{width:192px;border:2px solid #f2cc60;box-shadow:0 0 16px rgba(242,204,96,0.35);}
-.podium-rank-3 .podium-card-frame{width:180px;border:2px solid #d4d4d4;box-shadow:0 0 14px rgba(192,192,192,0.3);}
+.podium-rank-3 .podium-card-frame{width:180px;border:2px solid #fe7e73;box-shadow:0 0 14px rgba(254,126,115,0.35);}
 .podium-rank-num{font-family:'Spectral',serif;font-weight:800;margin-top:10px;}
 .podium-rank-1 .podium-rank-num{font-size:34px;color:#c77dff;text-shadow:0 0 14px rgba(199,125,255,0.6);}
 .podium-rank-2 .podium-rank-num{font-size:24px;color:#f2cc60;text-shadow:0 0 10px rgba(242,204,96,0.45);}
-.podium-rank-3 .podium-rank-num{font-size:21px;color:#d4d4d4;text-shadow:0 0 10px rgba(192,192,192,0.4);}
+.podium-rank-3 .podium-rank-num{font-size:21px;color:#fe7e73;text-shadow:0 0 10px rgba(254,126,115,0.45);}
 .podium-crown{position:absolute;top:-20px;left:50%;transform:translateX(-50%);z-index:3;color:#c77dff;filter:drop-shadow(0 0 6px rgba(199,125,255,0.6));}
 .podium-name{font-family:'Spectral',serif;font-weight:700;color:var(--text-bright);margin-top:6px;text-align:center;}
 .podium-rank-1 .podium-name{font-size:17px;}
@@ -7407,7 +7407,7 @@ function ProfileCard({ member, onClick, prestigeRank }) {
   const rarityBg = PROFILE_RARITY_BG[rarity] || PROFILE_RARITY_BG.uncommon;
   const classPortrait = PROFILE_CLASS_PORTRAIT[member.cls];
   const awakeningLevel = member.awakeningLevel || 0;
-  const RIBBON_COLORS = { 1: "#c77dff", 2: "#f2cc60", 3: "#d4d4d4" };
+  const RIBBON_COLORS = { 1: "#c77dff", 2: "#f2cc60", 3: "#fe7e73" };
   const ribbonColor = RIBBON_COLORS[prestigeRank];
 
   return (
@@ -7494,12 +7494,20 @@ function PlayerInfo({ member, members, onBack }) {
   // based specifically on Power rank (not Richest or Active), so the
   // Player Info page's special treatment always lines up with whoever
   // is actually standing on the Leaderboard podium.
+  // Gradient stops sampled directly from the actual rarity background
+  // images (mythic/legendary/epic), so the "radiant" glow genuinely
+  // matches those reference images' real color transitions instead of a
+  // flat single-color glow. Each tier: bright core -> true tier color ->
+  // dark edge, same progression the source images themselves use.
   const PRESTIGE_TIERS = {
-    1: { name: "mythical", color: "#c77dff", glow: "rgba(199,125,255,0.5)", label: "Most Powerful in the Clan" },
-    2: { name: "gold",     color: "#f2cc60", glow: "rgba(242,204,96,0.4)", label: "2nd Most Powerful in the Clan" },
-    3: { name: "silver",   color: "#d4d4d4", glow: "rgba(192,192,192,0.4)", label: "3rd Most Powerful in the Clan" },
+    1: { name: "mythical", color: "#c77dff", glow: "rgba(199,125,255,0.5)", gradient: ["#e462ff", "#9d44b2", "#33143a"], label: "Most Powerful in the Clan" },
+    2: { name: "gold",     color: "#f2cc60", glow: "rgba(242,204,96,0.4)",  gradient: ["#fffeb1", "#ffe88d", "#534528"], label: "2nd Most Powerful in the Clan" },
+    3: { name: "epic",     color: "#fe7e73", glow: "rgba(254,126,115,0.4)", gradient: ["#ffab9c", "#fe7e73", "#4e261f"], label: "3rd Most Powerful in the Clan" },
   };
   const prestige = PRESTIGE_TIERS[powerRank] || null;
+  const prestigeGlowCss = prestige
+    ? `radial-gradient(circle, ${prestige.gradient[0]}55 0%, ${prestige.gradient[1]}40 45%, transparent 75%)`
+    : null;
 
   const eventStats = [
     { id:"ISB", label:"Server Battle", icon:ShieldIcon, desc:"Server Battle participation this month." },
@@ -7560,8 +7568,10 @@ function PlayerInfo({ member, members, onBack }) {
         <div className="player-info-layout">
           <div className="player-info-sidebar">
             <div style={{
-              borderRadius:14,
-              boxShadow:prestige?`0 0 28px ${prestige.glow}, 0 4px 20px ${prestige.glow}`:"none",
+              borderRadius:24,
+              padding:prestige?24:0,
+              margin:prestige?-24:0,
+              background:prestigeGlowCss || "none",
             }}>
               <ProfileCard member={member} prestigeRank={powerRank <= 3 ? powerRank : null} />
             </div>
