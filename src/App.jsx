@@ -2285,24 +2285,24 @@ tbody tr:last-child td{border-bottom:none;}
 .podium-banner{
   position:relative;
   padding:48px 24px 36px;margin-bottom:30px;
-  min-height:420px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+  min-height:560px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
 }
 .podium-row{position:relative;z-index:2;display:flex;align-items:flex-end;justify-content:center;gap:18px;flex-wrap:wrap;width:100%;}
 .podium-slot{display:flex;flex-direction:column;align-items:center;}
 .podium-card-frame{border-radius:10px;overflow:hidden;position:relative;transition:transform 0.2s;}
 .podium-card-frame:hover{transform:translateY(-4px);}
-.podium-rank-1 .podium-card-frame{width:168px;border:3px solid #f2cc60;box-shadow:0 0 32px rgba(242,204,96,0.5);}
-.podium-rank-2 .podium-card-frame{width:128px;border:2px solid #c0c0c0;box-shadow:0 0 16px rgba(192,192,192,0.3);}
-.podium-rank-3 .podium-card-frame{width:120px;border:2px solid #b87333;box-shadow:0 0 14px rgba(184,115,51,0.3);}
+.podium-rank-1 .podium-card-frame{width:252px;border:3px solid #f2cc60;box-shadow:0 0 32px rgba(242,204,96,0.5);}
+.podium-rank-2 .podium-card-frame{width:192px;border:2px solid #c0c0c0;box-shadow:0 0 16px rgba(192,192,192,0.3);}
+.podium-rank-3 .podium-card-frame{width:180px;border:2px solid #b87333;box-shadow:0 0 14px rgba(184,115,51,0.3);}
 .podium-rank-num{font-family:'Spectral',serif;font-weight:800;margin-top:10px;}
-.podium-rank-1 .podium-rank-num{font-size:28px;color:#f2cc60;text-shadow:0 0 12px rgba(242,204,96,0.6);}
-.podium-rank-2 .podium-rank-num{font-size:20px;color:#d4d4d4;text-shadow:0 0 8px rgba(192,192,192,0.4);}
-.podium-rank-3 .podium-rank-num{font-size:18px;color:#cd8a52;text-shadow:0 0 8px rgba(184,115,51,0.4);}
-.podium-crown{position:absolute;top:-16px;left:50%;transform:translateX(-50%);z-index:3;color:#f2cc60;filter:drop-shadow(0 0 6px rgba(242,204,96,0.6));}
+.podium-rank-1 .podium-rank-num{font-size:34px;color:#f2cc60;text-shadow:0 0 14px rgba(242,204,96,0.6);}
+.podium-rank-2 .podium-rank-num{font-size:24px;color:#d4d4d4;text-shadow:0 0 10px rgba(192,192,192,0.4);}
+.podium-rank-3 .podium-rank-num{font-size:21px;color:#cd8a52;text-shadow:0 0 10px rgba(184,115,51,0.4);}
+.podium-crown{position:absolute;top:-20px;left:50%;transform:translateX(-50%);z-index:3;color:#f2cc60;filter:drop-shadow(0 0 6px rgba(242,204,96,0.6));}
 .podium-name{font-family:'Spectral',serif;font-weight:700;color:var(--text-bright);margin-top:6px;text-align:center;}
-.podium-rank-1 .podium-name{font-size:15px;}
-.podium-rank-2 .podium-name,.podium-rank-3 .podium-name{font-size:12px;}
-.podium-power{font-size:11px;color:var(--gold-bright);margin-top:2px;}
+.podium-rank-1 .podium-name{font-size:17px;}
+.podium-rank-2 .podium-name,.podium-rank-3 .podium-name{font-size:13px;}
+.podium-power{font-size:12px;color:var(--gold-bright);margin-top:2px;}
 @media(max-width:600px){
   .podium-rank-1 .podium-card-frame{width:130px;}
   .podium-rank-2 .podium-card-frame{width:98px;}
@@ -7237,7 +7237,7 @@ function LeaderboardPodium({ topThree }) {
           return (
             <div key={m.id} className={`podium-slot podium-rank-${rank}`}>
               <div className="podium-card-frame">
-                {rank === 1 && <div className="podium-crown"><CrownIcon size={26} /></div>}
+                {rank === 1 && <div className="podium-crown"><CrownIcon size={34} /></div>}
                 <ProfileCard member={m} />
               </div>
               <div className="podium-rank-num">#{rank}</div>
@@ -7262,8 +7262,18 @@ function Leaderboard({ ctx }) {
 
   return (
     <div>
-      <div style={{textAlign:"center",marginBottom:26,color:"var(--text-bright)",fontSize:13,fontWeight:500,letterSpacing:2,textShadow:"0 2px 6px rgba(0,0,0,0.7)"}}>
-        {possessive(CLAN_NAME)} {t("mightiestWarriors")}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:18,marginBottom:30,padding:"0 20px"}}>
+        <div style={{flex:1,maxWidth:140,height:1,background:"linear-gradient(90deg, transparent, var(--gold-dim))"}} />
+        <div style={{textAlign:"center",flexShrink:0}}>
+          <div style={{
+            fontFamily:"'Spectral',serif",fontWeight:800,fontSize:"clamp(20px,3.6vw,32px)",
+            color:"var(--gold-light)",letterSpacing:1.5,lineHeight:1.1,
+            textShadow:"0 0 28px rgba(201,151,42,0.5), 0 2px 8px rgba(0,0,0,0.8)",
+          }}>
+            {possessive(CLAN_NAME)} {t("mightiestWarriors")}
+          </div>
+        </div>
+        <div style={{flex:1,maxWidth:140,height:1,background:"linear-gradient(90deg, var(--gold-dim), transparent)"}} />
       </div>
 
       {powerTopThree.length > 0 && <LeaderboardPodium topThree={powerTopThree} />}
