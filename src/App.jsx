@@ -7608,7 +7608,7 @@ function PlayerInfo({ member, members, onBack }) {
               <ProfileCard member={member} prestigeRank={powerRank <= 3 ? powerRank : null} />
               <div style={{
                 background:"var(--bg-card)",
-                border:prestige?`1px solid ${prestige.color}`:"1px solid var(--border)",
+                border:prestige?`1px solid ${prestige.gradient[1]}`:"1px solid var(--border)",
                 borderTop:"none",borderRadius:"0 0 8px 8px",padding:"20px 16px",textAlign:"center",
               }}>
                 <div style={{fontFamily:"'Spectral',serif",fontSize:13,color:"var(--text-mid)",letterSpacing:1,marginBottom:14}}>{member.cls}</div>
@@ -7646,8 +7646,8 @@ function PlayerInfo({ member, members, onBack }) {
 
           <div className="player-info-main">
             <div style={{
-              background:prestige?`${prestige.color}0a`:"rgba(255,255,255,0.02)",
-              border:prestige?`1px solid ${prestige.color}40`:"1px solid var(--border)",
+              background:prestige?`${prestige.gradient[2]}30`:"rgba(255,255,255,0.02)",
+              border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
               borderRadius:4,padding:"18px 20px",
             }}>
               <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:16}}>This Month's Events</div>
@@ -7669,8 +7669,8 @@ function PlayerInfo({ member, members, onBack }) {
             </div>
 
             <div style={{
-              background:prestige?`${prestige.color}0a`:"rgba(255,255,255,0.02)",
-              border:prestige?`1px solid ${prestige.color}40`:"1px solid var(--border)",
+              background:prestige?`${prestige.gradient[2]}30`:"rgba(255,255,255,0.02)",
+              border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
               borderRadius:4,padding:"18px 20px",marginTop:16,
             }}>
               <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:14}}>Recent Activity</div>
@@ -7697,7 +7697,7 @@ function PlayerInfo({ member, members, onBack }) {
           </div>
 
           <div className="player-info-main" style={{display:"flex",flexDirection:"column",gap:16}}>
-            <div className="card" style={{padding:20,border:prestige?`1px solid ${prestige.color}40`:undefined,background:prestige?`${prestige.color}0a`:undefined}}>
+            <div className="card" style={{padding:20,border:prestige?`1px solid ${prestige.gradient[1]}50`:undefined,background:prestige?`${prestige.gradient[2]}30`:undefined}}>
               <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Last 4 Weeks</div>
               <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Power Surge</div>
               <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Weekly bars show recorded Power gains across the last four weeks.</div>
@@ -7730,7 +7730,7 @@ function PlayerInfo({ member, members, onBack }) {
               )}
             </div>
 
-            <div className="card" style={{padding:20,border:prestige?`1px solid ${prestige.color}40`:undefined,background:prestige?`${prestige.color}0a`:undefined}}>
+            <div className="card" style={{padding:20,border:prestige?`1px solid ${prestige.gradient[1]}50`:undefined,background:prestige?`${prestige.gradient[2]}30`:undefined}}>
               <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Last 4 Weeks</div>
               <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Event Activity</div>
               <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Bars show how many events this member attended each week.</div>
