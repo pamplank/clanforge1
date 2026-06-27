@@ -2334,24 +2334,27 @@ tbody tr:last-child td{border-bottom:none;}
    normal way to do gradient borders) doesn't support border-radius, so
    instead we use a wrapping element: its own background is the metallic
    gradient, and padding reveals a ring of it around the rounded card
-   sitting inside. Band sequences mimic real metal photography (alternating
-   light/dark stops of the same hue, like light catching a curved surface),
-   adapted from a proven gold/silver reference rather than guessed. */
+   sitting inside. Band sequences are sampled directly from the actual
+   rarity background images' real brightness distribution (roughly 70%
+   dark, 20% mid-tone, 10% bright highlight across the full image) rather
+   than centering on the bright core — dark is the dominant tone with a
+   brief bright glint in the middle, like a real metal surface where most
+   of what you see is shadow and only a thin edge catches the light. */
 .podium-metal-ring{border-radius:13px;display:inline-block;}
 .podium-rank-1 .podium-metal-ring{
   padding:3px;
-  background:linear-gradient(135deg,#9d44b2,#c060d6,#e462ff,#e462ff,#b050c8,#9d44b2);
-  box-shadow:0 0 32px rgba(199,125,255,0.5);
+  background:linear-gradient(135deg,#211022,#211022,#6d2d7b,#d65cf0,#6d2d7b,#211022,#211022);
+  box-shadow:0 0 20px rgba(199,125,255,0.35);
 }
 .podium-rank-2 .podium-metal-ring{
   padding:2px;
-  background:linear-gradient(135deg,#DBB400,#EFAF00,#F5D100,#F5D100,#D1AE15,#DBB400);
-  box-shadow:0 0 16px rgba(242,204,96,0.4);
+  background:linear-gradient(135deg,#2b2215,#2b2215,#725f38,#f3e79d,#725f38,#2b2215,#2b2215);
+  box-shadow:0 0 12px rgba(242,204,96,0.3);
 }
 .podium-rank-3 .podium-metal-ring{
   padding:2px;
-  background:linear-gradient(135deg,#dd645b,#fe7e73,#ffab9c,#ffab9c,#e8786d,#dd645b);
-  box-shadow:0 0 14px rgba(254,126,115,0.4);
+  background:linear-gradient(135deg,#311714,#311714,#99463f,#fca699,#99463f,#311714,#311714);
+  box-shadow:0 0 10px rgba(254,126,115,0.3);
 }
 .podium-rank-1 .podium-card-frame{width:252px;}
 .podium-rank-2 .podium-card-frame{width:192px;}
@@ -7521,19 +7524,21 @@ function PlayerInfo({ member, members, onBack }) {
   // based specifically on Power rank (not Richest or Active), so the
   // Player Info page's special treatment always lines up with whoever
   // is actually standing on the Leaderboard podium.
-  // Gradient stops sampled directly from the actual rarity background
-  // images (mythic/legendary/epic), so the "radiant" glow genuinely
-  // matches those reference images' real color transitions instead of a
-  // flat single-color glow. Each tier: bright core -> true tier color ->
-  // dark edge, same progression the source images themselves use.
+  // Gradient stops use the SAME dark-dominant proportions measured from
+  // the actual rarity background images (~70% dark, 20% mid, 10% bright
+  // across the full image) as the podium's metallic ring, so the aura
+  // reads as a moody radiant glow rather than a wash of bright color.
   const PRESTIGE_TIERS = {
-    1: { name: "mythical", color: "#c77dff", glow: "rgba(199,125,255,0.5)", gradient: ["#e462ff", "#9d44b2", "#33143a"], label: "Most Powerful in the Clan" },
-    2: { name: "gold",     color: "#f2cc60", glow: "rgba(242,204,96,0.4)",  gradient: ["#fffeb1", "#ffe88d", "#534528"], label: "2nd Most Powerful in the Clan" },
-    3: { name: "epic",     color: "#fe7e73", glow: "rgba(254,126,115,0.4)", gradient: ["#ffab9c", "#fe7e73", "#4e261f"], label: "3rd Most Powerful in the Clan" },
+    1: { name: "mythical", color: "#c77dff", glow: "rgba(199,125,255,0.4)", gradient: ["#d65cf0", "#6d2d7b", "#211022"], label: "Most Powerful in the Clan" },
+    2: { name: "gold",     color: "#f2cc60", glow: "rgba(242,204,96,0.3)",  gradient: ["#f3e79d", "#725f38", "#2b2215"], label: "2nd Most Powerful in the Clan" },
+    3: { name: "epic",     color: "#fe7e73", glow: "rgba(254,126,115,0.3)", gradient: ["#fca699", "#99463f", "#311714"], label: "3rd Most Powerful in the Clan" },
   };
   const prestige = PRESTIGE_TIERS[powerRank] || null;
+  // Dark/mid tones dominate most of the radius (matching the real images'
+  // proportions), with the bright highlight confined to a small core
+  // instead of bleeding outward as a bright wash.
   const prestigeGlowCss = prestige
-    ? `radial-gradient(circle, ${prestige.gradient[0]}55 0%, ${prestige.gradient[1]}40 45%, transparent 75%)`
+    ? `radial-gradient(circle, ${prestige.gradient[0]}40 0%, ${prestige.gradient[1]}35 25%, ${prestige.gradient[2]}25 60%, transparent 80%)`
     : null;
 
   const eventStats = [
