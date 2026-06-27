@@ -1383,16 +1383,6 @@ async function adjustMemberCoinsAtomic(memberName, delta) {
   }
 }
 
-// ─── DIAMOND DONATION REWARDS ─────────────────────────────────────────────────
-// Diamonds are the one donation currency members spend real money on (unlike
-// Silver/Amber, which are pure in-game grind) — rewarding them with coins
-// gives donors something back without touching the existing attendance
-// economy. Rate and cap chosen to stay below a single weekly Inter-Server
-// Battle attendance (~100+ coins) even at max daily donation, so this can't
-// out-earn showing up to events.
-const DIAMOND_COIN_RATE = 0.15;       // coins earned per diamond donated
-const DIAMOND_DAILY_CAP = 500;        // max diamonds that earn a reward per member per day
-
 const GMT8_OFFSET_MS_GLOBAL = 8 * 60 * 60 * 1000;
 
 // ─── PROFILE CARD ASSETS (Player Info page) ────────────────────────────────────
@@ -4280,7 +4270,7 @@ function AppInner() {
   const ctx = { members, setMembers, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
     currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed };
 
-  const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings"),donations:"Donations"};
+  const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings")};
 
   // ── Connection error screen (DB unreachable — do NOT show empty/seed state) ─
   if (dbError) return (
@@ -4333,7 +4323,6 @@ function AppInner() {
         {id:"members",icon:<StatIcon src={WARRIORS_ICON} size={16}/>,label:t("members"),sub:[t("sub_memberRoster"),t("sub_profiles"),t("sub_coinPowerAdjust")]},
         {id:"attendance",icon:<StatIcon src={ATTENDANCE_ICON} size={16}/>,label:t("attendance"),sub:[t("sub_recordAttendance"),t("sub_history"),t("sub_eventTracker")]},
         {id:"auctions",icon:<StatIcon src={AUCTION_ICON} size={16}/>,label:t("auctions"),sub:[t("sub_liveAuctions"),t("sub_history"),t("sub_lootRoulette"),...(isAdmin?[t("sub_createAuction")]:[])]},
-        ...(isAdmin?[{id:"donations",icon:"💎",label:"Donations",sub:["Record Donation","History"]}]:[]),
       ]},
     ...(_reportPages.length>0?[{ section:t("navSection_reports"), items:[{id:"reports",icon:"📊",label:t("reports"),subPages:_reportPages}]}]:[]),
   ];
@@ -4508,7 +4497,6 @@ function AppInner() {
             {page==="leaderboard" && <Leaderboard ctx={ctx} />}
             {page==="export"      && <Export ctx={ctx} />}
             {page==="settings"    && <Settings ctx={ctx} />}
-            {page==="donations"   && <Donations ctx={ctx} />}
 
           </div>
         </main>
@@ -7506,177 +7494,6 @@ function PlayerInfo({ member, members, onBack }) {
         </div>
       </div>
 
-    </div>
-  );
-}
-
-
-function Donations({ ctx }) {
-  const { members, setMembers, currentUser, addToast } = ctx;
-  const isAdmin = currentUser.role === "Elder" || currentUser.role === "Master";
-  const [selectedId, setSelectedId] = useState(members[0]?.id ?? "");
-  const [amount, setAmount] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const sortedMembers = useMemo(
-    () => [...members].sort((a, b) => a.name.localeCompare(b.name)),
-    [members]
-  );
-
-  // Sum of diamonds this member has already donated today (GMT+8), pulled
-  // straight from their own txLog — this is the actual source of truth for
-  // the daily cap, not a separate counter that could drift out of sync.
-  function diamondsDonatedToday(member) {
-    const todayStart = getStartOfTodayGmt8();
-    return (member.txLog || [])
-      .filter(e => e.logType === "Diamond Donation" && (e.ts || 0) >= todayStart)
-      .reduce((sum, e) => sum + (e.diamonds || 0), 0);
-  }
-
-  const selectedMember = members.find(m => m.id === selectedId);
-  const alreadyToday = selectedMember ? diamondsDonatedToday(selectedMember) : 0;
-  const remainingToday = Math.max(0, DIAMOND_DAILY_CAP - alreadyToday);
-
-  const parsedAmount = parseInt(amount) || 0;
-  const cappedAmount = Math.min(parsedAmount, remainingToday);
-  const projectedCoins = Math.floor(cappedAmount * DIAMOND_COIN_RATE);
-  const willBeCapped = parsedAmount > remainingToday && parsedAmount > 0;
-
-  async function handleSubmit() {
-    if (!selectedMember || parsedAmount <= 0 || busy) return;
-    if (remainingToday <= 0) {
-      addToast(`${selectedMember.name} has already reached today's ${DIAMOND_DAILY_CAP} diamond cap.`, "red", "Daily Cap Reached");
-      return;
-    }
-    setBusy(true);
-    const diamondsToCredit = cappedAmount;
-    const coinsToAward = projectedCoins;
-    const newBalance = await adjustMemberCoinsAtomic(selectedMember.name, coinsToAward);
-    if (newBalance === null) {
-      addToast("Couldn't reach the database. Please try again.", "red", "Error");
-      setBusy(false);
-      return;
-    }
-    setMembers(ms => ms.map(m => {
-      if (m.id !== selectedMember.id) return m;
-      return {
-        ...m,
-        txLog: [...(m.txLog || []), {
-          change: coinsToAward,
-          diamonds: diamondsToCredit,
-          reason: `Donated ${fmt(diamondsToCredit)} diamonds to clan funds`,
-          date: new Date().toLocaleDateString(),
-          logType: "Diamond Donation",
-          addedBy: currentUser.name,
-          ts: Date.now(),
-        }],
-      };
-    }), true); // skipCoinsWrite — coins already applied atomically above
-    addToast(`${selectedMember.name} earned ${fmt(coinsToAward)} coins for donating ${fmt(diamondsToCredit)} diamonds.`, "gold", "Donation Recorded");
-    setAmount("");
-    setBusy(false);
-  }
-
-  // Recent donation history across all members, most recent first — pulled
-  // from everyone's txLog rather than a separate table, same pattern as
-  // how auction wins/decay are surfaced elsewhere.
-  const recentDonations = useMemo(() => {
-    const all = [];
-    members.forEach(m => {
-      (m.txLog || []).forEach(e => {
-        if (e.logType === "Diamond Donation") all.push({ ...e, memberName: m.name });
-      });
-    });
-    return all.sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 30);
-  }, [members]);
-
-  if (!isAdmin) return (
-    <div className="card" style={{padding:40,textAlign:"center"}}>
-      <div style={{fontSize:13,color:"var(--text-dim)"}}>Only Elders and the Master can record diamond donations.</div>
-    </div>
-  );
-
-  return (
-    <div style={{display:"flex",flexDirection:"column",gap:20}}>
-      <div className="card" style={{padding:24}}>
-        <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:18,color:"var(--gold-light)",marginBottom:4}}>
-          💎 Diamond Donations
-        </div>
-        <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:20,lineHeight:1.5}}>
-          Members who donate diamonds to clan funds earn {fmt(DIAMOND_COIN_RATE*100)} coins per 100 diamonds,
-          up to {fmt(DIAMOND_DAILY_CAP)} diamonds per member per day ({Math.floor(DIAMOND_DAILY_CAP*DIAMOND_COIN_RATE)} coins max/day).
-          Silver and Amber donations don't earn coins — this rewards the currency that actually costs real money.
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Member</label>
-          <select className="input" value={selectedId} onChange={e=>setSelectedId(Number(e.target.value) || e.target.value)}>
-            {sortedMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
-        </div>
-
-        {selectedMember && (
-          <div style={{fontSize:12,color:"var(--text-dim)",margin:"-4px 0 14px"}}>
-            Already donated today: <strong style={{color:"var(--text-bright)"}}>{fmt(alreadyToday)}</strong> / {fmt(DIAMOND_DAILY_CAP)} diamonds
-            {remainingToday === 0 && <span style={{color:"#e07070",fontWeight:700}}> — daily cap reached</span>}
-          </div>
-        )}
-
-        <div className="form-group">
-          <label className="form-label">Diamonds Donated</label>
-          <input
-            className="input" type="number" min={0} placeholder="e.g. 300"
-            value={amount} onChange={e=>setAmount(e.target.value)}
-          />
-        </div>
-
-        {parsedAmount > 0 && (
-          <div style={{
-            display:"flex",alignItems:"center",justifyContent:"space-between",
-            padding:"10px 14px",background:"rgba(201,151,42,0.06)",border:"1px solid var(--border)",borderRadius:2,marginBottom:16,
-          }}>
-            <span style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:"var(--text-dim)",fontWeight:600}}>
-              {willBeCapped ? `Capped at ${fmt(cappedAmount)} diamonds (daily limit) →` : "Reward:"}
-            </span>
-            <span style={{fontFamily:"'Inter',sans-serif",fontSize:14,fontWeight:800,color:"#58d68d"}}>
-              +{fmt(projectedCoins)} coins
-            </span>
-          </div>
-        )}
-
-        <button
-          className="btn btn-gold" style={{width:"100%"}}
-          disabled={!selectedMember || parsedAmount<=0 || remainingToday<=0 || busy}
-          onClick={handleSubmit}
-        >
-          {busy ? "Recording…" : "Record Donation"}
-        </button>
-      </div>
-
-      <div className="card" style={{padding:24}}>
-        <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:16,color:"var(--gold-light)",marginBottom:14}}>
-          Recent Donations
-        </div>
-        {recentDonations.length === 0 ? (
-          <div style={{fontSize:12,color:"var(--text-dim)"}}>No diamond donations recorded yet.</div>
-        ) : (
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {recentDonations.map((d, i) => (
-              <div key={i} style={{
-                display:"flex",justifyContent:"space-between",alignItems:"center",
-                padding:"9px 12px",background:"rgba(255,255,255,0.02)",borderRadius:2,
-                fontSize:12,fontFamily:"'Inter',sans-serif",
-              }}>
-                <span>
-                  <strong style={{color:"var(--text-bright)"}}>{d.memberName}</strong>
-                  <span style={{color:"var(--text-dim)"}}> donated {fmt(d.diamonds||0)} diamonds</span>
-                </span>
-                <span style={{color:"#58d68d",fontWeight:700}}>+{fmt(d.change)} coins</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
