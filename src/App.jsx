@@ -7366,7 +7366,7 @@ function LBList({ data, valueKey, label, format, color, currentUser, showMultipl
 // rarity/portrait/frame/awakening composition as the Player Info page),
 // arranged gold/silver/bronze, over the same angel/trophy video already
 // used on the login screen.
-function LeaderboardPodium({ topThree, fourFive, onViewProfile }) {
+function LeaderboardPodium({ topThree, honorableMentions, onViewProfile }) {
   // Render order left-to-right is #2, #1, #3 (classic podium arrangement)
   // even though the data order is #1, #2, #3.
   const ordered = [topThree[1], topThree[0], topThree[2]];
@@ -7393,13 +7393,14 @@ function LeaderboardPodium({ topThree, fourFive, onViewProfile }) {
         })}
       </div>
 
-      {/* Honorable mentions — ranks 4-5. Deliberately smaller and quieter
+      {/* Honorable mentions — ranks 4-10. Deliberately smaller and quieter
           than the podium (silver metallic ring only, no crown, no
           oversized glow), so the top 3 stay the clear visual focus while
-          still giving #4/#5 a real card instead of just plain text. */}
-      {fourFive && fourFive.length > 0 && (
+          still giving every one of them a real card instead of just
+          plain text. Wraps to multiple rows on narrow screens. */}
+      {honorableMentions && honorableMentions.length > 0 && (
         <div className="podium-honorable-row">
-          {fourFive.map((m, i) => {
+          {honorableMentions.map((m, i) => {
             if (!m) return null;
             const rank = i + 4;
             return (
@@ -7427,8 +7428,8 @@ function Leaderboard({ ctx }) {
   const byPower=[...members].sort((a,b)=>b.power-a.power);
   const byAttend=[...members].sort((a,b)=>b.attendance-a.attendance);
   const powerTopThree = byPower.slice(0,3);
-  const powerFourFive = byPower.slice(3,5);
-  const powerRest = byPower.slice(5);
+  const powerFourToTen = byPower.slice(3,10);
+  const powerRest = byPower.slice(10);
 
   return (
     <div>
@@ -7440,10 +7441,10 @@ function Leaderboard({ ctx }) {
         <div className="leaderboard-headline-flourish leaderboard-headline-flourish--right" />
       </div>
 
-      {powerTopThree.length > 0 && <LeaderboardPodium topThree={powerTopThree} fourFive={powerFourFive} onViewProfile={setGlobalViewingProfile} />}
+      {powerTopThree.length > 0 && <LeaderboardPodium topThree={powerTopThree} honorableMentions={powerFourToTen} onViewProfile={setGlobalViewingProfile} />}
 
       <div className="lb-grid">
-        <LBList data={powerRest} valueKey="power" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={POWER_ICON} size={22} />{t("mostPowerful")}</span>} format={v=>fmt(v)} color="linear-gradient(90deg,#071824,#2e86c1)" currentUser={currentUser} showMultiplier rankOffset={5} />
+        <LBList data={powerRest} valueKey="power" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={POWER_ICON} size={22} />{t("mostPowerful")}</span>} format={v=>fmt(v)} color="linear-gradient(90deg,#071824,#2e86c1)" currentUser={currentUser} showMultiplier rankOffset={10} />
         <LBList data={byCoins} valueKey="coins" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={RICHEST_ICON} size={22} />{t("richestWarriors")}</span>} format={v=>`${fmt(v)}`} currentUser={currentUser} />
         <LBList data={byAttend} valueKey="attendance" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={MOSTACTIVE_ICON} size={22} />{t("mostActive")}</span>} format={v=>`${v} ${t("attSuffix")}`} color="linear-gradient(90deg,#071a0f,#27ae60)" currentUser={currentUser} />
       </div>
