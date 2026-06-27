@@ -2255,6 +2255,13 @@ tbody tr:last-child td{border-bottom:none;}
 
 /* ── MEMBERS ── */
 .members-layout{display:flex;gap:20px;}
+.player-info-layout{display:flex;gap:24px;flex-wrap:wrap;}
+.player-info-sidebar{width:220px;flex-shrink:0;}
+.player-info-main{flex:1;min-width:280px;}
+@media(max-width:700px){
+  .player-info-layout{flex-direction:column;}
+  .player-info-sidebar{width:100%;max-width:280px;margin:0 auto;}
+}
 @media(max-width:700px){.members-layout{flex-direction:column;}}
 
 /* ── MEMBER CARD GRID (compact roster view) ── */
@@ -7334,6 +7341,12 @@ function PlayerInfo({ member, members, onBack }) {
     max: eventMaxThisMonth[s.id] || 0,
   }));
 
+  // Most recent attendance check-ins, newest first, for the activity log
+  // beneath the event progress bars.
+  const recentActivity = [...(member.attendLog || [])]
+    .sort((a,b) => (b.ts||0) - (a.ts||0))
+    .slice(0, 6);
+
   const powerGains = getWeeklyPowerGains(member.powerLog, now);
   const eventActivity = getWeeklyEventActivity(member.attendLog, now);
   const periodLabels = ["3 wks ago", "2 wks ago", "Last week", "This week"];
@@ -7352,8 +7365,8 @@ function PlayerInfo({ member, members, onBack }) {
       <button className="btn btn-outline btn-sm" style={{marginBottom:16}} onClick={onBack}>Back to Members</button>
 
       <div className="card" style={{padding:24,marginBottom:20}}>
-        <div style={{display:"flex",gap:24,flexWrap:"wrap"}}>
-          <div style={{width:220,flexShrink:0}}>
+        <div className="player-info-layout">
+          <div className="player-info-sidebar">
             <ProfileCard member={member} />
             <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderTop:"none",borderRadius:"0 0 8px 8px",padding:"20px 16px",textAlign:"center"}}>
               <div style={{fontFamily:"'Spectral',serif",fontSize:13,color:"var(--text-mid)",letterSpacing:1,marginBottom:14}}>{member.cls}</div>
@@ -7384,7 +7397,7 @@ function PlayerInfo({ member, members, onBack }) {
             </div>
           </div>
 
-          <div style={{flex:1,minWidth:280}}>
+          <div className="player-info-main">
             <div style={{
               background:"rgba(255,255,255,0.02)",border:"1px solid var(--border)",borderRadius:4,
               padding:"18px 20px",
@@ -7393,22 +7406,48 @@ function PlayerInfo({ member, members, onBack }) {
               <div style={{display:"flex",flexDirection:"column",gap:14}}>
                 {eventStats.map(s => (
                   <div key={s.id} style={{display:"flex",alignItems:"center",gap:12}}>
-                    <div style={{color:"var(--gold)",flexShrink:0,width:18}}><s.icon size={16} /></div>
-                    <div style={{width:90,fontSize:11,color:"var(--text-dim)",flexShrink:0}}>{s.label}</div>
-                    <div style={{flex:1,height:8,background:"var(--border)",borderRadius:4,overflow:"hidden"}}>
+                    <div style={{color:"var(--gold)",flexShrink:0,width:16}}><s.icon size={15} /></div>
+                    <div style={{width:72,fontSize:10,color:"var(--text-dim)",flexShrink:0,lineHeight:1.2}}>{s.label}</div>
+                    <div style={{flex:1,height:8,background:"var(--border)",borderRadius:4,overflow:"hidden",minWidth:30}}>
                       <div style={{
                         width:`${Math.min(100,(s.attended/Math.max(1,s.max))*100)}%`,height:"100%",
                         background:"linear-gradient(90deg, var(--gold-dim), var(--gold-bright))",
                       }}/>
                     </div>
-                    <div style={{width:46,fontSize:12,fontWeight:800,color:"var(--text-bright)",textAlign:"right",flexShrink:0}}>{s.attended}/{s.max}</div>
+                    <div style={{width:40,fontSize:11,fontWeight:800,color:"var(--text-bright)",textAlign:"right",flexShrink:0}}>{s.attended}/{s.max}</div>
                   </div>
                 ))}
               </div>
             </div>
+
+            <div style={{
+              background:"rgba(255,255,255,0.02)",border:"1px solid var(--border)",borderRadius:4,
+              padding:"18px 20px",marginTop:16,
+            }}>
+              <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:14}}>Recent Activity</div>
+              {recentActivity.length === 0 ? (
+                <div style={{fontSize:12,color:"var(--text-dim)"}}>No attendance recorded yet.</div>
+              ) : (
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {recentActivity.map((entry, i) => (
+                    <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,paddingBottom:8,borderBottom:i<recentActivity.length-1?"1px solid var(--border)":"none"}}>
+                      <div>
+                        <div style={{fontSize:12,color:"var(--text-bright)",fontWeight:600}}>{entry.event}</div>
+                        <div style={{fontSize:10,color:"var(--text-dim)"}}>{entry.date}</div>
+                      </div>
+                      {entry.qualifier === "afk" ? (
+                        <span style={{fontSize:10,color:"var(--text-dim)",flexShrink:0,fontStyle:"italic"}}>AFK</span>
+                      ) : (
+                        <span style={{fontSize:12,fontWeight:700,color:"var(--gold-bright)",flexShrink:0}}>+{fmt(entry.coins||0)}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          <div style={{flex:1,minWidth:280,display:"flex",flexDirection:"column",gap:16}}>
+          <div className="player-info-main" style={{display:"flex",flexDirection:"column",gap:16}}>
             <div className="card" style={{padding:20}}>
               <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Last 4 Weeks</div>
               <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Power Surge</div>
