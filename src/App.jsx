@@ -7444,7 +7444,7 @@ function ProfileCard({ member, onClick, prestigeRank }) {
     <div
       onClick={onClick}
       style={{
-        position:"relative",width:"100%",aspectRatio:"1142/1875",borderRadius:14,overflow:"hidden",containerType:"inline-size",
+        position:"relative",width:"100%",aspectRatio:"1142/1875",borderRadius:"14px 14px 0 0",overflow:"hidden",containerType:"inline-size",
         cursor:onClick?"pointer":"default",
       }}
     >
