@@ -4164,8 +4164,7 @@ function AppInner() {
           eventLabel: r.event_label || "Loot Distribution",
           results: (() => { try { return typeof r.results === "string" ? JSON.parse(r.results) : (r.results || []); } catch { return []; } })(),
         })).filter(r => Date.now() - r.timestamp < 7*24*60*60*1000).sort((a,b)=>b.timestamp-a.timestamp);
-        setLootResults(prev => {
-          // ROOT CAUSE FIX: this used to be a hard overwrite (`return parsed`).
+        setLootResults(prev => {          // ROOT CAUSE FIX: this used to be a hard overwrite (`return parsed`).
           // A roll is saved optimistically into local state immediately, then
           // written to Supabase asynchronously (with retries, which can take
           // a couple seconds). This poll runs on its own independent 10s timer,
@@ -4189,6 +4188,36 @@ function AppInner() {
             setLatestLootId(String(newNewest));
           }
           return merged;
+        });
+      }
+    }, 10000);
+    return () => clearInterval(iv);
+  }, []);
+
+  // Poll coin_requests every 10s too — this was previously only loaded
+  // once on page mount, so a Master who already had the app open before
+  // an Elder submitted a request would never see it appear (no error, no
+  // feedback, the approval button simply never showed up since nothing
+  // ever told this client a new request existed). Same merge-by-id-union
+  // approach as loot_results above, so a request submitted locally but
+  // not yet confirmed in the DB isn't briefly erased by a poll that races
+  // ahead of that write.
+  const deletedCoinReqIds = useRef(new Set());
+  useEffect(() => {
+    const iv = setInterval(async () => {
+      const rows = await dbLoad("coin_requests");
+      if (Array.isArray(rows)) {
+        const parsed = rows.map(r => ({
+          ...r,
+          memberId: r.member_id ?? r.memberId,
+          memberName: r.member_name ?? r.memberName,
+          requestedBy: r.requested_by ?? r.requestedBy,
+          requestedAt: r.requested_at ?? r.requestedAt,
+        }));
+        setPendingCoinRequests(prev => {
+          const dbIds = new Set(parsed.map(r => String(r.id)));
+          const localOnly = prev.filter(r => !dbIds.has(String(r.id)) && !deletedCoinReqIds.current.has(String(r.id)));
+          return [...parsed, ...localOnly];
         });
       }
     }, 10000);
@@ -4342,6 +4371,7 @@ function AppInner() {
     const change = req.type==="add" ? req.amount : -req.amount;
     setMembers(ms=>ms.map(m=>m.id===req.memberId?{...m,coins:Math.max(0,m.coins+change),txLog:[...(m.txLog||[]),{change,reason:req.reason,date:new Date().toLocaleDateString(),logType:"Elder Request",addedBy:req.requestedBy,ts:Date.now()}]}:m));
     setPendingCoinRequests(prev=>prev.filter(r=>r.id!==reqId));
+    deletedCoinReqIds.current.add(String(reqId));
     // If this delete fails, the request could reappear on the next poll and
     // potentially be approved a second time, double-paying the coins — so
     // retry and warn rather than fire-and-forget.
@@ -4359,6 +4389,7 @@ function AppInner() {
     const req = pendingCoinRequests.find(r=>r.id===reqId);
     if (!req) return;
     setPendingCoinRequests(prev=>prev.filter(r=>r.id!==reqId));
+    deletedCoinReqIds.current.add(String(reqId));
     dbDeleteReliable("coin_requests", { id: reqId }).then(ok => {
       if (!ok) {
         addToast(
