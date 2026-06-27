@@ -1394,6 +1394,32 @@ const DIAMOND_COIN_RATE = 0.15;       // coins earned per diamond donated
 const DIAMOND_DAILY_CAP = 500;        // max diamonds that earn a reward per member per day
 
 const GMT8_OFFSET_MS_GLOBAL = 8 * 60 * 60 * 1000;
+
+// ─── PROFILE CARD ASSETS (Player Info page) ────────────────────────────────────
+// Hosted in Supabase Storage (profile-card-assets bucket) rather than
+// embedded as base64 in the bundle — these are only needed when someone
+// actually opens a Player Info page, so loading them on demand keeps the
+// app's initial load fast for everyone else.
+const PROFILE_ASSETS_BASE = `${SUPA_URL}/storage/v1/object/public/profile-card-assets`;
+const PROFILE_RARITY_BG = {
+  uncommon:  `${PROFILE_ASSETS_BASE}/uncommon.webp`,
+  rare:      `${PROFILE_ASSETS_BASE}/rare.webp`,
+  epic:      `${PROFILE_ASSETS_BASE}/epic.webp`,
+  legendary: `${PROFILE_ASSETS_BASE}/legendary.webp`,
+  mythic:    `${PROFILE_ASSETS_BASE}/mythic.webp`,
+};
+const PROFILE_CLASS_PORTRAIT = {
+  "Archer":       `${PROFILE_ASSETS_BASE}/archer.webp`,
+  "Berserker":    `${PROFILE_ASSETS_BASE}/berserker.webp`,
+  "Rune Fighter": `${PROFILE_ASSETS_BASE}/runefighter.webp`,
+  "Skald":        `${PROFILE_ASSETS_BASE}/skald.webp`,
+  "Volva":        `${PROFILE_ASSETS_BASE}/volva.webp`,
+  "Warlord":      `${PROFILE_ASSETS_BASE}/warlord.webp`,
+};
+const PROFILE_FRAME_URL = `${PROFILE_ASSETS_BASE}/frame.webp`;
+const PROFILE_NAME_CONTAINER_URL = `${PROFILE_ASSETS_BASE}/name_container.webp`;
+const PROFILE_AWAKENING_BADGE_URL = `${PROFILE_ASSETS_BASE}/awakening.webp`;
+
 // Start-of-today timestamp in GMT+8, used to sum "diamonds donated today"
 // for the daily cap check — donations are timestamped in real UTC ms, so
 // this just needs to find the right boundary to compare against.
@@ -2954,6 +2980,95 @@ function DiscordModal({ member, onSave, onClose }) {
   );
 }
 
+// ─── PROFILE RARITY (Player Info card tier) ────────────────────────────────────
+// Separate from RARITY_OPTS used for auction loot items (epic/rare/kari/
+// uncommon/material) — this is its own five-tier system specifically for
+// the Player Info profile card, matching the uploaded rarity background
+// assets (uncommon/rare/epic/legendary/mythic).
+const PROFILE_RARITY_OPTS = [
+  { value: "uncommon",  label: "Uncommon",  color: "#7ddc7d" },
+  { value: "rare",      label: "Rare",      color: "#60aadd" },
+  { value: "epic",      label: "Epic",      color: "#ff8080" },
+  { value: "legendary", label: "Legendary", color: "#f2cc60" },
+  { value: "mythic",    label: "Mythic",    color: "#c77dff" },
+];
+
+function SetRarityModal({ member, onSave, onClose }) {
+  const [rarity, setRarity] = useState(member.profileRarity || "uncommon");
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title">Set Rarity — {member.name}</div>
+          <button className="btn btn-ghost" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:16}}>
+            Sets the rarity tier shown on {member.name}'s Player Info profile card.
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {PROFILE_RARITY_OPTS.map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={()=>setRarity(opt.value)}
+                style={{
+                  display:"flex",alignItems:"center",gap:10,padding:"10px 14px",
+                  borderRadius:2,cursor:"pointer",textAlign:"left",
+                  background: rarity===opt.value ? "rgba(201,151,42,0.1)" : "rgba(255,255,255,0.02)",
+                  border: rarity===opt.value ? "1px solid var(--gold)" : "1px solid var(--border)",
+                }}
+              >
+                <span style={{width:12,height:12,borderRadius:"50%",background:opt.color,flexShrink:0}} />
+                <span style={{fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:700,color:"var(--text-bright)"}}>{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
+          <button className="btn btn-gold" onClick={()=>onSave(rarity)}>Save Rarity</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SetAwakeningModal({ member, onSave, onClose }) {
+  const [level, setLevel] = useState(member.awakeningLevel || 0);
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title">Set Awakening — {member.name}</div>
+          <button className="btn btn-ghost" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:16}}>
+            Sets the awakening level badge shown on {member.name}'s Player Info profile card. Use 0 to hide the badge.
+          </div>
+          <div style={{marginBottom:16,padding:12,background:"rgba(10,11,15,0.7)",border:"1px solid var(--border)",borderRadius:2}}>
+            <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:2,textTransform:"uppercase",fontFamily:"'Inter',sans-serif",fontWeight:700,marginBottom:6}}>Quick Set</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {[0,1,2,3,4,5].map(n => (
+                <button key={n} type="button" className={`btn btn-sm ${level===n?"btn-gold":"btn-outline"}`} onClick={()=>setLevel(n)}>{n}</button>
+              ))}
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Exact Awakening Level</label>
+            <input className="input" type="number" min={0} value={level} onChange={e=>setLevel(Math.max(0,parseInt(e.target.value)||0))} />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
+          <button className="btn btn-gold" onClick={()=>onSave(level)}>Save Awakening</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── ADJUST POWER MODAL ───────────────────────────────────────────────────────
 function AdjustPowerModal({ member, onSave, onClose }) {
   const { t } = useLang();
@@ -3490,6 +3605,8 @@ function AppInner() {
           txLog:       safeJson(r.tx_log),
           attendLog:   safeJson(r.attend_log),
           powerLog:    safeJson(r.power_log),
+          profileRarity: r.profile_rarity || "uncommon",
+          awakeningLevel: Number(r.awakening_level) || 0,
         })));
       } else if (Array.isArray(mRows) && mRows.length === 0) {
         // Table genuinely empty (confirmed by a successful query) — safe to seed.
@@ -3583,6 +3700,8 @@ function AppInner() {
             txLog: parseLog(found.tx_log),
             attendLog: parseLog(found.attend_log),
             powerLog: parseLog(found.power_log),
+            profileRarity: found.profile_rarity || "uncommon",
+            awakeningLevel: Number(found.awakening_level) || 0,
           });
           setLoggedIn(true);
         }
@@ -3618,6 +3737,8 @@ function AppInner() {
           tx_log: JSON.stringify(m.txLog || []),
           attend_log: JSON.stringify(m.attendLog || []),
           power_log: JSON.stringify(m.powerLog || []),
+          profile_rarity: m.profileRarity || "uncommon",
+          awakening_level: m.awakeningLevel || 0,
           discord: m.discord || "",
         };
         if (!skipCoinsWrite) row.coins = m.coins;
@@ -3788,6 +3909,8 @@ function AppInner() {
           txLog:       safeJson(r.tx_log),
           attendLog:   safeJson(r.attend_log),
           powerLog:    safeJson(r.power_log),
+          profileRarity: r.profile_rarity || "uncommon",
+          awakeningLevel: Number(r.awakening_level) || 0,
         }));
         // Merge: keep local state for fields not in DB, update coins/auctionWins from DB
         return incoming.map(dbM => {
@@ -3801,6 +3924,8 @@ function AppInner() {
             auctionWins: dbM.auctionWins,
             power:       dbM.power,
             attendance:  dbM.attendance,
+            profileRarity: dbM.profileRarity,
+            awakeningLevel: dbM.awakeningLevel,
             attendLog:   dbM.attendLog.length >= local.attendLog.length ? dbM.attendLog : local.attendLog,
             decayLog:    dbM.decayLog.length  >= local.decayLog.length  ? dbM.decayLog  : local.decayLog,
             txLog:       dbM.txLog.length     >= local.txLog.length     ? dbM.txLog     : local.txLog,
@@ -4094,6 +4219,18 @@ function AppInner() {
     addToast(`${m?.name}'s power updated to ${fmt(power)}.`, "gold", "Power Updated");
     setModal(null);
   }
+  function setProfileRarity(id, profileRarity) {
+    const m = members.find(x=>x.id===id);
+    setMembers(ms => ms.map(x => x.id===id ? {...x,profileRarity} : x));
+    addToast(`${m?.name}'s profile rarity set to ${profileRarity}.`, "gold", "Rarity Updated");
+    setModal(null);
+  }
+  function setAwakeningLevel(id, awakeningLevel) {
+    const m = members.find(x=>x.id===id);
+    setMembers(ms => ms.map(x => x.id===id ? {...x,awakeningLevel} : x));
+    addToast(`${m?.name}'s awakening level set to ${awakeningLevel}.`, "gold", "Awakening Updated");
+    setModal(null);
+  }
 
   const [pendingCoinRequests, setPendingCoinRequests] = useState([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -4374,6 +4511,8 @@ function AppInner() {
       {modal?.type==="adjustCoins"  && <AdjustCoinsModal ctx={ctx} />}
       {modal?.type==="pendingRequests" && <PendingRequestsModal ctx={ctx} />}
       {modal?.type==="adjustPower"  && <AdjustPowerModal member={modal.data} onSave={(p)=>adjustPower(modal.data.id,p)} onClose={()=>setModal(null)} />}
+      {modal?.type==="setRarity"    && <SetRarityModal member={modal.data} onSave={(r)=>setProfileRarity(modal.data.id,r)} onClose={()=>setModal(null)} />}
+      {modal?.type==="setAwakening" && <SetAwakeningModal member={modal.data} onSave={(l)=>setAwakeningLevel(modal.data.id,l)} onClose={()=>setModal(null)} />}
       {modal?.type==="discord"      && <DiscordModal member={modal.data} onSave={(tag)=>linkDiscord(modal.data.id,tag)} onClose={()=>setModal(null)} />}
       {modal?.type==="changePassword" && <ChangePasswordModal ctx={ctx} />}
       {modal?.type==="renameMember"   && <RenameMemberModal ctx={ctx} />}
@@ -5097,7 +5236,7 @@ function Members({ ctx }) {
 
   if (viewingProfile) {
     const liveMember = members.find(m => m.id === viewingProfile) || viewingProfile;
-    return <PlayerInfo member={liveMember} onBack={()=>setViewingProfile(null)} />;
+    return <PlayerInfo member={liveMember} members={members} onBack={()=>setViewingProfile(null)} />;
   }
 
   return (
@@ -5174,6 +5313,8 @@ function Members({ ctx }) {
               <div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
                 <button className="btn btn-outline btn-sm" onClick={()=>setModal({type:"adjustCoins",data:selectedMember})}>{t("adjustCoins")}</button>
                 <button className="btn btn-blue btn-sm" onClick={()=>setModal({type:"adjustPower",data:selectedMember})}><span style={{display:"inline-flex",alignItems:"center",gap:5}}><PowerIcon size={12} />{t("adjustPower")}</span></button>
+                <button className="btn btn-outline btn-sm" onClick={()=>setModal({type:"setRarity",data:selectedMember})}>Set Rarity</button>
+                <button className="btn btn-outline btn-sm" onClick={()=>setModal({type:"setAwakening",data:selectedMember})}>Set Awakening</button>
                 <button className="btn btn-discord btn-sm" onClick={()=>setModal({type:"discord",data:selectedMember})}>{selectedMember.discord?t("editDiscord"):t("linkDiscord")}</button>
                 {currentUser.role==="Master" && (
                   <button className="btn btn-outline btn-sm" onClick={()=>setModal({type:"renameMember",data:selectedMember})}>{t("rename")}</button>
@@ -7068,8 +7209,58 @@ function Export({ ctx }) {
   );
 }
 
-// ─── SETTINGS ─────────────────────────────────────────────────────────────────
-function PlayerInfo({ member, onBack }) {
+// Renders the layered character card: rarity glow background, class
+// portrait, the name banner, the ornate frame on top, and the awakening
+// badge in the corner — composited as real stacked HTML/CSS layers rather
+// than a flattened image, so it stays crisp at any size and the name text
+// remains real, selectable text rather than baked into a picture.
+function ProfileCard({ member }) {
+  const rarity = member.profileRarity || "uncommon";
+  const rarityBg = PROFILE_RARITY_BG[rarity] || PROFILE_RARITY_BG.uncommon;
+  const classPortrait = PROFILE_CLASS_PORTRAIT[member.cls];
+  const awakeningLevel = member.awakeningLevel || 0;
+
+  return (
+    <div style={{position:"relative",width:"100%",aspectRatio:"1142/1875",borderRadius:14,overflow:"hidden",containerType:"inline-size"}}>
+      <img src={rarityBg} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} />
+      {classPortrait && (
+        <img src={classPortrait} alt={member.cls} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} />
+      )}
+      {/* Name banner sits beneath the frame so the frame's own border draws on top of it,
+          matching the reference card where the frame overlaps the band's edges. */}
+      <div style={{
+        position:"absolute",left:"6%",right:"6%",top:"68%",
+        aspectRatio:"414/90",
+        backgroundImage:`url(${PROFILE_NAME_CONTAINER_URL})`,backgroundSize:"100% 100%",
+        display:"flex",alignItems:"center",justifyContent:"center",
+      }}>
+        <span style={{
+          fontFamily:"'Spectral',serif",fontWeight:700,
+          fontSize:"clamp(14px, 3.6cqw, 28px)",color:"var(--text-bright)",
+          textShadow:"0 2px 4px rgba(0,0,0,0.6)",
+        }}>{member.name}</span>
+      </div>
+      <img src={PROFILE_FRAME_URL} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",pointerEvents:"none"}} />
+      {awakeningLevel > 0 && (
+        <div style={{
+          position:"absolute",width:"18.8%",aspectRatio:"1/1",
+          right:"15.7%",top:"5.6%",transform:"translate(50%,-50%)",
+          backgroundImage:`url(${PROFILE_AWAKENING_BADGE_URL})`,backgroundSize:"100% 100%",
+          display:"flex",alignItems:"center",justifyContent:"center",
+        }}>
+          <span style={{
+            fontFamily:"'Spectral',serif",fontWeight:800,
+            fontSize:"clamp(10px, 7cqw, 22px)",color:"#fff",
+            textShadow:"0 2px 3px rgba(0,0,0,0.85), 0 0 4px rgba(0,0,0,0.6)",
+          }}>{awakeningLevel}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── PLAYER INFO PAGE ───────────────────────────────────────────────────────────
+function PlayerInfo({ member, members, onBack }) {
   const now = Date.now();
   const [monthStart] = getMonthBoundaryGmt8(now, 0);
   const eventMaxThisMonth = getEventMaxForMonth(...getMonthBoundaryGmt8(now, 0));
@@ -7077,6 +7268,19 @@ function PlayerInfo({ member, onBack }) {
   const activityStatus = getActivityStatus(member.attendLog, now);
   const lastActivityTs = getLastActivityTs(member.attendLog);
   const daysSinceActivity = lastActivityTs ? Math.floor((now - lastActivityTs) / (24*60*60*1000)) : null;
+
+  // Rankings across all three leaderboards, computed the same way the
+  // actual Leaderboard page does (plain descending sort, no tiebreaker),
+  // so the rank shown here always matches what that page would show.
+  const totalMembers = members.length;
+  const byPower = [...members].sort((a,b)=>b.power-a.power);
+  const byCoins = [...members].sort((a,b)=>b.coins-a.coins);
+  const byAttend = [...members].sort((a,b)=>b.attendance-a.attendance);
+  const rankings = [
+    { label: "Power",  rank: byPower.findIndex(m=>m.id===member.id)+1 },
+    { label: "Richest", rank: byCoins.findIndex(m=>m.id===member.id)+1 },
+    { label: "Active", rank: byAttend.findIndex(m=>m.id===member.id)+1 },
+  ];
 
   const eventStats = [
     { id:"ISB", label:"Server Battle", icon:ShieldIcon, desc:"Server Battle participation this month." },
@@ -7108,21 +7312,22 @@ function PlayerInfo({ member, onBack }) {
 
       <div className="card" style={{padding:24,marginBottom:20}}>
         <div style={{display:"flex",gap:24,flexWrap:"wrap"}}>
-          <div style={{textAlign:"center",flexShrink:0}}>
-            <ClassIcon cls={member.cls} size={100} />
-            <div style={{marginTop:10}}>
-              <span style={{
-                display:"inline-block",padding:"4px 12px",borderRadius:20,
-                fontSize:11,fontWeight:700,color:statusConfig.color,background:statusConfig.bg,
-                border:`1px solid ${statusConfig.color}`,
-              }}>{statusConfig.label}</span>
-            </div>
-            {daysSinceActivity !== null && (
-              <div style={{fontSize:11,color:"var(--text-dim)",marginTop:8,display:"flex",alignItems:"center",gap:5,justifyContent:"center"}}>
-                <CalendarIcon size={12} />
-                Last seen {daysSinceActivity === 0 ? "today" : `${daysSinceActivity} day${daysSinceActivity===1?"":"s"} ago`}
+          <div style={{width:220,flexShrink:0}}>
+            <ProfileCard member={member} />
+            <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderTop:"none",borderRadius:"0 0 8px 8px",padding:"16px 14px",textAlign:"center"}}>
+              <div style={{fontFamily:"'Spectral',serif",fontSize:13,color:"var(--text-mid)",marginBottom:10}}>{member.cls}</div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:10}}>
+                <PowerIcon size={15} />
+                <span style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:19,color:"var(--gold-bright)"}}>{fmt(member.power)}</span>
               </div>
-            )}
+              <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:3}}>
+                {rankings.map(r => `${r.label} #${r.rank}`).join(" \u00b7 ")}
+              </div>
+              <div style={{fontSize:11,color:"var(--text-dim)"}}>
+                <span style={{color:statusConfig.color,fontWeight:700}}>{statusConfig.label}</span>
+                {daysSinceActivity !== null && ` \u00b7 ${daysSinceActivity === 0 ? "active today" : `seen ${daysSinceActivity}d ago`}`}
+              </div>
+            </div>
           </div>
 
           <div style={{flex:1,minWidth:240}}>
