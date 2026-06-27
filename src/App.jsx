@@ -1820,55 +1820,42 @@ body.bg-auctions::before{
 }
 #root{position:relative;z-index:1;}
 
-/* Leaderboard hero section — the angel/trophy video (same footage as the
-   login screen) sits behind the headline and podium specifically, then
-   fades to plain black at the bottom of this section. Unlike the earlier
-   fixed-position approach, this scrolls normally with the page — no
-   mobile address-bar viewport-resizing quirks, since a normal in-flow
-   element doesn't depend on viewport height units at all.
-
-   min-height (not a hard aspect-ratio) sets the video's natural crop
-   height — like a hero banner showing a deliberately cropped slice of
-   the 2560x1440 source video, not its full frame — while still letting
-   the section grow taller if its content (headline + podium) needs more
-   room than that on narrow screens, instead of clipping it. */
-.leaderboard-hero{
+/* Leaderboard background — same exact pattern as the Auction House
+   background (body.bg-auctions above): toggled via a body class, sized
+   with aspect-ratio matched to the source video's real dimensions
+   (2560x1440), positioned behind everything via z-index, scrolls
+   completely normally with the page since it's just an absolutely
+   positioned element sitting in the body's own flow, not position:fixed.
+   The only difference from the auction pattern is using a real <video>
+   element instead of a CSS background-image, since video can't be set
+   as a background-image — everything else (sizing, layering, the
+   fade-to-black gradient) follows that same proven approach exactly. */
+body.bg-leaderboard{
+  background-color:var(--bg-void);
+  background-image:none;
   position:relative;
-  width:calc(100% + 160px);
-  margin:-28px -80px 0;
-  min-height:560px;
-  display:flex;flex-direction:column;justify-content:center;
 }
-.leaderboard-page-video-bg{
-  position:absolute;top:0;left:0;right:0;bottom:0;
-  width:100%;height:100%;
+.leaderboard-bg-video{
+  position:absolute;
+  top:0;left:0;right:0;
+  width:100%;
+  aspect-ratio:2560/1440;
+  z-index:0;
+  pointer-events:none;
   object-fit:cover;object-position:right center;
-  z-index:0;pointer-events:none;
 }
-.leaderboard-page-scrim{
-  position:absolute;top:0;left:0;right:0;bottom:0;
-  z-index:1;pointer-events:none;
-  background:linear-gradient(180deg,
-    rgba(5,4,3,0.45) 0%,
-    rgba(5,4,3,0.25) 25%,
-    rgba(5,4,3,0.55) 60%,
-    rgba(5,4,3,0.92) 88%,
-    rgba(5,4,3,1) 100%
-  );
+.leaderboard-bg-scrim{
+  content:"";
+  position:absolute;
+  top:0;left:0;right:0;
+  width:100%;
+  aspect-ratio:2560/1440;
+  z-index:0;
+  pointer-events:none;
+  background-image:linear-gradient(180deg, rgba(5,4,3,0.5) 0%, rgba(5,4,3,0.2) 12%, rgba(5,4,3,0.25) 50%, rgba(5,4,3,0.8) 82%, rgba(5,4,3,1) 100%);
 }
-.leaderboard-hero-content{position:relative;z-index:2;padding:40px 80px 30px;}
-@media(max-width:1100px){
-  .leaderboard-hero{width:calc(100% + 80px);margin:-28px -40px 0;min-height:480px;}
-  .leaderboard-hero-content{padding:34px 40px 24px;}
-}
-@media(max-width:900px){
-  .leaderboard-hero{width:calc(100% + 40px);margin:-20px -20px 0;min-height:400px;}
-  .leaderboard-hero-content{padding:28px 20px 20px;}
-}
-@media(max-width:700px){
-  .leaderboard-hero{width:calc(100% + 32px);margin:-14px -16px 0;min-height:340px;}
-  .leaderboard-hero-content{padding:22px 16px 16px;}
-  .leaderboard-page-video-bg{object-position:78% center;}
+@media(max-width:760px){
+  .leaderboard-bg-video{object-position:78% center;}
 }
 
 /* Leaderboard headline — wraps and shrinks properly on narrow screens
@@ -3682,7 +3669,8 @@ function AppInner() {
   // already paints Clan HQ's background everywhere else.
   useEffect(() => {
     document.body.classList.toggle("bg-auctions", page === "auctions");
-  }, [page]);
+    document.body.classList.toggle("bg-leaderboard", page === "leaderboard" && !globalViewingProfile);
+  }, [page, globalViewingProfile]);
 
   const [members, setMembersRaw] = useState(SEED_MEMBERS);
   const [auctions, setAuctionsRaw] = useState(SEED_AUCTIONS);
@@ -4482,6 +4470,15 @@ function AppInner() {
   return (
     <>
       <style>{GLOBAL_CSS}</style>
+      {page==="leaderboard" && !globalViewingProfile && createPortal(
+        <>
+          <video className="leaderboard-bg-video" autoPlay loop muted playsInline poster="/video/login-bg-poster.jpg">
+            <source src="/video/login-bg.webm" type="video/webm" />
+          </video>
+          <div className="leaderboard-bg-scrim" />
+        </>,
+        document.body
+      )}
       <div className="app-shell">
         <div className="nav-wrapper">
         <nav className="sidebar">
@@ -7368,23 +7365,15 @@ function Leaderboard({ ctx }) {
 
   return (
     <div>
-      <div className="leaderboard-hero">
-        <video className="leaderboard-page-video-bg" autoPlay loop muted playsInline poster="/video/login-bg-poster.jpg">
-          <source src="/video/login-bg.webm" type="video/webm" />
-        </video>
-        <div className="leaderboard-page-scrim" />
-        <div className="leaderboard-hero-content">
-          <div className="leaderboard-headline-row">
-            <div className="leaderboard-headline-flourish leaderboard-headline-flourish--left" />
-            <div className="leaderboard-headline-text">
-              {possessive(CLAN_NAME)} {t("mightiestWarriors")}
-            </div>
-            <div className="leaderboard-headline-flourish leaderboard-headline-flourish--right" />
-          </div>
-
-          {powerTopThree.length > 0 && <LeaderboardPodium topThree={powerTopThree} onViewProfile={setGlobalViewingProfile} />}
+      <div className="leaderboard-headline-row">
+        <div className="leaderboard-headline-flourish leaderboard-headline-flourish--left" />
+        <div className="leaderboard-headline-text">
+          {possessive(CLAN_NAME)} {t("mightiestWarriors")}
         </div>
+        <div className="leaderboard-headline-flourish leaderboard-headline-flourish--right" />
       </div>
+
+      {powerTopThree.length > 0 && <LeaderboardPodium topThree={powerTopThree} onViewProfile={setGlobalViewingProfile} />}
 
       <div className="lb-grid">
         <LBList data={powerRest} valueKey="power" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={POWER_ICON} size={22} />{t("mostPowerful")}</span>} format={v=>fmt(v)} color="linear-gradient(90deg,#071824,#2e86c1)" currentUser={currentUser} showMultiplier rankOffset={3} />
