@@ -8418,6 +8418,17 @@ function PlayerInfo({ member, members, onBack }) {
         padding:24, marginBottom:20, position:"relative", overflow:"hidden",
         background: rank1VideoAssets ? "rgba(10,8,6,0.35)" : undefined,
       }}>
+        {/* The video backdrop used to be mounted directly in this outer
+            card, which also contains the events/recent-activity row much
+            further down (it's all one flex container with the events row
+            wrapping onto a new line) — so the backdrop's inset:0 sizing
+            stretched it down to cover THAT row's height too, faintly
+            showing through behind those cards. Wrapping just the hero
+            portion (pills + title + sidebar + power-surge row) in its own
+            relatively-positioned div and mounting the backdrop there
+            instead scopes it correctly to only the area it's meant to be
+            behind. */}
+        <div style={{position:"relative"}}>
         {rank1VideoAssets && <RankOneVideoBackdrop assets={rank1VideoAssets} />}
         {rank1VideoAssets && (prestige || richestTier || activeTier) && (
           <div style={{position:"relative",zIndex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:8,marginBottom:20}}>
@@ -8560,62 +8571,59 @@ function PlayerInfo({ member, members, onBack }) {
           </div>
           </div>
 
-          <div className="player-info-main" style={rank1VideoAssets
-            ? {flexBasis:"100%", order:3, display:"flex", gap:16, flexWrap:"wrap"}
-            : undefined
-          }>
-            <div style={{
-              flex: rank1VideoAssets ? "1 1 300px" : undefined,
-              background: rank1VideoAssets ? "rgba(10,8,6,0.82)" : (prestige?`${prestige.gradient[2]}30`:"rgba(255,255,255,0.02)"),
-              border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
-              borderRadius:4,padding:"18px 20px",
-            }}>
-              <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:16}}>This Month's Events</div>
-              <div style={{display:"flex",flexDirection:"column",gap:14}}>
-                {eventStats.map(s => (
-                  <div key={s.id} style={{display:"flex",alignItems:"center",gap:12}}>
-                    <div style={{color:"var(--gold)",flexShrink:0,width:16}}><s.icon size={15} /></div>
-                    <div style={{width:72,fontSize:10,color:"var(--text-dim)",flexShrink:0,lineHeight:1.2}}>{s.label}</div>
-                    <div style={{flex:1,height:8,background:"var(--border)",borderRadius:4,overflow:"hidden",minWidth:30}}>
-                      <div style={{
-                        width:`${Math.min(100,(s.attended/Math.max(1,s.max))*100)}%`,height:"100%",
-                        background:"linear-gradient(90deg, var(--gold-dim), var(--gold-bright))",
-                      }}/>
-                    </div>
-                    <div style={{width:40,fontSize:11,fontWeight:800,color:"var(--text-bright)",textAlign:"right",flexShrink:0}}>{s.attended}/{s.max}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div style={{
-              flex: rank1VideoAssets ? "1 1 300px" : undefined,
-              background: rank1VideoAssets ? "rgba(10,8,6,0.82)" : (prestige?`${prestige.gradient[2]}30`:"rgba(255,255,255,0.02)"),
-              border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
-              borderRadius:4,padding:"18px 20px",marginTop: rank1VideoAssets ? 0 : 16,
-            }}>
-              <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:14}}>Recent Activity</div>
-              {recentActivity.length === 0 ? (
-                <div style={{fontSize:12,color:"var(--text-dim)"}}>No attendance recorded yet.</div>
-              ) : (
-                <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                  {recentActivity.map((entry, i) => (
-                    <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,paddingBottom:8,borderBottom:i<recentActivity.length-1?"1px solid var(--border)":"none"}}>
-                      <div>
-                        <div style={{fontSize:12,color:"var(--text-bright)",fontWeight:600}}>{entry.event}</div>
-                        <div style={{fontSize:10,color:"var(--text-dim)"}}>{entry.date}</div>
+          {!rank1VideoAssets && (
+            <div className="player-info-main">
+              <div style={{
+                background: prestige?`${prestige.gradient[2]}30`:"rgba(255,255,255,0.02)",
+                border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
+                borderRadius:4,padding:"18px 20px",
+              }}>
+                <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:16}}>This Month's Events</div>
+                <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                  {eventStats.map(s => (
+                    <div key={s.id} style={{display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{color:"var(--gold)",flexShrink:0,width:16}}><s.icon size={15} /></div>
+                      <div style={{width:72,fontSize:10,color:"var(--text-dim)",flexShrink:0,lineHeight:1.2}}>{s.label}</div>
+                      <div style={{flex:1,height:8,background:"var(--border)",borderRadius:4,overflow:"hidden",minWidth:30}}>
+                        <div style={{
+                          width:`${Math.min(100,(s.attended/Math.max(1,s.max))*100)}%`,height:"100%",
+                          background:"linear-gradient(90deg, var(--gold-dim), var(--gold-bright))",
+                        }}/>
                       </div>
-                      {entry.qualifier === "afk" ? (
-                        <span style={{fontSize:10,color:"var(--text-dim)",flexShrink:0,fontStyle:"italic"}}>AFK</span>
-                      ) : (
-                        <span style={{fontSize:12,fontWeight:700,color:"var(--gold-bright)",flexShrink:0}}>+{fmt(entry.coins||0)}</span>
-                      )}
+                      <div style={{width:40,fontSize:11,fontWeight:800,color:"var(--text-bright)",textAlign:"right",flexShrink:0}}>{s.attended}/{s.max}</div>
                     </div>
                   ))}
                 </div>
-              )}
+              </div>
+
+              <div style={{
+                background: prestige?`${prestige.gradient[2]}30`:"rgba(255,255,255,0.02)",
+                border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
+                borderRadius:4,padding:"18px 20px",marginTop:16,
+              }}>
+                <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:14}}>Recent Activity</div>
+                {recentActivity.length === 0 ? (
+                  <div style={{fontSize:12,color:"var(--text-dim)"}}>No attendance recorded yet.</div>
+                ) : (
+                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    {recentActivity.map((entry, i) => (
+                      <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,paddingBottom:8,borderBottom:i<recentActivity.length-1?"1px solid var(--border)":"none"}}>
+                        <div>
+                          <div style={{fontSize:12,color:"var(--text-bright)",fontWeight:600}}>{entry.event}</div>
+                          <div style={{fontSize:10,color:"var(--text-dim)"}}>{entry.date}</div>
+                        </div>
+                        {entry.qualifier === "afk" ? (
+                          <span style={{fontSize:10,color:"var(--text-dim)",flexShrink:0,fontStyle:"italic"}}>AFK</span>
+                        ) : (
+                          <span style={{fontSize:12,fontWeight:700,color:"var(--gold-bright)",flexShrink:0}}>+{fmt(entry.coins||0)}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="player-info-main" style={{display:"flex",flexDirection:"column",gap:16, ...(rank1VideoAssets ? {flex:"0 1 380px",order:2} : {})}}>
             <div className="card" style={{padding:20,border:prestige?`1px solid ${prestige.gradient[1]}50`:undefined,background: rank1VideoAssets ? "rgba(10,8,6,0.82)" : (prestige?`${prestige.gradient[2]}30`:undefined)}}>
@@ -8674,6 +8682,72 @@ function PlayerInfo({ member, members, onBack }) {
             </div>
           </div>
         </div>
+        </div>
+        {/* Events/Recent-Activity row lives OUTSIDE the hero-wrapper above
+            (which is where the video backdrop is mounted, position:relative
+            scoping the backdrop's inset:0 sizing to just that wrapper) — it
+            used to be a third sibling inside player-info-layout itself,
+            which meant the backdrop (sized to its relative ancestor) ended
+            up stretching down to cover this row's height too, faintly
+            showing through behind these cards since their background is
+            only 0.82 opacity, not fully solid. As an independent block
+            below the wrapper entirely, there's no shared ancestor for the
+            backdrop to bleed into. */}
+        {rank1VideoAssets ? (
+          <div style={{position:"relative",zIndex:1,display:"flex",gap:16,flexWrap:"wrap",marginTop:16}}>
+            <div style={{
+              flex:"1 1 300px",
+              background:"rgba(10,8,6,0.82)",
+              border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
+              borderRadius:4,padding:"18px 20px",
+            }}>
+              <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:16}}>This Month's Events</div>
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                {eventStats.map(s => (
+                  <div key={s.id} style={{display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{color:"var(--gold)",flexShrink:0,width:16}}><s.icon size={15} /></div>
+                    <div style={{width:72,fontSize:10,color:"var(--text-dim)",flexShrink:0,lineHeight:1.2}}>{s.label}</div>
+                    <div style={{flex:1,height:8,background:"var(--border)",borderRadius:4,overflow:"hidden",minWidth:30}}>
+                      <div style={{
+                        width:`${Math.min(100,(s.attended/Math.max(1,s.max))*100)}%`,height:"100%",
+                        background:"linear-gradient(90deg, var(--gold-dim), var(--gold-bright))",
+                      }}/>
+                    </div>
+                    <div style={{width:40,fontSize:11,fontWeight:800,color:"var(--text-bright)",textAlign:"right",flexShrink:0}}>{s.attended}/{s.max}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{
+              flex:"1 1 300px",
+              background:"rgba(10,8,6,0.82)",
+              border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
+              borderRadius:4,padding:"18px 20px",
+            }}>
+              <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:14}}>Recent Activity</div>
+              {recentActivity.length === 0 ? (
+                <div style={{fontSize:12,color:"var(--text-dim)"}}>No attendance recorded yet.</div>
+              ) : (
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {recentActivity.map((entry, i) => (
+                    <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,paddingBottom:8,borderBottom:i<recentActivity.length-1?"1px solid var(--border)":"none"}}>
+                      <div>
+                        <div style={{fontSize:12,color:"var(--text-bright)",fontWeight:600}}>{entry.event}</div>
+                        <div style={{fontSize:10,color:"var(--text-dim)"}}>{entry.date}</div>
+                      </div>
+                      {entry.qualifier === "afk" ? (
+                        <span style={{fontSize:10,color:"var(--text-dim)",flexShrink:0,fontStyle:"italic"}}>AFK</span>
+                      ) : (
+                        <span style={{fontSize:12,fontWeight:700,color:"var(--gold-bright)",flexShrink:0}}>+{fmt(entry.coins||0)}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
       </div>
 
     </div>
