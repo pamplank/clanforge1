@@ -1442,6 +1442,21 @@ const PROFILE_CLASS_PORTRAIT_MYTHIC = {
 const PROFILE_FRAME_URL = `${PROFILE_ASSETS_BASE}/frame.webp`;
 const PROFILE_NAME_CONTAINER_URL = `${PROFILE_ASSETS_BASE}/name_container.webp`;
 const PROFILE_AWAKENING_BADGE_URL = `${PROFILE_ASSETS_BASE}/awakening.webp`;
+// Rank-1 (clan's strongest, by Power) profile backdrop — a class-linked
+// video plays an intro clip once, then loops a second clip seamlessly,
+// behind the whole Player Info page. `bg` is a wide image matching the
+// video's own scene (same lighting/architecture), used to fill the
+// space around the centered square video so it doesn't look like a
+// floating box. Only Archer has assets so far; other classes fall back
+// to no video (the page just renders normally) until their assets are
+// uploaded here, same graceful-fallback approach as the mythic portraits.
+const PROFILE_RANK1_VIDEO = {
+  "Archer": {
+    intro: `${PROFILE_ASSETS_BASE}/archer_intro.mp4`,
+    loop:  `${PROFILE_ASSETS_BASE}/archer_looping.mp4`,
+    bg:    `${PROFILE_ASSETS_BASE}/archer_bg.webp`,
+  },
+};
 
 // Start-of-today timestamp in GMT+8, used to sum "diamonds donated today"
 // for the daily cap check — donations are timestamped in real UTC ms, so
@@ -8137,6 +8152,59 @@ function ProfileCard({ member, onClick, prestigeRank }) {
   );
 }
 
+// ─── RANK 1 PROFILE VIDEO BACKDROP ────────────────────────────────────────────
+// Plays a class-linked intro clip once, then switches to a looping clip —
+// both are square (1:1) videos, composited centered against a wider
+// background image that extends the same scene to the sides, matching the
+// proportions measured directly from the source assets (the video occupies
+// the middle 50% of the background's height, centered horizontally).
+// Browsers block autoplay-with-sound, but these clips have no audio track
+// (muted video), so autoplay works immediately with no unlock-on-click
+// step needed — unlike the background music elsewhere in the app.
+function RankOneVideoBackdrop({ assets }) {
+  const [phase, setPhase] = useState("intro"); // "intro" | "loop"
+  const videoRef = useRef(null);
+
+  // When the phase switches from intro to loop, swap the <video> element's
+  // source and start it playing from the top — handled here rather than
+  // via two separate <video> tags stacked/cross-faded, since the intro's
+  // last frame and the loop's first frame are designed to match exactly
+  // (confirmed by inspecting the source clips), so a hard cut at that
+  // boundary is invisible rather than jarring.
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    el.src = phase === "intro" ? assets.intro : assets.loop;
+    el.load();
+    el.play().catch(() => {}); // ignore autoplay races; muted video should always be allowed
+  }, [phase, assets]);
+
+  return (
+    <div style={{
+      position:"absolute", top:0, left:0, right:0,
+      height:"100%", overflow:"hidden", borderRadius:8,
+      pointerEvents:"none", zIndex:0,
+    }}>
+      <img src={assets.bg} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} />
+      <video
+        ref={videoRef}
+        autoPlay muted playsInline
+        loop={phase === "loop"}
+        onEnded={() => { if (phase === "intro") setPhase("loop"); }}
+        style={{
+          position:"absolute",
+          top:"25%", left:"36.33%", width:"27.34%", height:"50%",
+          objectFit:"cover",
+        }}
+      />
+      {/* Soft dark vignette so the existing cards (which sit on top) stay
+          readable regardless of which part of the moving video is behind
+          them at any given moment. */}
+      <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 50% 40%, rgba(10,8,6,0.15) 0%, rgba(10,8,6,0.55) 75%, rgba(10,8,6,0.85) 100%)"}} />
+    </div>
+  );
+}
+
 // ─── PLAYER INFO PAGE ───────────────────────────────────────────────────────────
 function PlayerInfo({ member, members, onBack }) {
   const now = Date.now();
@@ -8157,6 +8225,10 @@ function PlayerInfo({ member, members, onBack }) {
   const powerRank = byPower.findIndex(m=>m.id===member.id)+1;
   const coinsRank = byCoins.findIndex(m=>m.id===member.id)+1;
   const attendRank = byAttend.findIndex(m=>m.id===member.id)+1;
+  // Only the clan's #1 by Power gets the video backdrop, and only if
+  // their class has video assets uploaded yet (currently just Archer) —
+  // every other rank/class renders this page exactly as before.
+  const rank1VideoAssets = powerRank === 1 ? PROFILE_RANK1_VIDEO[member.cls] : null;
   // (rankings array moved below, after the prestige tier objects it now references)
 
   // Prestige tier — matches the podium's gold/silver/bronze treatment,
@@ -8298,8 +8370,12 @@ function PlayerInfo({ member, members, onBack }) {
       )}
       <button className="btn btn-outline btn-sm" style={{marginBottom:16}} onClick={onBack}>Back</button>
 
-      <div className="card" style={{padding:24,marginBottom:20}}>
-        <div className="player-info-layout">
+      <div className="card" style={{
+        padding:24, marginBottom:20, position:"relative", overflow:"hidden",
+        background: rank1VideoAssets ? "rgba(10,8,6,0.35)" : undefined,
+      }}>
+        {rank1VideoAssets && <RankOneVideoBackdrop assets={rank1VideoAssets} />}
+        <div className="player-info-layout" style={{position:"relative",zIndex:1}}>
           <div className="player-info-sidebar">
             <div style={{
               borderRadius:24,
@@ -8355,7 +8431,7 @@ function PlayerInfo({ member, members, onBack }) {
 
           <div className="player-info-main">
             <div style={{
-              background:prestige?`${prestige.gradient[2]}30`:"rgba(255,255,255,0.02)",
+              background: rank1VideoAssets ? "rgba(10,8,6,0.82)" : (prestige?`${prestige.gradient[2]}30`:"rgba(255,255,255,0.02)"),
               border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
               borderRadius:4,padding:"18px 20px",
             }}>
@@ -8378,7 +8454,7 @@ function PlayerInfo({ member, members, onBack }) {
             </div>
 
             <div style={{
-              background:prestige?`${prestige.gradient[2]}30`:"rgba(255,255,255,0.02)",
+              background: rank1VideoAssets ? "rgba(10,8,6,0.82)" : (prestige?`${prestige.gradient[2]}30`:"rgba(255,255,255,0.02)"),
               border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
               borderRadius:4,padding:"18px 20px",marginTop:16,
             }}>
@@ -8406,7 +8482,7 @@ function PlayerInfo({ member, members, onBack }) {
           </div>
 
           <div className="player-info-main" style={{display:"flex",flexDirection:"column",gap:16}}>
-            <div className="card" style={{padding:20,border:prestige?`1px solid ${prestige.gradient[1]}50`:undefined,background:prestige?`${prestige.gradient[2]}30`:undefined}}>
+            <div className="card" style={{padding:20,border:prestige?`1px solid ${prestige.gradient[1]}50`:undefined,background: rank1VideoAssets ? "rgba(10,8,6,0.82)" : (prestige?`${prestige.gradient[2]}30`:undefined)}}>
               <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Last 4 Weeks</div>
               <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Power Surge</div>
               <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Weekly bars show recorded Power gains across the last four weeks.</div>
@@ -8439,7 +8515,7 @@ function PlayerInfo({ member, members, onBack }) {
               )}
             </div>
 
-            <div className="card" style={{padding:20,border:prestige?`1px solid ${prestige.gradient[1]}50`:undefined,background:prestige?`${prestige.gradient[2]}30`:undefined}}>
+            <div className="card" style={{padding:20,border:prestige?`1px solid ${prestige.gradient[1]}50`:undefined,background: rank1VideoAssets ? "rgba(10,8,6,0.82)" : (prestige?`${prestige.gradient[2]}30`:undefined)}}>
               <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Last 4 Weeks</div>
               <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Event Activity</div>
               <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:18}}>Bars show how many events this member attended each week.</div>
