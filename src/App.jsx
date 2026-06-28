@@ -8445,7 +8445,7 @@ function PlayerInfo({ member, members, onBack }) {
             relatively-positioned div and mounting the backdrop there
             instead scopes it correctly to only the area it's meant to be
             behind. */}
-        <div style={{position:"relative", minHeight: rank1VideoAssets ? 560 : undefined}}>
+        <div style={{position:"relative", minHeight: rank1VideoAssets ? 760 : undefined}}>
         {rank1VideoAssets && <RankOneVideoBackdrop assets={rank1VideoAssets} />}
         {rank1VideoAssets && (prestige || richestTier || activeTier) && (
           <div style={{position:"relative",zIndex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:8,marginBottom:20}}>
