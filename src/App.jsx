@@ -8188,6 +8188,19 @@ function RankOneVideoBackdrop({ assets }) {
       display:"flex", justifyContent:"center", alignItems:"center",
     }}>
       <img src={assets.bg} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} />
+      {/* The video clip has its own dark vignette baked into its edges
+          (measured: ~15-17 brightness at the edges vs ~80 in the center) —
+          the background image doesn't have a matching fade built in, so
+          without this there's a visible seam where the flat-brightness
+          background meets the video's dark edge. This darkens the
+          background specifically near the video's left/right boundaries,
+          tapering back to full brightness further out, so the two blend
+          into one continuous scene instead of looking like two stacked
+          rectangles. */}
+      <div style={{
+        position:"absolute", inset:0,
+        background:"linear-gradient(90deg, rgba(10,8,6,0.3) 0%, rgba(10,8,6,0.65) 35%, rgba(10,8,6,0.65) 65%, rgba(10,8,6,0.3) 100%)",
+      }} />
       <video
         ref={videoRef}
         autoPlay muted playsInline
@@ -8377,7 +8390,7 @@ function PlayerInfo({ member, members, onBack }) {
         background: rank1VideoAssets ? "rgba(10,8,6,0.35)" : undefined,
       }}>
         {rank1VideoAssets && <RankOneVideoBackdrop assets={rank1VideoAssets} />}
-        <div className="player-info-layout" style={{position:"relative",zIndex:1}}>
+        <div className="player-info-layout" style={{position:"relative",zIndex:1,justifyContent: rank1VideoAssets ? "space-between" : undefined}}>
           <div className="player-info-sidebar">
             <div style={{
               borderRadius:24,
@@ -8431,7 +8444,7 @@ function PlayerInfo({ member, members, onBack }) {
           </div>
           </div>
 
-          <div className="player-info-main">
+          <div className="player-info-main" style={rank1VideoAssets ? {flex:"0 1 380px"} : undefined}>
             <div style={{
               background: rank1VideoAssets ? "rgba(10,8,6,0.82)" : (prestige?`${prestige.gradient[2]}30`:"rgba(255,255,255,0.02)"),
               border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
@@ -8483,7 +8496,7 @@ function PlayerInfo({ member, members, onBack }) {
             </div>
           </div>
 
-          <div className="player-info-main" style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div className="player-info-main" style={{display:"flex",flexDirection:"column",gap:16, ...(rank1VideoAssets ? {flex:"0 1 380px"} : {})}}>
             <div className="card" style={{padding:20,border:prestige?`1px solid ${prestige.gradient[1]}50`:undefined,background: rank1VideoAssets ? "rgba(10,8,6,0.82)" : (prestige?`${prestige.gradient[2]}30`:undefined)}}>
               <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Last 4 Weeks</div>
               <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Power Surge</div>
