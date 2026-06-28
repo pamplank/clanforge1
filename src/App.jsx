@@ -114,12 +114,6 @@ const TRANSLATIONS = {
     warriors: "Warriors",
     liveAuctions: "Live Auctions",
     clanTotalPower: "Clan Total Power",
-    todaysEvents: "Today's Events",
-    recentActivity: "Recent Activity",
-    loggedAttendanceFor: "logged attendance for",
-    wonTheAuction: "won the auction for",
-    noEventsToday: "No events scheduled today.",
-    viewFullSchedule: "View Full Schedule",
     acrossWarriors: "Across {count} warriors",
     yourPower: "Your power",
     yourCoins: "Your coins",
@@ -625,12 +619,6 @@ const TRANSLATIONS = {
     warriors: "勇士",
     liveAuctions: "进行中的拍卖",
     clanTotalPower: "军团总战力",
-    todaysEvents: "今日活动",
-    recentActivity: "最近动态",
-    loggedAttendanceFor: "签到了",
-    wonTheAuction: "拍下了",
-    noEventsToday: "今日暂无安排活动。",
-    viewFullSchedule: "查看完整日程",
     acrossWarriors: "共 {count} 名勇士",
     yourPower: "你的战力",
     yourCoins: "你的金币",
@@ -1863,20 +1851,6 @@ const MUSPEL_AXE_IMG = "data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSU
 const SEED_AUCTIONS = [];
 
 function fmt(n) { return n?.toLocaleString() ?? "0"; }
-// Short relative-time label for the recent activity feed (e.g. "2h ago").
-// Falls back to a plain date once something is more than a week old, since
-// "9000h ago" stops being a useful unit of time at that point.
-function timeAgo(ts) {
-  if (!ts) return "";
-  const diff = Date.now() - ts;
-  if (diff < 0) return "just now";
-  const m = Math.floor(diff/60000), h = Math.floor(diff/3600000), d = Math.floor(diff/86400000);
-  if (d >= 7) return new Date(ts).toLocaleDateString();
-  if (d >= 1) return `${d}d ago`;
-  if (h >= 1) return `${h}h ago`;
-  if (m >= 1) return `${m}m ago`;
-  return "just now";
-}
 // Formats a log entry's date for display — uses a precise millisecond
 // timestamp when available (either an explicit `ts` field, or an `id` that
 // was generated with Date.now()) so users see time-of-day, not just the day.
@@ -5523,25 +5497,6 @@ function Dashboard({ ctx, setPage }) {
   }, [members]);
   const maxClassPct = Math.max(...classBreakdown.map(c => c.pct), 1);
 
-  // ── Recent Activity (banner gap filler) — merges attendance log entries
-  // across every member with ended auctions into one chronological feed.
-  // Both sources already carry real timestamps (attendLog[].ts, a.endsAt),
-  // so this is pure derivation, no new data tracked anywhere.
-  const recentActivity = useMemo(() => {
-    const items = [];
-    members.forEach(m => {
-      (m.attendLog || []).forEach(entry => {
-        if (entry.qualifier === "afk") return;
-        items.push({ type:"attendance", ts: entry.ts || 0, name: m.name, event: entry.event, coins: entry.coins });
-      });
-    });
-    auctions.forEach(a => {
-      if (a.status === "ended" && a.topBidder) {
-        items.push({ type:"auction", ts: a.endsAt || 0, name: a.topBidder, item: a.name });
-      }
-    });
-    return items.sort((a,b) => b.ts - a.ts).slice(0, 4);
-  }, [members, auctions]);
 
   return (
     <div>
@@ -5615,80 +5570,6 @@ function Dashboard({ ctx, setPage }) {
               </div>
             </div>
 
-            {/* Middle — recent activity, fills the remaining gap between the
-                clan identity column and the events teaser. Merges attendance
-                and auction-win history (both already tracked elsewhere) into
-                one small chronological glance — distinct from the events
-                list on the right, which is about what's upcoming, not what
-                already happened. */}
-            {recentActivity.length > 0 && (
-              <div style={{flex:"1 1 200px",minWidth:0,maxWidth:260}}>
-                <div style={{fontSize:9,color:"rgba(200,146,42,0.7)",letterSpacing:3,textTransform:"uppercase",fontFamily:"'Inter',sans-serif",fontWeight:700,marginBottom:10}}>
-                  {t("recentActivity")}
-                </div>
-                <div style={{display:"flex",flexDirection:"column",gap:9}}>
-                  {recentActivity.map((item,i) => (
-                    <div key={i} style={{fontSize:11,lineHeight:1.5,fontFamily:"'Inter',sans-serif",color:"var(--text-dim)"}}>
-                      {item.type === "attendance" ? (
-                        <>
-                          <span style={{color:"var(--gold-light)",fontWeight:700}}>{item.name}</span> {t("loggedAttendanceFor")} <span style={{color:"var(--text-bright)"}}>{item.event}</span>
-                        </>
-                      ) : (
-                        <>
-                          <span style={{color:"var(--gold-light)",fontWeight:700}}>{item.name}</span> {t("wonTheAuction")} <span style={{color:"var(--text-bright)"}}>{item.item}</span>
-                        </>
-                      )}
-                      <span style={{color:"#5c5240"}}> · {timeAgo(item.ts)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Right — today's events teaser, fills the space that used to
-                sit empty next to the clan title. Deliberately compact (no
-                thumbnails/tabs) so it doesn't compete with the banner's
-                gold title — the full World Boss Schedule section below
-                still has the detailed view; this is just a quick glance. */}
-            {(() => {
-              const todaySched = WEEKLY_SCHEDULE[new Date().getDay()];
-              const dayName = DAY_NAMES[new Date().getDay()];
-              return (
-                <div style={{flex:"1 1 220px",minWidth:0,maxWidth:300}}>
-                  <div style={{fontSize:9,color:"rgba(200,146,42,0.7)",letterSpacing:3,textTransform:"uppercase",fontFamily:"'Inter',sans-serif",fontWeight:700,marginBottom:10}}>
-                    {t("todaysEvents")} · {dayName}
-                  </div>
-                  {todaySched.events.length === 0 ? (
-                    <div style={{fontSize:12,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{t("noEventsToday")}</div>
-                  ) : (
-                    <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                      {todaySched.events.map((ev,i) => {
-                        const col = EVENT_COLOR[ev.id] || "var(--gold)";
-                        return (
-                          <div key={i} style={{display:"flex",alignItems:"center",gap:10,
-                            background:"rgba(255,255,255,0.02)",border:`1px solid ${col}33`,
-                            borderRadius:4,padding:"7px 10px",
-                          }}>
-                            <div style={{width:6,height:6,borderRadius:"50%",background:col,flexShrink:0,boxShadow:`0 0 6px ${col}`}} />
-                            <div style={{flex:1,minWidth:0}}>
-                              <div style={{fontSize:12,fontWeight:700,color:"var(--text-bright)",fontFamily:"'Inter',sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.name}</div>
-                              <div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{ev.time}</div>
-                            </div>
-                            <div style={{fontSize:11,fontWeight:800,color:"var(--gold-light)",flexShrink:0,fontFamily:"'Inter',sans-serif"}}>+{ev.coins}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                  <button
-                    className="btn btn-outline btn-sm"
-                    style={{marginTop:12,width:"100%",fontSize:10}}
-                    onClick={()=>document.getElementById("world-boss-schedule")?.scrollIntoView({behavior:"smooth",block:"start"})}
-                  >{t("viewFullSchedule")}</button>
-                </div>
-              );
-            })()}
-
           </div>
         </div>
       </div>
@@ -5756,11 +5637,11 @@ function Dashboard({ ctx, setPage }) {
         </div>
       </div>
 
-      {/* Update Notes */}
-      <UpdateNotes />
-
       {/* World Boss Schedule */}
       <WorldBossSchedule />
+
+      {/* Update Notes */}
+      <UpdateNotes />
 
       {/* ── Live Auctions + Mini Leaderboard ── */}
       <div style={{display:"flex",flexWrap:"wrap",gap:16,marginBottom:16}}>
