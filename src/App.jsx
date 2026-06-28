@@ -4732,7 +4732,24 @@ function AppInner({ onMusicTrackChange }) {
   function submitCoinRequest(memberId, amount, type, reason) {
     const m = members.find(x=>x.id===memberId);
     if (!m) return;
-    const req = { id: Date.now()+Math.random(), memberId, member_id: memberId, memberName: m.name, member_name: m.name, amount: parseInt(amount)||0, type, reason: reason||"_", requestedBy: currentUser.name, requested_by: currentUser.name, requestedAt: new Date().toLocaleString(), requested_at: new Date().toISOString() };
+    // ROOT CAUSE FIX: ids used to be Date.now()+Math.random(), a floating
+    // point number with many decimal digits. Sending that as a URL filter
+    // (id=eq.<value>) depends on the exact same decimal string being sent
+    // every time — but the value read back from Supabase after a page
+    // reload may not stringify identically to the original (numeric
+    // column round-tripping, or PostgREST's own JSON number formatting,
+    // can legitimately trim/shift trailing digits). When that happens,
+    // the delete's WHERE clause matches zero rows — it doesn't error, it
+    // just silently deletes nothing — so dbDelete reports the HTTP 2xx
+    // "success" status even though the row is still sitting in the
+    // table. That's exactly why a request could vanish from the screen
+    // and the "Rejected"/"Approved" toast could fire, yet the row
+    // reappear after a refresh: it was never actually gone. A plain
+    // string id (timestamp + random suffix, same pattern already used
+    // for auction image filenames) has no such ambiguity — it's compared
+    // as an exact string both ways, every time.
+    const reqId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const req = { id: reqId, memberId, member_id: memberId, memberName: m.name, member_name: m.name, amount: parseInt(amount)||0, type, reason: reason||"_", requestedBy: currentUser.name, requested_by: currentUser.name, requestedAt: new Date().toLocaleString(), requested_at: new Date().toISOString() };
     setPendingCoinRequests(prev=>[...prev, req]);
     // ROOT CAUSE FIX: this previously fired dbUpsert (which silently
     // swallows failures, no retry, no caller feedback) and showed "sent
