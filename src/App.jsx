@@ -8205,58 +8205,31 @@ function RankOneVideoBackdrop({ assets }) {
     el.play().catch(() => {}); // ignore autoplay races; muted video should always be allowed
   }, [phase, assets]);
 
-  // REAL ANSWER, verified directly from the official Legend of Ymir site's
-  // own DevTools (not guessed, not template-matched against assets that
-  // turned out to be unrelated to this technique): their video element is
-  // simply `position:absolute; inset:0; width:100%; height:100%;
-  // object-fit:contain` — no separately-aligned background image at all.
-  // The "blends into the background" effect comes from two small,
-  // separate gradient strip images glued to the video wrapper's left and
-  // right edges via ::before/::after, each a narrow vertical strip
-  // (aspect-ratio 100/1400) that fades from a color into the page's flat
-  // background. archer_bg.webp was never meant to be precision-aligned
-  // with the video at all — that whole approach (template matching,
-  // zoom math, etc.) was solving a problem that doesn't exist on the real
-  // site. This rebuilds the actual technique: object-fit:contain video,
-  // flat dark background, and two CSS gradient fades at the edges.
+  // Video sits at its natural square shape, scaled to the container's
+  // full height (uncropped — nothing trimmed off the character or the
+  // gold circle), centered horizontally. The background fills the whole
+  // container behind it with object-fit:cover, so it's visible on
+  // whatever width the square video doesn't cover on either side.
   return (
     <div style={{
       position:"absolute", top:0, left:0, right:0, bottom:0,
       overflow:"hidden", borderRadius:8,
       pointerEvents:"none", zIndex:0,
       background:"var(--bg-void)",
+      display:"flex", justifyContent:"center", alignItems:"center",
     }}>
-      {/* The side margins from object-fit:contain were reported as looking
-          "empty" — flat color alone gives the eye nothing to land on. The
-          background image is brought back here, but used differently
-          than before: just as general ambient scenery filling the whole
-          backdrop (object-fit:cover, no attempt at precise pixel
-          alignment with the video's content), so the margins show actual
-          texture instead of solid color. The edge fades below still do
-          the real blending work at the seam, same as the verified
-          official-site technique — this is purely about giving the
-          unused space something to look at. */}
-      <img src={assets.bg} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",opacity:0.5}} />
+      <img src={assets.bg} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} />
       <video
         ref={videoRef}
         autoPlay muted playsInline
         loop={phase === "loop"}
         onEnded={() => { if (phase === "intro") setPhase("loop"); }}
         style={{
-          position:"absolute", top:0, left:0,
-          width:"100%", height:"100%",
-          objectFit:"contain",
+          position:"relative",
+          height:"100%", width:"auto", aspectRatio:"1/1",
+          objectFit:"cover",
         }}
       />
-      {/* Narrow fade strips at the edges, same role as the official site's
-          gradient-left.webp/gradient-right.webp but built with CSS
-          gradients instead of separate image files — fades from
-          transparent (blending with the video) to the same flat dark
-          color as the container's own background, so there's no visible
-          seam regardless of what's directly behind the video at that
-          point. */}
-      <div style={{position:"absolute",top:0,left:0,bottom:0,width:"18%",background:"linear-gradient(90deg, var(--bg-void) 0%, transparent 100%)"}} />
-      <div style={{position:"absolute",top:0,right:0,bottom:0,width:"18%",background:"linear-gradient(90deg, transparent 0%, var(--bg-void) 100%)"}} />
     </div>
   );
 }
