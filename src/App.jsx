@@ -114,6 +114,9 @@ const TRANSLATIONS = {
     warriors: "Warriors",
     liveAuctions: "Live Auctions",
     clanTotalPower: "Clan Total Power",
+    todaysEvents: "Today's Events",
+    noEventsToday: "No events scheduled today.",
+    viewFullSchedule: "View Full Schedule",
     acrossWarriors: "Across {count} warriors",
     yourPower: "Your power",
     yourCoins: "Your coins",
@@ -619,6 +622,9 @@ const TRANSLATIONS = {
     warriors: "勇士",
     liveAuctions: "进行中的拍卖",
     clanTotalPower: "军团总战力",
+    todaysEvents: "今日活动",
+    noEventsToday: "今日暂无安排活动。",
+    viewFullSchedule: "查看完整日程",
     acrossWarriors: "共 {count} 名勇士",
     yourPower: "你的战力",
     yourCoins: "你的金币",
@@ -1836,6 +1842,11 @@ const EVENT_DESCRIPTIONS = {
   STI: "Sindris Treasure Island — race to collect treasures across the island before time runs out.",
   WB:  "World Boss — unite the clan to bring down a powerful boss and share the spoils of battle.",
 };
+// Hoisted to module scope (was previously redeclared inside WorldBossSchedule)
+// so the compact banner teaser can share the exact same event colors instead
+// of maintaining a second copy that could drift out of sync.
+const EVENT_COLOR = { ISB:"#e74c3c", CA:"#e67e22", CS:"#3498db", STI:"#9b59b6", WB:"#27ae60" };
+const EVENT_GLOW  = { ISB:"rgba(231,76,60,0.45)", CA:"rgba(230,126,22,0.45)", CS:"rgba(52,152,219,0.45)", STI:"rgba(155,89,182,0.45)", WB:"rgba(39,174,96,0.45)" };
 
 const SEED_MEMBERS = [
   { id:1, name:"ThomasShelby", username:"thomasshelby", password:"master123", role:"Master", cls:"Archer", power:123205, coins:0, attendance:0, joinDate:"2024-01-01", auctionWins:0, decayLog:[], txLog:[], attendLog:[], discord:"" },
@@ -5007,8 +5018,6 @@ function WorldBossSchedule() {
   const [schedTab, setSchedTab] = useState("today");
   const todaySched = WEEKLY_SCHEDULE[new Date().getDay()];
   const dayName = DAY_NAMES[new Date().getDay()];
-  const EVENT_COLOR = { ISB:"#e74c3c", CA:"#e67e22", CS:"#3498db", STI:"#9b59b6", WB:"#27ae60" };
-  const EVENT_GLOW  = { ISB:"rgba(231,76,60,0.45)", CA:"rgba(230,126,22,0.45)", CS:"rgba(52,152,219,0.45)", STI:"rgba(155,89,182,0.45)", WB:"rgba(39,174,96,0.45)" };
 
   function EventCard({ ev, compact }) {
     const col = EVENT_COLOR[ev.id] || "#c8922a";
@@ -5115,7 +5124,7 @@ function WorldBossSchedule() {
   }
 
   return (
-    <div style={{
+    <div id="world-boss-schedule" style={{
       background:"linear-gradient(135deg,rgba(10,8,6,0.65) 0%,rgba(18,14,11,0.9) 100%)",
       border:"1px solid rgba(200,146,42,0.2)", borderRadius:8,
       padding:"22px 24px", marginBottom:24, position:"relative", overflow:"hidden",
@@ -5566,6 +5575,49 @@ function Dashboard({ ctx, setPage }) {
               </div>
             </div>
 
+            {/* Right — today's events teaser, fills the space that used to
+                sit empty next to the clan title. Deliberately compact (no
+                thumbnails/tabs) so it doesn't compete with the banner's
+                gold title — the full World Boss Schedule section below
+                still has the detailed view; this is just a quick glance. */}
+            {(() => {
+              const todaySched = WEEKLY_SCHEDULE[new Date().getDay()];
+              const dayName = DAY_NAMES[new Date().getDay()];
+              return (
+                <div style={{flex:"1 1 220px",minWidth:0,maxWidth:300}}>
+                  <div style={{fontSize:9,color:"rgba(200,146,42,0.7)",letterSpacing:3,textTransform:"uppercase",fontFamily:"'Inter',sans-serif",fontWeight:700,marginBottom:10}}>
+                    {t("todaysEvents")} · {dayName}
+                  </div>
+                  {todaySched.events.length === 0 ? (
+                    <div style={{fontSize:12,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{t("noEventsToday")}</div>
+                  ) : (
+                    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                      {todaySched.events.map((ev,i) => {
+                        const col = EVENT_COLOR[ev.id] || "var(--gold)";
+                        return (
+                          <div key={i} style={{display:"flex",alignItems:"center",gap:10,
+                            background:"rgba(255,255,255,0.02)",border:`1px solid ${col}33`,
+                            borderRadius:4,padding:"7px 10px",
+                          }}>
+                            <div style={{width:6,height:6,borderRadius:"50%",background:col,flexShrink:0,boxShadow:`0 0 6px ${col}`}} />
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontSize:12,fontWeight:700,color:"var(--text-bright)",fontFamily:"'Inter',sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.name}</div>
+                              <div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{ev.time}</div>
+                            </div>
+                            <div style={{fontSize:11,fontWeight:800,color:"var(--gold-light)",flexShrink:0,fontFamily:"'Inter',sans-serif"}}>+{ev.coins}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <button
+                    className="btn btn-outline btn-sm"
+                    style={{marginTop:12,width:"100%",fontSize:10}}
+                    onClick={()=>document.getElementById("world-boss-schedule")?.scrollIntoView({behavior:"smooth",block:"start"})}
+                  >{t("viewFullSchedule")}</button>
+                </div>
+              );
+            })()}
 
           </div>
         </div>
