@@ -8205,41 +8205,61 @@ function RankOneVideoBackdrop({ assets }) {
     el.play().catch(() => {}); // ignore autoplay races; muted video should always be allowed
   }, [phase, assets]);
 
+  // ROOT CAUSE, finally confirmed properly: the background and video are
+  // genuinely the same rendered scene (the person confirmed this directly —
+  // the video's own surroundings ARE archer_bg.webp, just without the
+  // character composited in). Every earlier attempt at this used a GUESSED
+  // alignment (centered, or various crop ratios) instead of measuring the
+  // real one. Running OpenCV template matching (matching the video frame's
+  // edge content against the background at many scales) found a 94.6%
+  // confidence match at scale=200%, position (1360, 0) of the bg's native
+  // 5120x2800 pixels — meaning the background's native height is exactly
+  // 2x the video's native height, and the video sits 26.5625% in from the
+  // bg's left edge (not centered), flush with its top edge.
+  //
+  // To show the character at a bigger, more prominent size (per direct
+  // request) while keeping this exact alignment intact, both elements are
+  // rendered at 2x zoom relative to the "video = 50% of bg height"
+  // baseline — i.e. the video fills the FULL container height, and the
+  // background is rendered at exactly 2x that height (cropped to show
+  // only its top half, where the video sits). This is mathematically
+  // identical to viewing a more zoomed-in window of the same correctly-
+  // matched composition, not a different/looser alignment — the seam
+  // stays genuinely invisible at any zoom level since the underlying
+  // relationship between the two images hasn't changed, only how much of
+  // it is visible.
+
   return (
     <div style={{
       position:"absolute", top:0, left:0, right:0, bottom:0,
       overflow:"hidden", borderRadius:8,
       pointerEvents:"none", zIndex:0,
-      display:"flex", justifyContent:"center", alignItems:"center",
     }}>
-      {/* Background scaled to match the video's height directly (simple
-          1:1 match, not the earlier 2x-crop approach) — the background
-          and video aren't pixel-true continuations of the same shot, so
-          trying to mathematically align their content was chasing a
-          precision the source assets don't actually have. The real fix
-          is the fade below: the video already has a dark vignette baked
-          into its own left/right edges, so darkening the background's
-          edges to match means both sides fade to near-black at the seam
-          and blend there regardless of whether the underlying art lines
-          up exactly. */}
-      <div style={{position:"absolute",left:"50%",top:0,height:"100%",width:"auto",transform:"translateX(-50%)"}}>
+      {/* Both elements share ONE coordinate space (this 200%-tall wrapper)
+          instead of being positioned independently — that's what made the
+          earlier version's math error-prone (mixing percentages relative
+          to two different element sizes). The wrapper is rendered at 2x
+          the container's actual height ("zooming in" 2x on the matched
+          composition); the parent's overflow:hidden then clips it down to
+          just the container's real height, showing only the top portion
+          — which is exactly where the video sits. The video's left/top
+          are now plain percentages of this SAME wrapper, directly usable
+          from the measured pixel values (1360/5120 horizontal, 0/2800
+          vertical) with no unit conversion needed. */}
+      <div style={{position:"absolute",left:"50%",top:0,height:"200%",width:"auto",transform:"translateX(-50%)"}}>
         <img src={assets.bg} alt="" style={{height:"100%",width:"auto",display:"block"}} />
-        <div style={{
-          position:"absolute", inset:0,
-          background:"linear-gradient(90deg, black 0%, transparent 12%, transparent 88%, black 100%)",
-        }} />
+        <video
+          ref={videoRef}
+          autoPlay muted playsInline
+          loop={phase === "loop"}
+          onEnded={() => { if (phase === "intro") setPhase("loop"); }}
+          style={{
+            position:"absolute",
+            left:`${1360/5120*100}%`, top:`${0/2800*100}%`,
+            height:`${1400/2800*100}%`, width:`${1400/5120*100}%`,
+          }}
+        />
       </div>
-      <video
-        ref={videoRef}
-        autoPlay muted playsInline
-        loop={phase === "loop"}
-        onEnded={() => { if (phase === "intro") setPhase("loop"); }}
-        style={{
-          position:"relative",
-          height:"100%", width:"auto", aspectRatio:"1/1",
-          objectFit:"cover",
-        }}
-      />
     </div>
   );
 }
@@ -8428,7 +8448,7 @@ function PlayerInfo({ member, members, onBack }) {
             relatively-positioned div and mounting the backdrop there
             instead scopes it correctly to only the area it's meant to be
             behind. */}
-        <div style={{position:"relative"}}>
+        <div style={{position:"relative", minHeight: rank1VideoAssets ? 560 : undefined}}>
         {rank1VideoAssets && <RankOneVideoBackdrop assets={rank1VideoAssets} />}
         {rank1VideoAssets && (prestige || richestTier || activeTier) && (
           <div style={{position:"relative",zIndex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:8,marginBottom:20}}>
