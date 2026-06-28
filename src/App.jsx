@@ -2606,6 +2606,15 @@ tbody tr:last-child td{border-bottom:none;}
 @media(max-width:700px){
   .player-info-layout{flex-direction:column;}
   .player-info-sidebar{width:100%;max-width:280px;margin:0 auto;}
+  /* The rank-1 video page's title/tagline text is positioned with
+     left:calc(sidebar-width + gaps) specifically so it starts right where
+     the sidebar ends — that math assumes a wide horizontal layout. Below
+     700px the layout stacks vertically instead (rule above), so that
+     fixed-offset positioning no longer makes sense and the text was
+     running off the visible area. Simplest correct fix: hide it below
+     this breakpoint rather than trying to reflow positioned text against
+     a layout it wasn't designed for. */
+  .rank1-video-caption{display:none;}
 }
 @media(max-width:700px){.members-layout{flex-direction:column;}}
 
@@ -8448,8 +8457,8 @@ function PlayerInfo({ member, members, onBack }) {
           </div>
         )}
         {rank1VideoAssets && CLASS_TAGLINES[member.cls] && (
-          <div style={{
-            position:"absolute", zIndex:1, left:"calc(220px + 24px + 24px)", top:"15%",
+          <div className="rank1-video-caption" style={{
+            position:"absolute", zIndex:1, left:"calc(220px + 24px + 24px)", right:24, top:"15%",
             maxWidth:280,
           }}>
             <div style={{fontSize:10,color:"rgba(200,146,42,0.7)",letterSpacing:3,textTransform:"uppercase",fontWeight:700,marginBottom:8}}>
@@ -8472,20 +8481,35 @@ function PlayerInfo({ member, members, onBack }) {
           </div>
         )}
         <div className="player-info-layout" style={{position:"relative",zIndex:1,justifyContent: rank1VideoAssets ? "space-between" : undefined}}>
-          <div className="player-info-sidebar" style={rank1VideoAssets ? {order:1} : undefined}>
+          <div className="player-info-sidebar" style={{...(rank1VideoAssets ? {order:1} : {}), position:"relative"}}>
+            {/* ROOT CAUSE FIX: the previous approach used a radial-gradient
+                background on a padded/negative-margined box — that box
+                still has a hard rectangular edge, and CSS radial-gradient
+                falloff doesn't reliably reach true zero before a
+                non-circular box's corners/edges, so a faint but visible
+                seam remained no matter how the padding was tuned. A
+                blurred, oversized glow element behind the content has no
+                edge geometry to clip against — blur() produces a
+                genuinely gradual fade with nothing for the eye to catch
+                on. Only applied in the video case, where the outer card's
+                overflow:hidden (needed for the video) was clipping the
+                old approach most visibly; the non-video case keeps the
+                original radial-gradient treatment since it isn't sitting
+                inside an overflow:hidden ancestor. */}
+            {prestige && rank1VideoAssets && (
+              <div style={{
+                position:"absolute", top:"-15%", left:"-25%", right:"-25%", bottom:"-15%",
+                background:`radial-gradient(circle, ${prestige.gradient[0]}55 0%, ${prestige.gradient[2]}30 50%, transparent 75%)`,
+                filter:"blur(40px)",
+                zIndex:0, pointerEvents:"none",
+              }} />
+            )}
             <div style={{
+              position:"relative", zIndex:1,
               borderRadius:24,
-              // The outer card has overflow:hidden (needed to contain the
-              // video backdrop within its rounded corners) — that also
-              // clips this glow's soft bleed at a hard edge instead of
-              // letting it fade out naturally, which is what caused the
-              // visible rectangular cutoff. Shrinking the bleed amount in
-              // the video case keeps the whole glow within bounds the
-              // card can actually show, so it fades to nothing before it
-              // would've been clipped.
-              padding: prestige ? (rank1VideoAssets ? 12 : 24) : 0,
-              margin: prestige ? (rank1VideoAssets ? -12 : -24) : 0,
-              background:prestigeGlowCss || "none",
+              padding: prestige ? (rank1VideoAssets ? 0 : 24) : 0,
+              margin: prestige ? (rank1VideoAssets ? 0 : -24) : 0,
+              background: rank1VideoAssets ? "none" : (prestigeGlowCss || "none"),
             }}>
               <ProfileCard member={member} prestigeRank={powerRank <= 3 ? powerRank : null} />
               <div style={{
