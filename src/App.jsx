@@ -8458,24 +8458,33 @@ function PlayerInfo({ member, members, onBack }) {
             <div style={{fontFamily:"'Spectral',serif",fontSize:28,fontWeight:800,color:"#f2cc60",lineHeight:1.15,textShadow:"0 0 20px rgba(242,204,96,0.35)"}}>
               {CLASS_TAGLINES[member.cls]}
             </div>
-          </div>
-        )}
-        {rank1VideoAssets && CLASS_FLAVOR_LINES[member.cls] && (
-          <div style={{
-            position:"absolute", zIndex:1, left:"calc(220px + 24px + 24px)", top:"58%",
-            maxWidth:260,
-          }}>
-            <div style={{fontSize:13,color:"#c9bda8",lineHeight:1.6,fontStyle:"italic"}}>
-              {CLASS_FLAVOR_LINES[member.cls]}
-            </div>
+            {/* Sits directly below the tagline via normal margin flow —
+                previously this was a second, independently-positioned
+                absolute block guessed at top:58%, which landed much
+                further down the card than intended (the title and this
+                line are meant to read as one continuous block, not two
+                separate floating pieces). */}
+            {CLASS_FLAVOR_LINES[member.cls] && (
+              <div style={{fontSize:13,color:"#c9bda8",lineHeight:1.6,fontStyle:"italic",marginTop:14}}>
+                {CLASS_FLAVOR_LINES[member.cls]}
+              </div>
+            )}
           </div>
         )}
         <div className="player-info-layout" style={{position:"relative",zIndex:1,justifyContent: rank1VideoAssets ? "space-between" : undefined}}>
           <div className="player-info-sidebar" style={rank1VideoAssets ? {order:1} : undefined}>
             <div style={{
               borderRadius:24,
-              padding:prestige?24:0,
-              margin:prestige?-24:0,
+              // The outer card has overflow:hidden (needed to contain the
+              // video backdrop within its rounded corners) — that also
+              // clips this glow's soft bleed at a hard edge instead of
+              // letting it fade out naturally, which is what caused the
+              // visible rectangular cutoff. Shrinking the bleed amount in
+              // the video case keeps the whole glow within bounds the
+              // card can actually show, so it fades to nothing before it
+              // would've been clipped.
+              padding: prestige ? (rank1VideoAssets ? 12 : 24) : 0,
+              margin: prestige ? (rank1VideoAssets ? -12 : -24) : 0,
               background:prestigeGlowCss || "none",
             }}>
               <ProfileCard member={member} prestigeRank={powerRank <= 3 ? powerRank : null} />
