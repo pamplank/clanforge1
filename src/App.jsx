@@ -438,6 +438,9 @@ const TRANSLATIONS = {
     totalRecordsLabel: "Total records:",
     resetWeeklyAttendance: "Reset Weekly Attendance",
     eventCoinValues: "Event Coin Values",
+    saveBtn: "Save",
+    cancelBtn: "Cancel",
+    editBtn: "Edit",
     colEventName: "Event",
     colId: "ID",
     elderManagement: "Elder Management",
@@ -933,6 +936,9 @@ const TRANSLATIONS = {
     totalRecordsLabel: "总记录数：",
     resetWeeklyAttendance: "重置每周出勤",
     eventCoinValues: "活动金币数值",
+    saveBtn: "保存",
+    cancelBtn: "取消",
+    editBtn: "编辑",
     colEventName: "活动",
     colId: "编号",
     elderManagement: "长老管理",
@@ -4023,17 +4029,23 @@ function AppInner({ onMusicTrackChange }) {
   const [dbError, setDbError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [lootResults, setLootResults] = useState([]);
+  // Bumped whenever EVENTS' coin values are updated (loaded from Storage,
+  // or edited live in Settings) — EVENTS itself is a plain mutated object,
+  // not React state, so nothing would normally tell already-mounted
+  // components to re-render and show the new numbers without this.
+  const [eventsVersion, setEventsVersion] = useState(0);
 
   // ── Load all data from Supabase on mount ──────────────────────────────────
   useEffect(() => {
     async function loadAll() {
     try {
-      const [mRows, aRows, lRows, cRows, rRows] = await Promise.all([
+      const [mRows, aRows, lRows, cRows, rRows, evRows] = await Promise.all([
         dbLoad("members"),
         dbLoad("auctions", AUCTION_LIST_COLS + ",image_data"),
         dbLoad("attendance_logs"),
         dbLoad("coin_requests"),
         dbLoad("loot_results"),
+        dbLoad("event_coin_values"),
       ]);
       if (Array.isArray(mRows) && mRows.length > 0) {
         const safeJson = (v) => {
@@ -4139,6 +4151,23 @@ function AppInner({ onMusicTrackChange }) {
           eventLabel: r.event_label || "Loot Distribution",
           results: (() => { try { return typeof r.results === "string" ? JSON.parse(r.results) : (r.results || []); } catch { return []; } })(),
         })).filter(r => Date.now() - r.timestamp < 7*24*60*60*1000).sort((a,b)=>b.timestamp-a.timestamp));
+      }
+      // Apply saved event coin value overrides directly onto the shared
+      // EVENTS array's objects. EVENTS is a module-level constant used by
+      // many components (Attendance's event picker, the real payout math
+      // in performAttendancePayout, the Settings table, the Dashboard
+      // event-points widget) — mutating the existing objects' `coins`
+      // field in place means every one of those call sites sees the
+      // updated value automatically, since EVENTS.find(...) always
+      // returns the same shared object reference rather than a copy.
+      // Reassigning EVENTS itself isn't possible (const) and isn't
+      // needed — only the numbers inside need to change.
+      if (Array.isArray(evRows) && evRows.length > 0) {
+        evRows.forEach(row => {
+          const ev = EVENTS.find(e => e.id === row.id);
+          if (ev && Number.isFinite(Number(row.coins))) ev.coins = Number(row.coins);
+        });
+        setEventsVersion(v => v + 1); // force a re-render so already-mounted components show the new numbers
       }
       // ── Restore session from localStorage ───────────────────────────────
       const savedId = localStorage.getItem("cf_user_id");
@@ -4778,7 +4807,7 @@ function AppInner({ onMusicTrackChange }) {
 
 
   const ctx = { members, setMembers, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
-    currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile };
+    currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion };
 
   const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings")};
 
@@ -8378,9 +8407,89 @@ function PlayerInfo({ member, members, onBack }) {
   );
 }
 
+// ─── EVENT COIN VALUES (editable) ─────────────────────────────────────────────
+// EVENTS is a shared module-level array (read by the Attendance event picker,
+// the real payout math in performAttendancePayout, and the Dashboard event
+// widget) — editing a row here mutates that array's objects in place and
+// bumps eventsVersion so already-mounted components re-render with the new
+// number. Saved to a small dedicated `event_coin_values` table so the change
+// is real and synced for every Master/Elder, not just this browser tab.
+function EventCoinValuesTable({ isMaster, addToast, eventsVersion, setEventsVersion, t }) {
+  const [editingId, setEditingId] = useState(null);
+  const [draftValue, setDraftValue] = useState("");
+  const [savingId, setSavingId] = useState(null);
+
+  function startEdit(ev) {
+    setEditingId(ev.id);
+    setDraftValue(String(ev.coins));
+  }
+  function cancelEdit() {
+    setEditingId(null);
+    setDraftValue("");
+  }
+  async function saveEdit(ev) {
+    const val = parseInt(draftValue, 10);
+    if (!Number.isFinite(val) || val < 0) {
+      addToast(t("enterValidAmount"), "red", t("errorLabel"));
+      return;
+    }
+    setSavingId(ev.id);
+    const ok = await dbUpsertReliable("event_coin_values", { id: ev.id, coins: val });
+    setSavingId(null);
+    if (ok) {
+      ev.coins = val; // mutate the shared EVENTS entry in place
+      setEventsVersion(v => v + 1);
+      setEditingId(null);
+      addToast(`${ev.name} now pays ${val} coins.`, "gold", "Updated");
+    } else {
+      addToast(
+        <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't save — please try again.</span>,
+        "red", "Save Failed"
+      );
+    }
+  }
+
+  return (
+    <div className="table-wrap"><table className="table-stack">
+      <thead><tr><th>{t("colEventName")}</th><th>{t("colId")}</th><th>{t("colCoins")}</th>{isMaster && <th></th>}</tr></thead>
+      <tbody>{EVENTS.map(ev=>{
+        const isEditing = editingId === ev.id;
+        return (
+          <tr key={`${ev.id}-${eventsVersion}`}>
+            <td data-label="Event" style={{fontFamily:"'Inter',sans-serif",fontWeight:600}}>{ev.name}</td>
+            <td data-label="ID"><span className="badge badge-silver">{ev.id}</span></td>
+            <td data-label="Coins" style={{color:"var(--gold)",fontFamily:"'Inter',sans-serif",fontWeight:800}}>
+              {isEditing ? (
+                <input
+                  type="number" min="0" value={draftValue}
+                  onChange={e=>setDraftValue(e.target.value)}
+                  onKeyDown={e=>{ if(e.key==="Enter") saveEdit(ev); if(e.key==="Escape") cancelEdit(); }}
+                  autoFocus
+                  style={{width:80,background:"rgba(10,8,6,0.85)",border:"1px solid var(--gold)",color:"var(--gold-light)",borderRadius:4,padding:"4px 8px",fontFamily:"'Inter',sans-serif",fontWeight:700}}
+                />
+              ) : ev.coins}
+            </td>
+            {isMaster && (
+              <td data-label="">
+                {isEditing ? (
+                  <div style={{display:"flex",gap:6}}>
+                    <button className="btn btn-gold btn-sm" disabled={savingId===ev.id} onClick={()=>saveEdit(ev)}>{savingId===ev.id ? "…" : t("saveBtn")}</button>
+                    <button className="btn btn-outline btn-sm" onClick={cancelEdit}>{t("cancelBtn")}</button>
+                  </div>
+                ) : (
+                  <button className="btn btn-outline btn-sm" onClick={()=>startEdit(ev)}>{t("editBtn")}</button>
+                )}
+              </td>
+            )}
+          </tr>
+        );
+      })}</tbody>
+    </table></div>
+  );
+}
 
 function Settings({ ctx }) {
-  const { currentUser, members, setMembers, addToast } = ctx;
+  const { currentUser, members, setMembers, addToast, eventsVersion, setEventsVersion } = ctx;
   const { t } = useLang();
   const isMaster = currentUser.role==="Master";
   // ── Auto-decay: every Wednesday at 7:00 AM, fixed to GMT+8 ───────────────
@@ -8522,16 +8631,7 @@ function Settings({ ctx }) {
       </div>
       <div className="card" style={{marginTop:20}}>
         <SectionTitle>{t("eventCoinValues")}</SectionTitle>
-        <div className="table-wrap"><table className="table-stack">
-          <thead><tr><th>{t("colEventName")}</th><th>{t("colId")}</th><th>{t("colCoins")}</th></tr></thead>
-          <tbody>{EVENTS.map(ev=>(
-            <tr key={ev.id}>
-              <td data-label="Event" style={{fontFamily:"'Inter',sans-serif",fontWeight:600}}>{ev.name}</td>
-              <td data-label="ID"><span className="badge badge-silver">{ev.id}</span></td>
-              <td data-label="Coins" style={{color:"var(--gold)",fontFamily:"'Inter',sans-serif",fontWeight:800}}>{ev.coins}</td>
-            </tr>
-          ))}</tbody>
-        </table></div>
+        <EventCoinValuesTable isMaster={isMaster} addToast={addToast} eventsVersion={eventsVersion} setEventsVersion={setEventsVersion} t={t} />
       </div>
       <div className="card" style={{marginTop:20}}>
         <SectionTitle><span style={{display:"inline-flex",alignItems:"center",gap:6}}><GearIcon size={13}/>{t("elderManagement")}</span></SectionTitle>
