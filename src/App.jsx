@@ -1466,6 +1466,13 @@ const PROFILE_RANK1_VIDEO = {
 const CLASS_TAGLINES = {
   "Archer": "Precise and Unforgiving Hunter",
 };
+// Short lore/flavor line for the second, lower section on the rank-1 video
+// page — positioned further down than the title block so it clears the
+// rune circle's lower arc instead of crossing through it. Same per-class,
+// graceful-fallback pattern as CLASS_TAGLINES above.
+const CLASS_FLAVOR_LINES = {
+  "Archer": "No target escapes her sight. Every arrow loosed has found its mark.",
+};
 
 // Start-of-today timestamp in GMT+8, used to sum "diamonds donated today"
 // for the daily cap check — donations are timestamped in real UTC ms, so
@@ -8442,14 +8449,24 @@ function PlayerInfo({ member, members, onBack }) {
         )}
         {rank1VideoAssets && CLASS_TAGLINES[member.cls] && (
           <div style={{
-            position:"absolute", zIndex:1, left:"calc(220px + 24px + 24px)", top:"38%",
+            position:"absolute", zIndex:1, left:"calc(220px + 24px + 24px)", top:"15%",
             maxWidth:280,
           }}>
             <div style={{fontSize:10,color:"rgba(200,146,42,0.7)",letterSpacing:3,textTransform:"uppercase",fontWeight:700,marginBottom:8}}>
-              {member.cls} &middot; {member.name}
+              {CLAN_SEASON_LABEL} &middot; Reigning Champion
             </div>
             <div style={{fontFamily:"'Spectral',serif",fontSize:28,fontWeight:800,color:"#f2cc60",lineHeight:1.15,textShadow:"0 0 20px rgba(242,204,96,0.35)"}}>
               {CLASS_TAGLINES[member.cls]}
+            </div>
+          </div>
+        )}
+        {rank1VideoAssets && CLASS_FLAVOR_LINES[member.cls] && (
+          <div style={{
+            position:"absolute", zIndex:1, left:"calc(220px + 24px + 24px)", top:"58%",
+            maxWidth:260,
+          }}>
+            <div style={{fontSize:13,color:"#c9bda8",lineHeight:1.6,fontStyle:"italic"}}>
+              {CLASS_FLAVOR_LINES[member.cls]}
             </div>
           </div>
         )}
