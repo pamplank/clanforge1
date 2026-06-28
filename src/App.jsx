@@ -8485,10 +8485,20 @@ function PlayerInfo({ member, members, onBack }) {
             position:"absolute", zIndex:1, left:"calc(220px + 24px + 24px)", right:24, top:"15%",
             maxWidth:280,
           }}>
-            <div style={{fontSize:10,color:"rgba(200,146,42,0.7)",letterSpacing:3,textTransform:"uppercase",fontWeight:700,marginBottom:8}}>
+            {/* Rank 1's tagline stays gold regardless of its purple
+                prestige color (#c77dff) — that's the look already
+                approved and shipped, not something to change here. Rank
+                2 gets a richer, more saturated gold than the original
+                flat #f2cc60, leaning into "make it more gold-themed" for
+                that rank specifically without touching rank 1's look. */}
+            <div style={{fontSize:10,color: powerRank===2 ? "rgba(255,200,80,0.85)" : "rgba(200,146,42,0.7)",letterSpacing:3,textTransform:"uppercase",fontWeight:700,marginBottom:8}}>
               {CLAN_SEASON_LABEL} &middot; {prestige?.label || "Reigning Champion"}
             </div>
-            <div style={{fontFamily:"'Spectral',serif",fontSize:28,fontWeight:800,color:"#f2cc60",lineHeight:1.15,textShadow:"0 0 20px rgba(242,204,96,0.35)"}}>
+            <div style={{
+              fontFamily:"'Spectral',serif",fontSize:28,fontWeight:800,lineHeight:1.15,
+              color: powerRank===2 ? "#ffd454" : "#f2cc60",
+              textShadow: powerRank===2 ? "0 0 24px rgba(255,200,80,0.55), 0 0 8px rgba(255,220,140,0.4)" : "0 0 20px rgba(242,204,96,0.35)",
+            }}>
               {rank1Tagline}
             </div>
             {/* Sits directly below the tagline via normal margin flow —
