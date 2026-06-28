@@ -8212,30 +8212,23 @@ function RankOneVideoBackdrop({ assets }) {
       pointerEvents:"none", zIndex:0,
       display:"flex", justifyContent:"center", alignItems:"center",
     }}>
-      {/* ROOT CAUSE: scaling bg and video each to "100% of card height"
-          independently is wrong because they have different native
-          heights (bg is 2800px tall, video is 1400px — exactly 2x). The
-          single correct scale factor is the one that makes the VIDEO
-          fill the card height; at that same factor, the background
-          naturally becomes exactly 2x the card's height (matching its
-          2x relationship to the video), so only its vertical center
-          half should show, with the top/bottom cropped by the parent's
-          overflow:hidden. Sizing the bg element to height:200% (of the
-          card) and centering it vertically achieves exactly this. */}
-      <img src={assets.bg} alt="" style={{position:"absolute",left:"50%",top:"50%",height:"200%",width:"auto",transform:"translate(-50%,-50%)"}} />
-      {/* The video clip has its own dark vignette baked into its edges
-          (measured: ~15-17 brightness at the edges vs ~80 in the center) —
-          the background image doesn't have a matching fade built in, so
-          without this there's a visible seam where the flat-brightness
-          background meets the video's dark edge. This darkens the
-          background specifically near the video's left/right boundaries,
-          tapering back to full brightness further out, so the two blend
-          into one continuous scene instead of looking like two stacked
-          rectangles. */}
-      <div style={{
-        position:"absolute", inset:0,
-        background:"linear-gradient(90deg, rgba(10,8,6,0.3) 0%, rgba(10,8,6,0.65) 35%, rgba(10,8,6,0.65) 65%, rgba(10,8,6,0.3) 100%)",
-      }} />
+      {/* Background scaled to match the video's height directly (simple
+          1:1 match, not the earlier 2x-crop approach) — the background
+          and video aren't pixel-true continuations of the same shot, so
+          trying to mathematically align their content was chasing a
+          precision the source assets don't actually have. The real fix
+          is the fade below: the video already has a dark vignette baked
+          into its own left/right edges, so darkening the background's
+          edges to match means both sides fade to near-black at the seam
+          and blend there regardless of whether the underlying art lines
+          up exactly. */}
+      <div style={{position:"absolute",left:"50%",top:0,height:"100%",width:"auto",transform:"translateX(-50%)"}}>
+        <img src={assets.bg} alt="" style={{height:"100%",width:"auto",display:"block"}} />
+        <div style={{
+          position:"absolute", inset:0,
+          background:"linear-gradient(90deg, black 0%, transparent 12%, transparent 88%, black 100%)",
+        }} />
+      </div>
       <video
         ref={videoRef}
         autoPlay muted playsInline
