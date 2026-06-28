@@ -8205,61 +8205,47 @@ function RankOneVideoBackdrop({ assets }) {
     el.play().catch(() => {}); // ignore autoplay races; muted video should always be allowed
   }, [phase, assets]);
 
-  // ROOT CAUSE, finally confirmed properly: the background and video are
-  // genuinely the same rendered scene (the person confirmed this directly —
-  // the video's own surroundings ARE archer_bg.webp, just without the
-  // character composited in). Every earlier attempt at this used a GUESSED
-  // alignment (centered, or various crop ratios) instead of measuring the
-  // real one. Running OpenCV template matching (matching the video frame's
-  // edge content against the background at many scales) found a 94.6%
-  // confidence match at scale=200%, position (1360, 0) of the bg's native
-  // 5120x2800 pixels — meaning the background's native height is exactly
-  // 2x the video's native height, and the video sits 26.5625% in from the
-  // bg's left edge (not centered), flush with its top edge.
-  //
-  // To show the character at a bigger, more prominent size (per direct
-  // request) while keeping this exact alignment intact, both elements are
-  // rendered at 2x zoom relative to the "video = 50% of bg height"
-  // baseline — i.e. the video fills the FULL container height, and the
-  // background is rendered at exactly 2x that height (cropped to show
-  // only its top half, where the video sits). This is mathematically
-  // identical to viewing a more zoomed-in window of the same correctly-
-  // matched composition, not a different/looser alignment — the seam
-  // stays genuinely invisible at any zoom level since the underlying
-  // relationship between the two images hasn't changed, only how much of
-  // it is visible.
-
+  // REAL ANSWER, verified directly from the official Legend of Ymir site's
+  // own DevTools (not guessed, not template-matched against assets that
+  // turned out to be unrelated to this technique): their video element is
+  // simply `position:absolute; inset:0; width:100%; height:100%;
+  // object-fit:contain` — no separately-aligned background image at all.
+  // The "blends into the background" effect comes from two small,
+  // separate gradient strip images glued to the video wrapper's left and
+  // right edges via ::before/::after, each a narrow vertical strip
+  // (aspect-ratio 100/1400) that fades from a color into the page's flat
+  // background. archer_bg.webp was never meant to be precision-aligned
+  // with the video at all — that whole approach (template matching,
+  // zoom math, etc.) was solving a problem that doesn't exist on the real
+  // site. This rebuilds the actual technique: object-fit:contain video,
+  // flat dark background, and two CSS gradient fades at the edges.
   return (
     <div style={{
       position:"absolute", top:0, left:0, right:0, bottom:0,
       overflow:"hidden", borderRadius:8,
       pointerEvents:"none", zIndex:0,
+      background:"var(--bg-void)",
     }}>
-      {/* Both elements share ONE coordinate space (this 200%-tall wrapper)
-          instead of being positioned independently — that's what made the
-          earlier version's math error-prone (mixing percentages relative
-          to two different element sizes). The wrapper is rendered at 2x
-          the container's actual height ("zooming in" 2x on the matched
-          composition); the parent's overflow:hidden then clips it down to
-          just the container's real height, showing only the top portion
-          — which is exactly where the video sits. The video's left/top
-          are now plain percentages of this SAME wrapper, directly usable
-          from the measured pixel values (1360/5120 horizontal, 0/2800
-          vertical) with no unit conversion needed. */}
-      <div style={{position:"absolute",left:"50%",top:0,height:"200%",width:"auto",transform:"translateX(-50%)"}}>
-        <img src={assets.bg} alt="" style={{height:"100%",width:"auto",display:"block"}} />
-        <video
-          ref={videoRef}
-          autoPlay muted playsInline
-          loop={phase === "loop"}
-          onEnded={() => { if (phase === "intro") setPhase("loop"); }}
-          style={{
-            position:"absolute",
-            left:`${1360/5120*100}%`, top:`${0/2800*100}%`,
-            height:`${1400/2800*100}%`, width:`${1400/5120*100}%`,
-          }}
-        />
-      </div>
+      <video
+        ref={videoRef}
+        autoPlay muted playsInline
+        loop={phase === "loop"}
+        onEnded={() => { if (phase === "intro") setPhase("loop"); }}
+        style={{
+          position:"absolute", top:0, left:0,
+          width:"100%", height:"100%",
+          objectFit:"contain",
+        }}
+      />
+      {/* Narrow fade strips at the edges, same role as the official site's
+          gradient-left.webp/gradient-right.webp but built with CSS
+          gradients instead of separate image files — fades from
+          transparent (blending with the video) to the same flat dark
+          color as the container's own background, so there's no visible
+          seam regardless of what's directly behind the video at that
+          point. */}
+      <div style={{position:"absolute",top:0,left:0,bottom:0,width:"18%",background:"linear-gradient(90deg, var(--bg-void) 0%, transparent 100%)"}} />
+      <div style={{position:"absolute",top:0,right:0,bottom:0,width:"18%",background:"linear-gradient(90deg, transparent 0%, var(--bg-void) 100%)"}} />
     </div>
   );
 }
