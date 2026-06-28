@@ -8408,18 +8408,17 @@ function PlayerInfo({ member, members, onBack }) {
         padding:24, marginBottom:20, position:"relative", overflow:"hidden",
         background: rank1VideoAssets ? "rgba(10,8,6,0.35)" : undefined,
       }}>
-        {/* The video backdrop used to be mounted directly in this outer
-            card, which also contains the events/recent-activity row much
-            further down (it's all one flex container with the events row
-            wrapping onto a new line) — so the backdrop's inset:0 sizing
-            stretched it down to cover THAT row's height too, faintly
-            showing through behind those cards. Wrapping just the hero
-            portion (pills + title + sidebar + power-surge row) in its own
-            relatively-positioned div and mounting the backdrop there
-            instead scopes it correctly to only the area it's meant to be
-            behind. */}
-        <div style={{position:"relative", minHeight: rank1VideoAssets ? 760 : undefined}}>
+        {/* Mounted at the OUTER card level (not scoped to just the hero
+            area) so the backdrop genuinely sits behind the entire card,
+            including the events/recent-activity row further down — this
+            is the look that was actually wanted; an earlier attempt
+            scoped it to just the hero portion to stop it "bleeding
+            through" the events cards, but that bleed-through was the
+            intended effect, not a bug, so the cards below now need a
+            properly opaque background instead (handled where they're
+            defined) rather than the backdrop being held back. */}
         {rank1VideoAssets && <RankOneVideoBackdrop assets={rank1VideoAssets} />}
+        <div style={{position:"relative", minHeight: rank1VideoAssets ? 760 : undefined}}>
         {rank1VideoAssets && (prestige || richestTier || activeTier) && (
           <div style={{position:"relative",zIndex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:8,marginBottom:20}}>
             {prestige && (
