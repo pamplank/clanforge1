@@ -5007,10 +5007,21 @@ function AppInner({ onMusicTrackChange }) {
               {(currentUser.role==="Master"||currentUser.role==="Elder") && (
                 <button className="btn btn-gold btn-sm" onClick={()=>setModal({type:"addMember"})}>{t("addMember")}</button>
               )}
-              {currentUser.role==="Master" && pendingCoinRequests.length>0 && (
+              {/* ROOT CAUSE FIX: this used to only render when
+                  pendingCoinRequests.length>0 — so if an Elder's request
+                  hadn't synced in yet (the poll runs every 10s, not
+                  instantly) or simply hadn't loaded on first render, there
+                  was no button at all and nothing to click; the Master had
+                  no way to even check. Always showing the button (badge
+                  only appears when there's a real count) means there's
+                  always a reliable way in, and the modal itself shows a
+                  clear "nothing pending" state when the queue is empty. */}
+              {currentUser.role==="Master" && (
                 <button className="btn btn-red btn-sm" style={{position:"relative"}} onClick={()=>setModal({type:"pendingRequests"})}>
                   ⏳ {t("approvals")}
-                  <span style={{position:"absolute",top:-6,right:-6,background:"#e85d3a",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:9,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>{pendingCoinRequests.length}</span>
+                  {pendingCoinRequests.length>0 && (
+                    <span style={{position:"absolute",top:-6,right:-6,background:"#e85d3a",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:9,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>{pendingCoinRequests.length}</span>
+                  )}
                 </button>
               )}
             </div>
