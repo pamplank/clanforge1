@@ -1457,6 +1457,15 @@ const PROFILE_RANK1_VIDEO = {
     bg:    `${PROFILE_ASSETS_BASE}/archer_bg.webp`,
   },
 };
+// One-line flavor tagline shown next to the character on the rank-1 video
+// page (the open space beside the sidebar) — same pattern as the reference
+// site's "Ruthless and Bloodthirsty Fighter" under each class name. Only
+// Archer has one for now; other classes simply don't show this block
+// until a tagline's added here, same graceful-fallback approach as the
+// mythic portraits and rank-1 videos above.
+const CLASS_TAGLINES = {
+  "Archer": "Precise and Unforgiving Hunter",
+};
 
 // Start-of-today timestamp in GMT+8, used to sum "diamonds donated today"
 // for the daily cap check — donations are timestamped in real UTC ms, so
@@ -8212,10 +8221,6 @@ function RankOneVideoBackdrop({ assets }) {
           objectFit:"cover",
         }}
       />
-      {/* Soft dark vignette so the existing cards (which sit on top) stay
-          readable regardless of which part of the moving video is behind
-          them at any given moment. */}
-      <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 50% 40%, rgba(10,8,6,0.15) 0%, rgba(10,8,6,0.55) 75%, rgba(10,8,6,0.85) 100%)"}} />
     </div>
   );
 }
@@ -8343,7 +8348,12 @@ function PlayerInfo({ member, members, onBack }) {
           boxShadow:`0 0 16px ${prestige.glow}`,
         }} />
       )}
-      {(prestige || richestTier || activeTier) && (
+      {/* When there's no video backdrop, the rank pills sit above the card
+          as before. With the video backdrop, they move inside the card
+          (rendered further below, layered on top of the video) so they
+          read as part of the same scene instead of floating over plain
+          page background above it — matching the reference layout. */}
+      {!rank1VideoAssets && (prestige || richestTier || activeTier) && (
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8,margin:"4px 0 16px"}}>
           {prestige && (
             <span style={{
@@ -8390,6 +8400,59 @@ function PlayerInfo({ member, members, onBack }) {
         background: rank1VideoAssets ? "rgba(10,8,6,0.35)" : undefined,
       }}>
         {rank1VideoAssets && <RankOneVideoBackdrop assets={rank1VideoAssets} />}
+        {rank1VideoAssets && (prestige || richestTier || activeTier) && (
+          <div style={{position:"relative",zIndex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:8,marginBottom:20}}>
+            {prestige && (
+              <span style={{
+                display:"inline-flex",alignItems:"center",gap:8,
+                background:`${prestige.color}1a`,border:`1px solid ${prestige.color}66`,
+                borderRadius:20,padding:"6px 16px",
+              }}>
+                <CrownIcon size={14} style={{color:prestige.color}} />
+                <span style={{fontSize:11,fontWeight:800,color:prestige.color,letterSpacing:1}}>
+                  RANK {powerRank} &middot; {prestige.label.toUpperCase()}
+                </span>
+              </span>
+            )}
+            {richestTier && (
+              <span style={{
+                display:"inline-flex",alignItems:"center",gap:8,
+                background:`${richestTier.color}1a`,border:`1px solid ${richestTier.color}66`,
+                borderRadius:20,padding:"6px 16px",
+              }}>
+                <CrownIcon size={14} style={{color:richestTier.color}} />
+                <span style={{fontSize:11,fontWeight:800,color:richestTier.color,letterSpacing:1}}>
+                  RANK {coinsRank} &middot; {richestTier.title.toUpperCase()}
+                </span>
+              </span>
+            )}
+            {activeTier && (
+              <span style={{
+                display:"inline-flex",alignItems:"center",gap:8,
+                background:`${activeTier.color}1a`,border:`1px solid ${activeTier.color}66`,
+                borderRadius:20,padding:"6px 16px",
+              }}>
+                <ShieldIcon size={14} style={{color:activeTier.color}} />
+                <span style={{fontSize:11,fontWeight:800,color:activeTier.color,letterSpacing:1}}>
+                  RANK {attendRank} &middot; {activeTier.title.toUpperCase()}
+                </span>
+              </span>
+            )}
+          </div>
+        )}
+        {rank1VideoAssets && CLASS_TAGLINES[member.cls] && (
+          <div style={{
+            position:"absolute", zIndex:1, left:"calc(220px + 24px + 24px)", top:"38%",
+            maxWidth:280,
+          }}>
+            <div style={{fontSize:10,color:"rgba(200,146,42,0.7)",letterSpacing:3,textTransform:"uppercase",fontWeight:700,marginBottom:8}}>
+              {member.cls} &middot; {member.name}
+            </div>
+            <div style={{fontFamily:"'Spectral',serif",fontSize:28,fontWeight:800,color:"#f2cc60",lineHeight:1.15,textShadow:"0 0 20px rgba(242,204,96,0.35)"}}>
+              {CLASS_TAGLINES[member.cls]}
+            </div>
+          </div>
+        )}
         <div className="player-info-layout" style={{position:"relative",zIndex:1,justifyContent: rank1VideoAssets ? "space-between" : undefined}}>
           <div className="player-info-sidebar" style={rank1VideoAssets ? {order:1} : undefined}>
             <div style={{
