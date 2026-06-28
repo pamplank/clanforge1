@@ -113,6 +113,11 @@ const TRANSLATIONS = {
     // Dashboard
     warriors: "Warriors",
     liveAuctions: "Live Auctions",
+    clanTotalPower: "Clan Total Power",
+    acrossWarriors: "Across {count} warriors",
+    yourPower: "Your power",
+    yourCoins: "Your coins",
+    classComposition: "Class Composition",
     noActiveAuctions: "No active auctions.",
     topBidderLabel: "Top",
     noBids: "No bids",
@@ -613,6 +618,11 @@ const TRANSLATIONS = {
     // Dashboard
     warriors: "勇士",
     liveAuctions: "进行中的拍卖",
+    clanTotalPower: "军团总战力",
+    acrossWarriors: "共 {count} 名勇士",
+    yourPower: "你的战力",
+    yourCoins: "你的金币",
+    classComposition: "职业构成",
     noActiveAuctions: "暂无进行中的拍卖。",
     topBidderLabel: "最高出价",
     noBids: "暂无出价",
@@ -5469,6 +5479,21 @@ function Dashboard({ ctx, setPage }) {
   const ROLE_COLOR = { Master:"#c8922a", Elder:"#e07070", Member:"#7098c8" };
   const roleColor = ROLE_COLOR[currentUser.role] || "#9c8c7c";
 
+  // ── Clan Power & Class Composition (derived live from members, no extra
+  // data needed — recomputed on every render since `members` already
+  // changes whenever anyone's power/class updates elsewhere in the app) ──
+  const totalPower = members.reduce((sum, m) => sum + (m.power || 0), 0);
+  const classBreakdown = useMemo(() => {
+    const counts = {};
+    members.forEach(m => { counts[m.cls] = (counts[m.cls] || 0) + 1; });
+    const total = members.length || 1;
+    return CLASSES
+      .map(cls => ({ cls, count: counts[cls] || 0, pct: (counts[cls] || 0) / total * 100 }))
+      .filter(c => c.count > 0)
+      .sort((a, b) => b.count - a.count);
+  }, [members]);
+  const maxClassPct = Math.max(...classBreakdown.map(c => c.pct), 1);
+
   return (
     <div>
       {/* ── EPIC WELCOME BANNER ─────────────────────────────────────────────── */}
@@ -5542,6 +5567,69 @@ function Dashboard({ ctx, setPage }) {
             </div>
 
 
+          </div>
+        </div>
+      </div>
+
+      {/* ── Clan Power & Class Composition ── */}
+      <div style={{display:"flex",flexWrap:"wrap",gap:16,marginBottom:16}}>
+        {/* Total Power */}
+        <div style={{
+          flex:"1 1 280px",minWidth:0,position:"relative",overflow:"hidden",
+          background:"linear-gradient(135deg,#161110 0%,#1c1410 60%,#161110 100%)",
+          border:"1px solid rgba(200,146,42,0.3)",borderRadius:6,padding:"20px 22px",
+          display:"flex",flexDirection:"column",justifyContent:"flex-start",
+        }}>
+          <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,rgba(200,146,42,0.8),transparent)"}} />
+          <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 80% 0%,rgba(200,146,42,0.08) 0%,transparent 60%)",pointerEvents:"none"}} />
+          <div style={{position:"relative"}}>
+            <div style={{fontSize:10,letterSpacing:3,textTransform:"uppercase",color:"rgba(200,146,42,0.7)",fontWeight:700,marginBottom:6,fontFamily:"'Inter',sans-serif"}}>{t("clanTotalPower")}</div>
+            <div style={{
+              fontFamily:"'Spectral',serif",fontSize:34,fontWeight:800,lineHeight:1,
+              background:"linear-gradient(135deg,#f2d98a 0%,#c8922a 50%,#f2d98a 100%)",
+              WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",
+            }}>{fmt(totalPower)}</div>
+            <div style={{fontSize:11,color:"#7c6d58",marginTop:10,marginBottom:16,fontFamily:"'Inter',sans-serif"}}>{t("acrossWarriors").replace("{count}", members.length)}</div>
+            <div style={{display:"flex",justifyContent:"space-between",gap:12,borderTop:"1px solid rgba(200,146,42,0.15)",paddingTop:14}}>
+              <div>
+                <div style={{fontSize:10,letterSpacing:1.5,textTransform:"uppercase",color:"#7c6d58",marginBottom:4,fontFamily:"'Inter',sans-serif"}}>{t("yourPower")}</div>
+                <div style={{fontSize:15,fontWeight:800,color:"var(--gold-light)",fontFamily:"'Inter',sans-serif"}}>{fmt(currentUser.power)}</div>
+              </div>
+              <div style={{textAlign:"right",minWidth:0}}>
+                <div style={{fontSize:10,letterSpacing:1.5,textTransform:"uppercase",color:"#7c6d58",marginBottom:4,fontFamily:"'Inter',sans-serif"}}>{t("yourCoins")}</div>
+                <div style={{fontSize:15,fontWeight:800,color:"var(--gold-light)",fontFamily:"'Inter',sans-serif"}}>{fmt(currentUser.coins)}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Class Composition */}
+        <div style={{
+          flex:"1 1 320px",minWidth:0,position:"relative",
+          background:"linear-gradient(135deg,#161110 0%,#1c1410 60%,#161110 100%)",
+          border:"1px solid rgba(200,146,42,0.2)",borderRadius:6,padding:"20px 22px",
+        }}>
+          <div style={{fontSize:10,letterSpacing:3,textTransform:"uppercase",color:"rgba(200,146,42,0.7)",fontWeight:700,marginBottom:16,fontFamily:"'Inter',sans-serif"}}>{t("classComposition")}</div>
+          <div style={{display:"flex",alignItems:"flex-end",gap:8,height:90,marginBottom:14}}>
+            {classBreakdown.map(({cls,pct}) => {
+              const col = CLASS_COLORS[cls] || "#9c8c7c";
+              return (
+                <div key={cls} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:6,height:"100%",justifyContent:"flex-end"}}>
+                  <span style={{fontSize:11,fontWeight:800,color:col,fontFamily:"'Inter',sans-serif"}}>{Math.round(pct)}%</span>
+                  <div style={{
+                    width:"100%",height:`${Math.max(8,(pct/maxClassPct)*72)}%`,
+                    background:`linear-gradient(180deg,${col},${col}cc)`,
+                    borderRadius:"3px 3px 0 0",boxShadow:`0 0 10px ${col}66`,
+                    transition:"height 0.3s",
+                  }} />
+                </div>
+              );
+            })}
+          </div>
+          <div style={{display:"flex",borderTop:"1px solid rgba(200,146,42,0.15)",paddingTop:10}}>
+            {classBreakdown.map(({cls}) => (
+              <span key={cls} style={{fontSize:10,color:"#9c8c7c",textAlign:"center",flex:1,fontFamily:"'Inter',sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",padding:"0 2px"}}>{cls}</span>
+            ))}
           </div>
         </div>
       </div>
