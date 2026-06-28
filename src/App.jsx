@@ -8226,6 +8226,17 @@ function RankOneVideoBackdrop({ assets }) {
       pointerEvents:"none", zIndex:0,
       background:"var(--bg-void)",
     }}>
+      {/* The side margins from object-fit:contain were reported as looking
+          "empty" — flat color alone gives the eye nothing to land on. The
+          background image is brought back here, but used differently
+          than before: just as general ambient scenery filling the whole
+          backdrop (object-fit:cover, no attempt at precise pixel
+          alignment with the video's content), so the margins show actual
+          texture instead of solid color. The edge fades below still do
+          the real blending work at the seam, same as the verified
+          official-site technique — this is purely about giving the
+          unused space something to look at. */}
+      <img src={assets.bg} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",opacity:0.5}} />
       <video
         ref={videoRef}
         autoPlay muted playsInline
