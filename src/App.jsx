@@ -4729,9 +4729,9 @@ function AppInner({ onMusicTrackChange }) {
       } catch { addToast("Auction removed.", "gold", "Auction Removed"); }
     })();
   }
-  function submitCoinRequest(memberId, amount, type, reason) {
+  async function submitCoinRequest(memberId, amount, type, reason) {
     const m = members.find(x=>x.id===memberId);
-    if (!m) return;
+    if (!m) return false;
     // ROOT CAUSE FIX: ids used to be Date.now()+Math.random(), a floating
     // point number with many decimal digits. Sending that as a URL filter
     // (id=eq.<value>) depends on the exact same decimal string being sent
@@ -4751,25 +4751,28 @@ function AppInner({ onMusicTrackChange }) {
     const reqId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const req = { id: reqId, memberId, member_id: memberId, memberName: m.name, member_name: m.name, amount: parseInt(amount)||0, type, reason: reason||"_", requestedBy: currentUser.name, requested_by: currentUser.name, requestedAt: new Date().toLocaleString(), requested_at: new Date().toISOString() };
     setPendingCoinRequests(prev=>[...prev, req]);
-    // ROOT CAUSE FIX: this previously fired dbUpsert (which silently
-    // swallows failures, no retry, no caller feedback) and showed "sent
-    // for approval" unconditionally regardless of whether the write
-    // actually succeeded. An Elder could see a success toast while the
-    // request never reached the database at all — appearing nowhere for
-    // the Master to approve, with no error on either side to explain why.
-    // Using the *Reliable variant (retries + real success/failure result)
-    // and only confirming success after it actually lands fixes that.
-    dbUpsertReliable("coin_requests", { id: req.id, member_id: req.memberId, member_name: req.memberName, amount: req.amount, type: req.type, reason: req.reason, requested_by: req.requestedBy, requested_at: req.requested_at }).then(ok => {
-      if (ok) {
-        addToast("Coin request sent for approval.", "gold", "Pending Approval");
-      } else {
-        setPendingCoinRequests(prev=>prev.filter(r=>r.id!==req.id));
-        addToast(
-          <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't send the coin request — please try again.</span>,
-          "red", "Request Failed"
-        );
-      }
-    });
+    // ROOT CAUSE FIX: this used to be fire-and-forget (no `await`, no
+    // return value) — the caller (AdjustCoinsModal) closed its dialog
+    // immediately on click, before this promise had even started
+    // resolving. If the write was actually just slow rather than truly
+    // failed, the Elder would see a "Request Failed" toast seconds later
+    // for a request that may already have landed — with every reason to
+    // assume nothing was sent and try again, creating a second, genuinely
+    // separate row for the same intended action. Now this function is
+    // awaited by the caller and returns the real outcome, so the dialog
+    // only closes (and the Elder only sees a reason to retry) once we
+    // actually know what happened.
+    const ok = await dbUpsertReliable("coin_requests", { id: req.id, member_id: req.memberId, member_name: req.memberName, amount: req.amount, type: req.type, reason: req.reason, requested_by: req.requestedBy, requested_at: req.requested_at });
+    if (ok) {
+      addToast("Coin request sent for approval.", "gold", "Pending Approval");
+    } else {
+      setPendingCoinRequests(prev=>prev.filter(r=>r.id!==req.id));
+      addToast(
+        <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't send the coin request — please try again.</span>,
+        "red", "Request Failed"
+      );
+    }
+    return ok;
   }
   function approveCoinRequest(reqId) {
     const req = pendingCoinRequests.find(r=>r.id===reqId);
@@ -8821,14 +8824,29 @@ function AdjustCoinsModal({ ctx }) {
   const member = modal.data;
   const [amount, setAmount] = useState(0);
   const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const isMaster = currentUser.role==="Master";
   const isElder = currentUser.role==="Elder";
-  function submit(type) {
+  // ROOT CAUSE FIX: this used to call submitCoinRequest then immediately
+  // setModal(null) — closing the dialog before the actual network request
+  // had even started resolving. submitCoinRequest's success/failure toast
+  // fires later, completely disconnected from a modal that already
+  // closed, looking exactly like "it worked." If the write was actually
+  // slow (not failed) and the Elder saw a failure toast seconds later,
+  // they had every reason to assume nothing was sent and try again — but
+  // the original attempt may have already landed, creating two real,
+  // separate requests in coin_requests for the same intended action.
+  // Now the modal stays open and the buttons disable themselves until
+  // the real result comes back, so there's no ambiguous window where the
+  // Elder doesn't know whether to retry.
+  async function submit(type) {
     const val=parseInt(amount)||0;
     if (val<=0) { addToast(t("enterValidAmount"), "red", t("errorLabel")); return; }
     if (isElder && !isMaster) {
-      submitCoinRequest(member.id, val, type, reason);
-      setModal(null);
+      setSubmitting(true);
+      const ok = await submitCoinRequest(member.id, val, type, reason);
+      setSubmitting(false);
+      if (ok) setModal(null); // only close on confirmed success — a failure leaves the modal open with the amount/reason intact, so retrying doesn't mean re-typing anything, and there's no doubt about whether the click "did something"
       return;
     }
     const change=type==="add"?val:-val;
@@ -8849,13 +8867,13 @@ function AdjustCoinsModal({ ctx }) {
             </div>
           )}
           <div style={{textAlign:"center",marginBottom:20,fontFamily:"'Spectral',serif",fontWeight:800,fontSize:24,color:"var(--gold-light)"}}>{t("currentLabel")} <span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={28}/>{fmt(member.coins)}</span></div>
-          <div className="form-group"><label className="form-label">{t("amountLabel")}</label><input className="input" type="number" min={0} value={amount} onChange={e=>setAmount(e.target.value)} /></div>
-          <div className="form-group"><label className="form-label">{t("reasonOptional")}</label><input className="input" placeholder={t("reasonPlaceholder")} value={reason} onChange={e=>setReason(e.target.value)} /></div>
+          <div className="form-group"><label className="form-label">{t("amountLabel")}</label><input className="input" type="number" min={0} value={amount} onChange={e=>setAmount(e.target.value)} disabled={submitting} /></div>
+          <div className="form-group"><label className="form-label">{t("reasonOptional")}</label><input className="input" placeholder={t("reasonPlaceholder")} value={reason} onChange={e=>setReason(e.target.value)} disabled={submitting} /></div>
         </div>
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={()=>setModal(null)}>{t("cancel")}</button>
-          <button className="btn btn-red" onClick={()=>submit("remove")}>{isElder&&!isMaster?t("requestRemove"):t("removeAmount")}</button>
-          <button className="btn btn-gold" onClick={()=>submit("add")}>{isElder&&!isMaster?t("requestAdd"):t("addAmount")}</button>
+          <button className="btn btn-outline" onClick={()=>setModal(null)} disabled={submitting}>{t("cancel")}</button>
+          <button className="btn btn-red" onClick={()=>submit("remove")} disabled={submitting}>{submitting ? "…" : (isElder&&!isMaster?t("requestRemove"):t("removeAmount"))}</button>
+          <button className="btn btn-gold" onClick={()=>submit("add")} disabled={submitting}>{submitting ? "…" : (isElder&&!isMaster?t("requestAdd"):t("addAmount"))}</button>
         </div>
       </div>
     </div>
