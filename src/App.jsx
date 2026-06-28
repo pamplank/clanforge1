@@ -1816,15 +1816,24 @@ function BackgroundMusic({ desiredTrack }) {
     const from = el.volume;
     if (Math.abs(to - from) < 0.001) { onDone && onDone(); return; }
     const start = performance.now();
+    // ROOT CAUSE FIX: el.volume only accepts values in [0,1] — assigning
+    // anything outside that range throws IndexSizeError, uncaught, right
+    // in the middle of a requestAnimationFrame callback. Floating point
+    // rounding in the eased curve (or a leftover slightly-out-of-range
+    // `from` value from a previous fade that got interrupted mid-flight,
+    // e.g. by quickly navigating between pages) could push the computed
+    // value a hair past 0 or 1. Clamping before every assignment makes
+    // this impossible regardless of how the input values drifted.
     function step(now) {
       const p = Math.min(1, (now - start) / BGM_FADE_MS);
       // Exponential ease-out: moves fast initially, eases into the target.
       const eased = 1 - Math.pow(1 - p, 3);
-      el.volume = from + (to - from) * eased;
+      const raw = from + (to - from) * eased;
+      el.volume = Math.min(1, Math.max(0, raw));
       if (p < 1) {
         fadeRef.current = requestAnimationFrame(step);
       } else {
-        el.volume = to;
+        el.volume = Math.min(1, Math.max(0, to));
         fadeRef.current = null;
         onDone && onDone();
       }
@@ -4490,10 +4499,39 @@ function AppInner({ onMusicTrackChange }) {
         // Merge: keep local state for fields not in DB, update coins/auctionWins from DB
         return incoming.map(dbM => {
           const local = prev.find(m => m.id === dbM.id);
-          // For logs: prefer whichever copy has MORE entries — handles the race where
-          // a DB write hasn't settled yet when the next poll fires. "Longer wins" means
-          // a freshly-written local log is never overwritten by a stale empty DB response.
-          return local ? {
+          if (!local) return dbM;
+          // ROOT CAUSE FIX: this used to compare array LENGTH ("whichever
+          // copy has more entries wins") to decide between the DB's
+          // attend_log and the local one, on the theory that a longer
+          // array means "more up to date." That's unsound: if the DB's
+          // array reached the same length (or longer) for an unrelated
+          // reason — e.g. a different event got logged for this member
+          // in the gap before this specific entry's write had finished
+          // round-tripping — the length check picks the DB version and
+          // silently discards the genuine local entry it doesn't contain,
+          // even though by count it looks "caught up or ahead." That
+          // looked exactly like what was reported: coins from the
+          // attendance went through (a separate write that did land),
+          // but the actual history entry vanished after a poll favored
+          // a DB snapshot that, for unrelated reasons, matched or
+          // exceeded the local array's length without actually
+          // containing the new entry.
+          // The real fix is a content-based union: merge by a real key
+          // (event+ts, since attendLog entries don't carry their own id)
+          // instead of trusting length as a proxy for completeness — any
+          // entry present in either copy survives the merge.
+          function unionLogs(dbLog, localLog) {
+            const key = (e) => `${e.event}|${e.ts}`;
+            const seen = new Set(dbLog.map(key));
+            const onlyLocal = localLog.filter(e => !seen.has(key(e)));
+            return [...dbLog, ...onlyLocal].sort((a,b) => (a.ts||0) - (b.ts||0));
+          }
+          function unionByTs(dbLog, localLog) {
+            const seen = new Set(dbLog.map(e => e.ts));
+            const onlyLocal = localLog.filter(e => !seen.has(e.ts));
+            return [...dbLog, ...onlyLocal].sort((a,b) => (a.ts||0) - (b.ts||0));
+          }
+          return {
             ...local,
             coins:       dbM.coins,
             auctionWins: dbM.auctionWins,
@@ -4501,11 +4539,11 @@ function AppInner({ onMusicTrackChange }) {
             attendance:  dbM.attendance,
             profileRarity: dbM.profileRarity,
             awakeningLevel: dbM.awakeningLevel,
-            attendLog:   dbM.attendLog.length >= local.attendLog.length ? dbM.attendLog : local.attendLog,
-            decayLog:    dbM.decayLog.length  >= local.decayLog.length  ? dbM.decayLog  : local.decayLog,
-            txLog:       dbM.txLog.length     >= local.txLog.length     ? dbM.txLog     : local.txLog,
-            powerLog:    dbM.powerLog.length  >= (local.powerLog||[]).length ? dbM.powerLog : (local.powerLog||[]),
-          } : dbM;
+            attendLog:   unionLogs(dbM.attendLog, local.attendLog || []),
+            decayLog:    unionByTs(dbM.decayLog, local.decayLog || []),
+            txLog:       unionByTs(dbM.txLog, local.txLog || []),
+            powerLog:    unionByTs(dbM.powerLog, local.powerLog || []),
+          };
         });
       });
   }, 5000, 1500, []);
