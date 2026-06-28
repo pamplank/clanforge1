@@ -2012,23 +2012,20 @@ body.bg-leaderboard{
   background-image:linear-gradient(180deg, rgba(4,3,1,0.5) 0%, rgba(4,3,1,0.2) 12%, rgba(4,3,1,0.25) 50%, rgba(4,3,1,0.85) 82%, rgba(4,3,1,1) 100%);
 }
 @media(max-width:760px){
-  /* IMPORTANT CONSTRAINT: this box is much narrower than the video's
-     landscape source (2560x1440), so object-fit:cover can only ever crop
-     HORIZONTALLY here — the full vertical extent of the video always maps
-     into whatever height this box is given. Height controls zoom level
-     and how far down the page the art reaches; object-position-x controls
-     horizontal centering. Both values below were derived by comparing
-     real device screenshots against the source video, not guessed —
-     object-position-x is tuned specifically for THIS height, since
-     changing height changes the crop scale, which shifts what counts as
-     "centered". If height changes again, re-derive object-position-x
-     against a fresh screenshot rather than reusing this number as-is. */
+  /* Match the Login screen's approach exactly (.login-video-bg above),
+     since that one is already confirmed to look right on real devices.
+     The earlier attempts here used a guessed fixed pixel height, which
+     is a different effective zoom level than the login screen's — and
+     since object-position's percentage is scale-dependent, reusing "78%"
+     without reusing the same height made the centering wrong again.
+     Using 100vh + the same 78% position reproduces the login screen's
+     proven framing here too. */
   .leaderboard-bg-video{
-    height:820px;aspect-ratio:unset;
-    object-position:72% center;
+    height:100vh;aspect-ratio:unset;
+    object-position:78% center;
   }
   .leaderboard-bg-scrim{
-    height:820px;aspect-ratio:unset;
+    height:100vh;aspect-ratio:unset;
     background-image:linear-gradient(180deg, rgba(4,3,1,0.4) 0%, rgba(4,3,1,0.15) 10%, rgba(4,3,1,0.2) 60%, rgba(4,3,1,0.88) 80%, rgba(4,3,1,1) 92%);
   }
 }
