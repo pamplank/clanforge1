@@ -8212,7 +8212,17 @@ function RankOneVideoBackdrop({ assets }) {
       pointerEvents:"none", zIndex:0,
       display:"flex", justifyContent:"center", alignItems:"center",
     }}>
-      <img src={assets.bg} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} />
+      {/* ROOT CAUSE: scaling bg and video each to "100% of card height"
+          independently is wrong because they have different native
+          heights (bg is 2800px tall, video is 1400px — exactly 2x). The
+          single correct scale factor is the one that makes the VIDEO
+          fill the card height; at that same factor, the background
+          naturally becomes exactly 2x the card's height (matching its
+          2x relationship to the video), so only its vertical center
+          half should show, with the top/bottom cropped by the parent's
+          overflow:hidden. Sizing the bg element to height:200% (of the
+          card) and centering it vertically achieves exactly this. */}
+      <img src={assets.bg} alt="" style={{position:"absolute",left:"50%",top:"50%",height:"200%",width:"auto",transform:"translate(-50%,-50%)"}} />
       {/* The video clip has its own dark vignette baked into its edges
           (measured: ~15-17 brightness at the edges vs ~80 in the center) —
           the background image doesn't have a matching fade built in, so
