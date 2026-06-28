@@ -2617,15 +2617,30 @@ tbody tr:last-child td{border-bottom:none;}
 @media(max-width:700px){
   .player-info-layout{flex-direction:column;}
   .player-info-sidebar{width:100%;max-width:280px;margin:0 auto;}
-  /* The rank-1 video page's title/tagline text is positioned with
+  /* The rank-1/2 video page's title/tagline text is positioned with
      left:calc(sidebar-width + gaps) specifically so it starts right where
      the sidebar ends — that math assumes a wide horizontal layout. Below
      700px the layout stacks vertically instead (rule above), so that
      fixed-offset positioning no longer makes sense and the text was
-     running off the visible area. Simplest correct fix: hide it below
-     this breakpoint rather than trying to reflow positioned text against
-     a layout it wasn't designed for. */
+     running off the visible area. Hidden below this breakpoint; a
+     separate mobile-only caption renders instead (see .rank1-mobile-*
+     rules and the JSX that uses them). */
   .rank1-video-caption{display:none;}
+  /* The desktop hero-wrapper's fixed minHeight:760 (set inline, since it
+     depends on the rank1VideoAssets condition) would force a huge,
+     mostly-empty vertical space once the layout stacks to one column —
+     the video behind it, sized off that height, would also try to
+     render far wider than the narrow viewport, clipped uselessly by
+     overflow:hidden. Overriding it back to auto here, and hiding the
+     desktop backdrop entirely (replaced by .rank1-mobile-video below,
+     a separate element designed for a vertical layout instead of
+     trying to force the desktop one to adapt). */
+  .rank1-hero-wrapper{min-height:auto !important;}
+  .rank1-desktop-backdrop{display:none;}
+}
+@media(min-width:701px){
+  .rank1-mobile-video{display:none;}
+  .rank1-mobile-caption{display:none;}
 }
 @media(max-width:700px){.members-layout{flex-direction:column;}}
 
@@ -8199,22 +8214,8 @@ function ProfileCard({ member, onClick, prestigeRank }) {
 // (muted video), so autoplay works immediately with no unlock-on-click
 // step needed — unlike the background music elsewhere in the app.
 function RankOneVideoBackdrop({ assets }) {
-  const [phase, setPhase] = useState("intro"); // "intro" | "loop"
   const videoRef = useRef(null);
-
-  // When the phase switches from intro to loop, swap the <video> element's
-  // source and start it playing from the top — handled here rather than
-  // via two separate <video> tags stacked/cross-faded, since the intro's
-  // last frame and the loop's first frame are designed to match exactly
-  // (confirmed by inspecting the source clips), so a hard cut at that
-  // boundary is invisible rather than jarring.
-  useEffect(() => {
-    const el = videoRef.current;
-    if (!el) return;
-    el.src = phase === "intro" ? assets.intro : assets.loop;
-    el.load();
-    el.play().catch(() => {}); // ignore autoplay races; muted video should always be allowed
-  }, [phase, assets]);
+  const { phase, onEnded } = useIntroThenLoopVideo(videoRef, assets);
 
   // Video sits at its natural square shape, scaled to the container's
   // full height (uncropped — nothing trimmed off the character or the
@@ -8234,7 +8235,7 @@ function RankOneVideoBackdrop({ assets }) {
         ref={videoRef}
         autoPlay muted playsInline
         loop={phase === "loop"}
-        onEnded={() => { if (phase === "intro") setPhase("loop"); }}
+        onEnded={onEnded}
         style={{
           position:"relative",
           height:"100%", width:"auto", aspectRatio:"1/1",
@@ -8242,6 +8243,40 @@ function RankOneVideoBackdrop({ assets }) {
         }}
       />
     </div>
+  );
+}
+
+// Shared intro-then-loop playback logic, used by both the desktop
+// backdrop and the mobile video band — factored out so the two don't
+// duplicate the same effect/state wiring.
+function useIntroThenLoopVideo(videoRef, assets) {
+  const [phase, setPhase] = useState("intro");
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    el.src = phase === "intro" ? assets.intro : assets.loop;
+    el.load();
+    el.play().catch(() => {});
+  }, [phase, assets, videoRef]);
+  return { phase, onEnded: () => { if (phase === "intro") setPhase("loop"); } };
+}
+
+// Mobile-specific video band — a plain, full-width video filling its box
+// (object-fit:cover, no separate background-image layering like the
+// desktop version needs, since there's no "open gap beside the sidebar"
+// composition to fill on a stacked mobile layout). Same intro-then-loop
+// behavior, just laid out for a narrow vertical screen instead.
+function RankOneMobileVideo({ assets }) {
+  const videoRef = useRef(null);
+  const { phase, onEnded } = useIntroThenLoopVideo(videoRef, assets);
+  return (
+    <video
+      ref={videoRef}
+      autoPlay muted playsInline
+      loop={phase === "loop"}
+      onEnded={onEnded}
+      style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}
+    />
   );
 }
 
@@ -8437,9 +8472,53 @@ function PlayerInfo({ member, members, onBack }) {
             through" the events cards, but that bleed-through was the
             intended effect, not a bug, so the cards below now need a
             properly opaque background instead (handled where they're
-            defined) rather than the backdrop being held back. */}
-        {rank1VideoAssets && <RankOneVideoBackdrop assets={rank1VideoAssets} />}
-        <div style={{position:"relative", minHeight: rank1VideoAssets ? 760 : undefined}}>
+            defined) rather than the backdrop being held back.
+            Hidden below 700px via .rank1-desktop-backdrop — the
+            horizontal "open gap beside the sidebar" composition this
+            relies on doesn't exist once player-info-layout stacks to a
+            single column, so forcing it there just clips/distorts the
+            video uselessly. A separate .rank1-mobile-video band (below)
+            handles narrow screens instead. */}
+        {rank1VideoAssets && (
+          <div className="rank1-desktop-backdrop">
+            <RankOneVideoBackdrop assets={rank1VideoAssets} />
+          </div>
+        )}
+        {/* Mobile-only: a plain, full-width video band sitting above the
+            normal stacked layout, instead of trying to force the
+            desktop's "video behind a horizontal gap" composition into a
+            vertical phone screen. Plays the same intro-then-loop video,
+            just laid out for a narrow viewport. */}
+        {rank1VideoAssets && (
+          <div className="rank1-mobile-video" style={{position:"relative",width:"100%",aspectRatio:"4/5",borderRadius:8,overflow:"hidden",marginBottom:16,background:"var(--bg-void)"}}>
+            <RankOneMobileVideo assets={rank1VideoAssets} />
+          </div>
+        )}
+        {/* Simpler mobile counterpart to .rank1-video-caption (which is
+            positioned for the wide desktop layout and hidden below
+            700px) — same text, same per-rank gold treatment, just
+            centered under the mobile video band instead of floating
+            beside the sidebar. */}
+        {rank1VideoAssets && rank1Tagline && (
+          <div className="rank1-mobile-caption" style={{textAlign:"center",marginBottom:20}}>
+            <div style={{fontSize:10,color: powerRank===2 ? "rgba(255,200,80,0.85)" : "rgba(200,146,42,0.7)",letterSpacing:3,textTransform:"uppercase",fontWeight:700,marginBottom:6}}>
+              {CLAN_SEASON_LABEL} &middot; {prestige?.label || "Reigning Champion"}
+            </div>
+            <div style={{
+              fontFamily:"'Spectral',serif",fontSize:22,fontWeight:800,lineHeight:1.15,marginBottom:rank1FlavorLine?10:0,
+              color: powerRank===2 ? "#ffd454" : "#f2cc60",
+              textShadow: powerRank===2 ? "0 0 24px rgba(255,200,80,0.55), 0 0 8px rgba(255,220,140,0.4)" : "0 0 20px rgba(242,204,96,0.35)",
+            }}>
+              {rank1Tagline}
+            </div>
+            {rank1FlavorLine && (
+              <div style={{fontSize:12,color:"#c9bda8",lineHeight:1.6,fontStyle:"italic",maxWidth:320,margin:"0 auto"}}>
+                {rank1FlavorLine}
+              </div>
+            )}
+          </div>
+        )}
+        <div className="rank1-hero-wrapper" style={{position:"relative", minHeight: rank1VideoAssets ? 760 : undefined}}>
         {rank1VideoAssets && (prestige || richestTier || activeTier) && (
           <div style={{position:"relative",zIndex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:8,marginBottom:20}}>
             {prestige && (
