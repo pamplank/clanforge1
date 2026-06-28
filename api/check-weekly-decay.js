@@ -14,12 +14,19 @@
 // regardless of whether anyone has the app open at all.
 //
 // SCHEDULE: every Tuesday at 7:00 AM GMT+8 (Asia/Manila time).
+//
+// DECAY RATE: now read from the same app_state table (key="decay_rate"),
+// same as last_decay_ts, instead of being hardcoded here. The main app
+// (Settings > Coin Decay) writes this row when a Master edits the rate.
+// Falls back to 0.05 (5%) if no row exists yet, matching the original
+// hardcoded behavior so nothing changes until a Master actually edits it.
 
 const SUPA_URL = process.env.VITE_SUPABASE_URL;
 const SUPA_KEY = process.env.VITE_SUPABASE_ANON_KEY;
 const CRON_SECRET = process.env.CRON_SECRET; // same secret used by check-ending-auctions
 
 const GMT8_OFFSET_MS = 8 * 60 * 60 * 1000;
+const DEFAULT_DECAY_RATE = 0.05;
 
 // Returns the timestamp (real UTC ms) of the most recent Tuesday 7:00 AM
 // GMT+8 that has already happened, relative to right now.
@@ -49,17 +56,24 @@ export default async function handler(req, res) {
   try {
     const mostRecentScheduled = getLastTuesday7amGmt8();
 
-    const stateRes = await fetch(`${SUPA_URL}/rest/v1/app_state?select=value&key=eq.last_decay_ts`, {
+    // Fetch both last_decay_ts and decay_rate in one query, same table.
+    const stateRes = await fetch(`${SUPA_URL}/rest/v1/app_state?select=key,value&key=in.(last_decay_ts,decay_rate)`, {
       headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` },
     });
     const stateRows = await stateRes.json();
-    const lastDecayTs = Array.isArray(stateRows) && stateRows[0] ? Number(stateRows[0].value) || 0 : 0;
+    const stateMap = {};
+    if (Array.isArray(stateRows)) stateRows.forEach((r) => { stateMap[r.key] = r.value; });
+
+    const lastDecayTs = Number(stateMap.last_decay_ts) || 0;
+    const parsedRate = parseFloat(stateMap.decay_rate);
+    const decayRate = Number.isFinite(parsedRate) && parsedRate >= 0 ? parsedRate : DEFAULT_DECAY_RATE;
 
     if (lastDecayTs >= mostRecentScheduled) {
       return res.status(200).json({ ran: false, reason: "not due yet", lastDecayTs, mostRecentScheduled });
     }
 
-    // Apply 5% decay to every member, same math as the old client-side logic.
+    // Apply decay (decayRate, e.g. 0.05 = 5%) to every member, same math as
+    // the old client-side logic, now using the configurable rate.
     const membersRes = await fetch(`${SUPA_URL}/rest/v1/members?select=id,coins,decay_log,tx_log`, {
       headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` },
     });
@@ -70,11 +84,12 @@ export default async function handler(req, res) {
 
     const decayDate = new Date().toLocaleDateString("en-US");
     const decayTs = Date.now();
+    const ratePct = Math.round(decayRate * 1000) / 10; // e.g. 0.05 -> 5, 0.075 -> 7.5
     let totalDecayed = 0;
 
     const updates = members.map((m) => {
       const coins = Number(m.coins) || 0;
-      const d = Math.floor(coins * 0.05);
+      const d = Math.floor(coins * decayRate);
       totalDecayed += d;
       let decayLog = [];
       try { decayLog = typeof m.decay_log === "string" ? JSON.parse(m.decay_log) : (m.decay_log || []); } catch {}
@@ -92,7 +107,7 @@ export default async function handler(req, res) {
     } catch {}
     firstMemberTxLog = [...firstMemberTxLog, {
       change: -totalDecayed,
-      reason: `5% weekly coin decay applied to all ${members.length} members`,
+      reason: `${ratePct}% weekly coin decay applied to all ${members.length} members`,
       date: decayDate, logType: "Weekly Decay", addedBy: "System", ts: decayTs,
     }];
     updates[0].tx_log = JSON.stringify(firstMemberTxLog);
@@ -122,7 +137,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({ value: String(mostRecentScheduled), updated_at: Date.now() }),
     });
 
-    return res.status(200).json({ ran: true, membersAffected: members.length, totalDecayed });
+    return res.status(200).json({ ran: true, membersAffected: members.length, totalDecayed, decayRate });
   } catch (err) {
     console.error("check-weekly-decay failed:", err);
     return res.status(500).json({ error: "Failed to check/apply weekly decay" });

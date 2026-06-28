@@ -439,6 +439,7 @@ const TRANSLATIONS = {
     resetWeeklyAttendance: "Reset Weekly Attendance",
     eventCoinValues: "Event Coin Values",
     saveBtn: "Save",
+    decayRateLabel: "Weekly decay rate:",
     cancelBtn: "Cancel",
     editBtn: "Edit",
     colEventName: "Event",
@@ -937,6 +938,7 @@ const TRANSLATIONS = {
     resetWeeklyAttendance: "重置每周出勤",
     eventCoinValues: "活动金币数值",
     saveBtn: "保存",
+    decayRateLabel: "每周衰减比例：",
     cancelBtn: "取消",
     editBtn: "编辑",
     colEventName: "活动",
@@ -1876,16 +1878,24 @@ const SINDRIS_IMG = "data:image/webp;base64,UklGRkgYAABXRUJQVlA4IDwYAABQdQCdASrI
 const CLANSANCTUARY_IMG = "data:image/webp;base64,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";
 const CLAN_ANNIHILATION_IMG = "data:image/webp;base64,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";
 
+// ROOT CAUSE FIX: each event here used to carry its own hardcoded `coins`
+// value, completely separate from the one in EVENTS (used for the real
+// attendance payout math and the Settings table). Editing a value in
+// Settings updated real payouts but left these schedule cards showing the
+// old number forever — there was no connection between the two. Looking
+// the value up from EVENTS by id means there's only ever one real number
+// per event; this is just a display reference to it.
+function coinsForEvent(id) { return EVENTS.find(e => e.id === id)?.coins ?? 0; }
 const WEEKLY_SCHEDULE = [
-  { day:"Sunday",    events:[{ name:"Clan Sanctuary",          time:"22:00",               img:CLANSANCTUARY_IMG,    coins:60,  id:"CS"  }]},
-  { day:"Monday",    events:[{ name:"World Boss",              time:"Conqueror's Call",    img:WORLDBOSS_IMG,        coins:10,  id:"WB"  }]},
-  { day:"Tuesday",   events:[{ name:"Inter-Server Battle",     time:"20:00",               img:SERVERBATTLE_IMG,     coins:100, id:"ISB" }]},
-  { day:"Wednesday", events:[{ name:"World Boss",              time:"Conqueror's Call",    img:WORLDBOSS_IMG,        coins:10,  id:"WB"  }]},
-  { day:"Thursday",  events:[{ name:"Clan Annihilation",       time:"13:00",               img:CLAN_ANNIHILATION_IMG,coins:40,  id:"CA"  },
-                              { name:"Clan Annihilation",       time:"20:00",               img:CLAN_ANNIHILATION_IMG,coins:40,  id:"CA"  }]},
-  { day:"Friday",    events:[{ name:"World Boss",              time:"Conqueror's Call",    img:WORLDBOSS_IMG,        coins:10,  id:"WB"  }]},
-  { day:"Saturday",  events:[{ name:"Sindris Treasure Island", time:"13:00",               img:SINDRIS_IMG,          coins:40,  id:"STI" },
-                              { name:"Sindris Treasure Island", time:"20:00",               img:SINDRIS_IMG,          coins:40,  id:"STI" }]},
+  { day:"Sunday",    events:[{ name:"Clan Sanctuary",          time:"22:00",               img:CLANSANCTUARY_IMG,    get coins(){return coinsForEvent("CS");},  id:"CS"  }]},
+  { day:"Monday",    events:[{ name:"World Boss",              time:"Conqueror's Call",    img:WORLDBOSS_IMG,        get coins(){return coinsForEvent("WB");},  id:"WB"  }]},
+  { day:"Tuesday",   events:[{ name:"Inter-Server Battle",     time:"20:00",               img:SERVERBATTLE_IMG,     get coins(){return coinsForEvent("ISB");}, id:"ISB" }]},
+  { day:"Wednesday", events:[{ name:"World Boss",              time:"Conqueror's Call",    img:WORLDBOSS_IMG,        get coins(){return coinsForEvent("WB");},  id:"WB"  }]},
+  { day:"Thursday",  events:[{ name:"Clan Annihilation",       time:"13:00",               img:CLAN_ANNIHILATION_IMG,get coins(){return coinsForEvent("CA");},  id:"CA"  },
+                              { name:"Clan Annihilation",       time:"20:00",               img:CLAN_ANNIHILATION_IMG,get coins(){return coinsForEvent("CA");},  id:"CA"  }]},
+  { day:"Friday",    events:[{ name:"World Boss",              time:"Conqueror's Call",    img:WORLDBOSS_IMG,        get coins(){return coinsForEvent("WB");},  id:"WB"  }]},
+  { day:"Saturday",  events:[{ name:"Sindris Treasure Island", time:"13:00",               img:SINDRIS_IMG,          get coins(){return coinsForEvent("STI");}, id:"STI" },
+                              { name:"Sindris Treasure Island", time:"20:00",               img:SINDRIS_IMG,          get coins(){return coinsForEvent("STI");}, id:"STI" }]},
 ];
 const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
@@ -4034,18 +4044,25 @@ function AppInner({ onMusicTrackChange }) {
   // not React state, so nothing would normally tell already-mounted
   // components to re-render and show the new numbers without this.
   const [eventsVersion, setEventsVersion] = useState(0);
+  // Weekly coin decay rate (e.g. 0.05 = 5%) — loaded from app_state below,
+  // defaulting to the existing 5% if nothing's been saved yet. Editable in
+  // Settings; the server-side cron job (api/check-weekly-decay.js) reads
+  // its own copy from the same app_state row, since that file runs
+  // independently and can't share React state with this one.
+  const [decayRate, setDecayRate] = useState(0.05);
 
   // ── Load all data from Supabase on mount ──────────────────────────────────
   useEffect(() => {
     async function loadAll() {
     try {
-      const [mRows, aRows, lRows, cRows, rRows, evRows] = await Promise.all([
+      const [mRows, aRows, lRows, cRows, rRows, evRows, asRows] = await Promise.all([
         dbLoad("members"),
         dbLoad("auctions", AUCTION_LIST_COLS + ",image_data"),
         dbLoad("attendance_logs"),
         dbLoad("coin_requests"),
         dbLoad("loot_results"),
         dbLoad("event_coin_values"),
+        dbLoad("app_state"),
       ]);
       if (Array.isArray(mRows) && mRows.length > 0) {
         const safeJson = (v) => {
@@ -4168,6 +4185,11 @@ function AppInner({ onMusicTrackChange }) {
           if (ev && Number.isFinite(Number(row.coins))) ev.coins = Number(row.coins);
         });
         setEventsVersion(v => v + 1); // force a re-render so already-mounted components show the new numbers
+      }
+      if (Array.isArray(asRows) && asRows.length > 0) {
+        const rateRow = asRows.find(r => r.key === "decay_rate");
+        const parsedRate = rateRow ? parseFloat(rateRow.value) : NaN;
+        if (Number.isFinite(parsedRate) && parsedRate >= 0) setDecayRate(parsedRate);
       }
       // ── Restore session from localStorage ───────────────────────────────
       const savedId = localStorage.getItem("cf_user_id");
@@ -4807,7 +4829,7 @@ function AppInner({ onMusicTrackChange }) {
 
 
   const ctx = { members, setMembers, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
-    currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion };
+    currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion, decayRate, setDecayRate };
 
   const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings")};
 
@@ -8488,8 +8510,76 @@ function EventCoinValuesTable({ isMaster, addToast, eventsVersion, setEventsVers
   );
 }
 
+// ─── DECAY RATE (editable) ────────────────────────────────────────────────────
+// Saved to app_state under key "decay_rate" — the SAME table/row pattern
+// already used for last_decay_ts, which both this app and the server-side
+// cron job (api/check-weekly-decay.js) read. IMPORTANT: editing the rate
+// here only updates the manual "Trigger Weekly Decay" button in this app.
+// The automatic Tuesday-7am cron job has its OWN hardcoded 0.05 in a
+// separate file this app can't reach or redeploy — that file needs the
+// matching change made by hand for the automatic decay to use the new
+// rate too. See the comment in check-weekly-decay.js for exactly what to
+// change there.
+function DecayRateEditor({ decayRate, setDecayRate, addToast, t }) {
+  const [editing, setEditing] = useState(false);
+  const [draftPct, setDraftPct] = useState(String(Math.round(decayRate*1000)/10));
+  const [saving, setSaving] = useState(false);
+
+  function startEdit() {
+    setDraftPct(String(Math.round(decayRate*1000)/10));
+    setEditing(true);
+  }
+  async function save() {
+    const pct = parseFloat(draftPct);
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+      addToast(t("enterValidAmount"), "red", t("errorLabel"));
+      return;
+    }
+    const rate = pct / 100;
+    setSaving(true);
+    const ok = await dbUpsertReliable("app_state", { key: "decay_rate", value: String(rate), updated_at: Date.now() });
+    setSaving(false);
+    if (ok) {
+      setDecayRate(rate);
+      setEditing(false);
+      addToast(`Weekly decay rate set to ${pct}%. Remember: the automatic Tuesday cron job needs this updated separately in check-weekly-decay.js.`, "gold", "Updated");
+    } else {
+      addToast(
+        <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't save — please try again.</span>,
+        "red", "Save Failed"
+      );
+    }
+  }
+
+  const currentPct = Math.round(decayRate*1000)/10;
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+      <span style={{fontSize:13,color:"var(--text)"}}>{t("decayRateLabel")}</span>
+      {editing ? (
+        <>
+          <input
+            type="number" min="0" max="100" step="0.1" value={draftPct}
+            onChange={e=>setDraftPct(e.target.value)}
+            onKeyDown={e=>{ if(e.key==="Enter") save(); if(e.key==="Escape") setEditing(false); }}
+            autoFocus
+            style={{width:70,background:"rgba(10,8,6,0.85)",border:"1px solid var(--gold)",color:"var(--gold-light)",borderRadius:4,padding:"4px 8px",fontFamily:"'Inter',sans-serif",fontWeight:700}}
+          />
+          <span style={{fontSize:13,color:"var(--text-dim)"}}>%</span>
+          <button className="btn btn-gold btn-sm" disabled={saving} onClick={save}>{saving ? "…" : t("saveBtn")}</button>
+          <button className="btn btn-outline btn-sm" onClick={()=>setEditing(false)}>{t("cancelBtn")}</button>
+        </>
+      ) : (
+        <>
+          <strong style={{color:"var(--gold)",fontSize:14}}>{currentPct}%</strong>
+          <button className="btn btn-outline btn-sm" onClick={startEdit}>{t("editBtn")}</button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function Settings({ ctx }) {
-  const { currentUser, members, setMembers, addToast, eventsVersion, setEventsVersion } = ctx;
+  const { currentUser, members, setMembers, addToast, eventsVersion, setEventsVersion, decayRate, setDecayRate } = ctx;
   const { t } = useLang();
   const isMaster = currentUser.role==="Master";
   // ── Auto-decay: every Wednesday at 7:00 AM, fixed to GMT+8 ───────────────
@@ -8580,16 +8670,17 @@ function Settings({ ctx }) {
   function triggerDecay() {
     const decayDate = new Date().toLocaleDateString();
     const decayTs = Date.now();
+    const ratePct = Math.round(decayRate * 1000) / 10; // e.g. 0.05 -> 5, 0.075 -> 7.5
     setMembers(ms=>{
       let totalDecayed = 0;
       const updated = ms.map(m=>{
-        const d=Math.floor(m.coins*0.05);
+        const d=Math.floor(m.coins*decayRate);
         totalDecayed += d;
         return{...m,coins:m.coins-d,decayLog:[...(m.decayLog||[]),{amount:-d,date:decayDate,ts:decayTs}]};
       });
       if (updated.length>0) {
         updated[0] = {...updated[0], txLog:[...(updated[0].txLog||[]),
-          {change:-totalDecayed,reason:`5% weekly coin decay applied to all ${updated.length} members`,date:decayDate,logType:"Weekly Decay",addedBy:currentUser.name,ts:decayTs}]};
+          {change:-totalDecayed,reason:`${ratePct}% weekly coin decay applied to all ${updated.length} members`,date:decayDate,logType:"Weekly Decay",addedBy:currentUser.name,ts:decayTs}]};
       }
       return updated;
     });
@@ -8619,6 +8710,7 @@ function Settings({ ctx }) {
         <div className="card card-red">
           <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:15,color:"#e07070",marginBottom:8}}>{t("coinDecayTitle")}</div>
           <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12,lineHeight:1.7}}>{t("coinDecayDesc")}</div>
+          <DecayRateEditor decayRate={decayRate} setDecayRate={setDecayRate} addToast={addToast} t={t} />
           <div style={{fontSize:13,color:"var(--text)",marginBottom:16}}>{t("avgCoinsLabel")} <strong style={{color:"var(--gold)"}}>{fmt(Math.floor(members.reduce((s,m)=>s+m.coins,0)/members.length))}</strong></div>
           <button className="btn btn-red" onClick={triggerDecay}>{t("triggerWeeklyDecay")}</button>
         </div>
