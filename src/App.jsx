@@ -8153,11 +8153,12 @@ function ProfileCard({ member, onClick, prestigeRank }) {
 }
 
 // ─── RANK 1 PROFILE VIDEO BACKDROP ────────────────────────────────────────────
-// Plays a class-linked intro clip once, then switches to a looping clip —
-// both are square (1:1) videos, composited centered against a wider
-// background image that extends the same scene to the sides, matching the
-// proportions measured directly from the source assets (the video occupies
-// the middle 50% of the background's height, centered horizontally).
+// Plays a class-linked intro clip once, then switches to a looping clip.
+// LAYOUT: the square (1:1) video is sized to the FULL height of the card
+// (not a small centered slice of it) — the background image is scaled to
+// that same height and stretched/cropped to fill the card's full width via
+// object-fit:cover, so it extends the video's scene outward on both sides
+// rather than the video shrinking down into a thin strip of background.
 // Browsers block autoplay-with-sound, but these clips have no audio track
 // (muted video), so autoplay works immediately with no unlock-on-click
 // step needed — unlike the background music elsewhere in the app.
@@ -8181,9 +8182,10 @@ function RankOneVideoBackdrop({ assets }) {
 
   return (
     <div style={{
-      position:"absolute", top:0, left:0, right:0,
-      height:"100%", overflow:"hidden", borderRadius:8,
+      position:"absolute", top:0, left:0, right:0, bottom:0,
+      overflow:"hidden", borderRadius:8,
       pointerEvents:"none", zIndex:0,
+      display:"flex", justifyContent:"center", alignItems:"center",
     }}>
       <img src={assets.bg} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} />
       <video
@@ -8192,8 +8194,8 @@ function RankOneVideoBackdrop({ assets }) {
         loop={phase === "loop"}
         onEnded={() => { if (phase === "intro") setPhase("loop"); }}
         style={{
-          position:"absolute",
-          top:"25%", left:"36.33%", width:"27.34%", height:"50%",
+          position:"relative",
+          height:"100%", width:"auto", aspectRatio:"1/1",
           objectFit:"cover",
         }}
       />
