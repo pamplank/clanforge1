@@ -4560,13 +4560,32 @@ function AppInner({ onMusicTrackChange }) {
     const iv = setInterval(async () => {
       const rows = await dbLoad("coin_requests");
       if (Array.isArray(rows)) {
-        const parsed = rows.map(r => ({
-          ...r,
-          memberId: r.member_id ?? r.memberId,
-          memberName: r.member_name ?? r.memberName,
-          requestedBy: r.requested_by ?? r.requestedBy,
-          requestedAt: r.requested_at ?? r.requestedAt,
-        }));
+        // ROOT CAUSE FIX: previously only `localOnly` (locally-pending,
+        // not-yet-confirmed requests) was filtered against
+        // deletedCoinReqIds — the `parsed` rows straight from the
+        // database were NOT filtered at all. So if a request's
+        // dbDeleteReliable call failed (the row never actually left the
+        // coin_requests table, even though it was optimistically removed
+        // from the screen), the very next 10s poll would fetch that same
+        // row again and re-add it to pendingCoinRequests — fully visible
+        // and approvable again, with no indication anything had gone
+        // wrong. Repeatedly clicking Approve on that reappearing request
+        // would pay the coins out again each time. Filtering `parsed`
+        // against the same set closes that gap: once a request has been
+        // approved or rejected locally, it stays gone from this client's
+        // view regardless of whether the delete actually landed — and
+        // the existing "couldn't be cleared from the queue" warning
+        // toast is still the signal to go double check/delete it
+        // manually in Supabase if that ever happens.
+        const parsed = rows
+          .filter(r => !deletedCoinReqIds.current.has(String(r.id)))
+          .map(r => ({
+            ...r,
+            memberId: r.member_id ?? r.memberId,
+            memberName: r.member_name ?? r.memberName,
+            requestedBy: r.requested_by ?? r.requestedBy,
+            requestedAt: r.requested_at ?? r.requestedAt,
+          }));
         setPendingCoinRequests(prev => {
           const dbIds = new Set(parsed.map(r => String(r.id)));
           const localOnly = prev.filter(r => !dbIds.has(String(r.id)) && !deletedCoinReqIds.current.has(String(r.id)));
