@@ -8391,7 +8391,7 @@ function PlayerInfo({ member, members, onBack }) {
       }}>
         {rank1VideoAssets && <RankOneVideoBackdrop assets={rank1VideoAssets} />}
         <div className="player-info-layout" style={{position:"relative",zIndex:1,justifyContent: rank1VideoAssets ? "space-between" : undefined}}>
-          <div className="player-info-sidebar">
+          <div className="player-info-sidebar" style={rank1VideoAssets ? {order:1} : undefined}>
             <div style={{
               borderRadius:24,
               padding:prestige?24:0,
@@ -8444,8 +8444,12 @@ function PlayerInfo({ member, members, onBack }) {
           </div>
           </div>
 
-          <div className="player-info-main" style={rank1VideoAssets ? {flex:"0 1 380px"} : undefined}>
+          <div className="player-info-main" style={rank1VideoAssets
+            ? {flexBasis:"100%", order:3, display:"flex", gap:16, flexWrap:"wrap"}
+            : undefined
+          }>
             <div style={{
+              flex: rank1VideoAssets ? "1 1 300px" : undefined,
               background: rank1VideoAssets ? "rgba(10,8,6,0.82)" : (prestige?`${prestige.gradient[2]}30`:"rgba(255,255,255,0.02)"),
               border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
               borderRadius:4,padding:"18px 20px",
@@ -8469,9 +8473,10 @@ function PlayerInfo({ member, members, onBack }) {
             </div>
 
             <div style={{
+              flex: rank1VideoAssets ? "1 1 300px" : undefined,
               background: rank1VideoAssets ? "rgba(10,8,6,0.82)" : (prestige?`${prestige.gradient[2]}30`:"rgba(255,255,255,0.02)"),
               border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
-              borderRadius:4,padding:"18px 20px",marginTop:16,
+              borderRadius:4,padding:"18px 20px",marginTop: rank1VideoAssets ? 0 : 16,
             }}>
               <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:14}}>Recent Activity</div>
               {recentActivity.length === 0 ? (
@@ -8496,7 +8501,7 @@ function PlayerInfo({ member, members, onBack }) {
             </div>
           </div>
 
-          <div className="player-info-main" style={{display:"flex",flexDirection:"column",gap:16, ...(rank1VideoAssets ? {flex:"0 1 380px"} : {})}}>
+          <div className="player-info-main" style={{display:"flex",flexDirection:"column",gap:16, ...(rank1VideoAssets ? {flex:"0 1 380px",order:2} : {})}}>
             <div className="card" style={{padding:20,border:prestige?`1px solid ${prestige.gradient[1]}50`:undefined,background: rank1VideoAssets ? "rgba(10,8,6,0.82)" : (prestige?`${prestige.gradient[2]}30`:undefined)}}>
               <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Last 4 Weeks</div>
               <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:17,color:"var(--text-bright)",marginBottom:6}}>Power Surge</div>
