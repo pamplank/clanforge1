@@ -1463,15 +1463,26 @@ const PROFILE_RANK1_VIDEO = {
 // Archer has one for now; other classes simply don't show this block
 // until a tagline's added here, same graceful-fallback approach as the
 // mythic portraits and rank-1 videos above.
+// Keyed by class, then by power rank (1 or 2) — restructured from a
+// flat per-class map because rank 1 and rank 2 can be the SAME class
+// (e.g. two Archers), and they need their own distinct tagline/flavor
+// text rather than literally identical copy just because they share a
+// class and video asset.
 const CLASS_TAGLINES = {
-  "Archer": "Precise and Unforgiving Hunter",
+  "Archer": {
+    1: "Precise and Unforgiving Hunter",
+    2: "Relentless Marksman of the Arena",
+  },
 };
-// Short lore/flavor line for the second, lower section on the rank-1 video
-// page — positioned further down than the title block so it clears the
-// rune circle's lower arc instead of crossing through it. Same per-class,
-// graceful-fallback pattern as CLASS_TAGLINES above.
+// Short lore/flavor line for the second, lower section on the rank-1/2
+// video page — positioned further down than the title block so it clears
+// the rune circle's lower arc instead of crossing through it. Same
+// per-class-then-per-rank, graceful-fallback pattern as CLASS_TAGLINES.
 const CLASS_FLAVOR_LINES = {
-  "Archer": "No target escapes her sight. Every arrow loosed has found its mark.",
+  "Archer": {
+    1: "No target escapes her sight. Every arrow loosed has found its mark.",
+    2: "He has broken more duelists than he can count. His bowstring sings only one note: victory.",
+  },
 };
 
 // Start-of-today timestamp in GMT+8, used to sum "diamonds donated today"
@@ -8254,10 +8265,20 @@ function PlayerInfo({ member, members, onBack }) {
   const powerRank = byPower.findIndex(m=>m.id===member.id)+1;
   const coinsRank = byCoins.findIndex(m=>m.id===member.id)+1;
   const attendRank = byAttend.findIndex(m=>m.id===member.id)+1;
-  // Only the clan's #1 by Power gets the video backdrop, and only if
-  // their class has video assets uploaded yet (currently just Archer) —
-  // every other rank/class renders this page exactly as before.
-  const rank1VideoAssets = powerRank === 1 ? PROFILE_RANK1_VIDEO[member.cls] : null;
+  // The clan's #1 AND #2 by Power get the video backdrop (variable name
+  // kept as "rank1VideoAssets" even though it now also covers rank 2,
+  // since it's referenced throughout this component and renaming
+  // everywhere risked introducing a mistake for no functional benefit) —
+  // only if their class has video assets uploaded (currently just
+  // Archer for #1; add additional classes to PROFILE_RANK1_VIDEO as
+  // their assets come in). Every other rank/class renders this page
+  // exactly as before.
+  const rank1VideoAssets = (powerRank === 1 || powerRank === 2) ? PROFILE_RANK1_VIDEO[member.cls] : null;
+  // Resolved per-rank (not just per-class) so two same-class players at
+  // rank 1 and rank 2 get their own distinct text instead of identical
+  // copy just because they share a class/video.
+  const rank1Tagline = CLASS_TAGLINES[member.cls]?.[powerRank];
+  const rank1FlavorLine = CLASS_FLAVOR_LINES[member.cls]?.[powerRank];
   // (rankings array moved below, after the prestige tier objects it now references)
 
   // Prestige tier — matches the podium's gold/silver/bronze treatment,
@@ -8459,16 +8480,16 @@ function PlayerInfo({ member, members, onBack }) {
             )}
           </div>
         )}
-        {rank1VideoAssets && CLASS_TAGLINES[member.cls] && (
+        {rank1VideoAssets && rank1Tagline && (
           <div className="rank1-video-caption" style={{
             position:"absolute", zIndex:1, left:"calc(220px + 24px + 24px)", right:24, top:"15%",
             maxWidth:280,
           }}>
             <div style={{fontSize:10,color:"rgba(200,146,42,0.7)",letterSpacing:3,textTransform:"uppercase",fontWeight:700,marginBottom:8}}>
-              {CLAN_SEASON_LABEL} &middot; Reigning Champion
+              {CLAN_SEASON_LABEL} &middot; {prestige?.label || "Reigning Champion"}
             </div>
             <div style={{fontFamily:"'Spectral',serif",fontSize:28,fontWeight:800,color:"#f2cc60",lineHeight:1.15,textShadow:"0 0 20px rgba(242,204,96,0.35)"}}>
-              {CLASS_TAGLINES[member.cls]}
+              {rank1Tagline}
             </div>
             {/* Sits directly below the tagline via normal margin flow —
                 previously this was a second, independently-positioned
@@ -8476,9 +8497,9 @@ function PlayerInfo({ member, members, onBack }) {
                 further down the card than intended (the title and this
                 line are meant to read as one continuous block, not two
                 separate floating pieces). */}
-            {CLASS_FLAVOR_LINES[member.cls] && (
+            {rank1FlavorLine && (
               <div style={{fontSize:13,color:"#c9bda8",lineHeight:1.6,fontStyle:"italic",marginTop:14}}>
-                {CLASS_FLAVOR_LINES[member.cls]}
+                {rank1FlavorLine}
               </div>
             )}
           </div>
