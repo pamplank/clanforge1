@@ -2012,7 +2012,22 @@ body.bg-leaderboard{
   background-image:linear-gradient(180deg, rgba(4,3,1,0.5) 0%, rgba(4,3,1,0.2) 12%, rgba(4,3,1,0.25) 50%, rgba(4,3,1,0.85) 82%, rgba(4,3,1,1) 100%);
 }
 @media(max-width:760px){
-  .leaderboard-bg-video{object-position:78% center;}
+  /* On narrow screens the fixed aspect-ratio made this block far too
+     short — it ended near the top of the page instead of reaching down
+     past the headline and podium ("top 10"). Switching to a height tied
+     to the viewport (instead of the video's native aspect ratio) lets it
+     stretch down to where it's needed, while object-fit:cover still crops
+     intelligently rather than distorting the video. object-position is
+     pulled toward center-top so the figure in the scene reads centered
+     in the now-taller visible area instead of being cropped oddly. */
+  .leaderboard-bg-video{
+    height:78vh;aspect-ratio:unset;
+    object-position:78% 30%;
+  }
+  .leaderboard-bg-scrim{
+    height:78vh;aspect-ratio:unset;
+    background-image:linear-gradient(180deg, rgba(4,3,1,0.45) 0%, rgba(4,3,1,0.15) 18%, rgba(4,3,1,0.2) 55%, rgba(4,3,1,0.9) 88%, rgba(4,3,1,1) 100%);
+  }
 }
 
 /* Leaderboard headline — wraps and shrinks properly on narrow screens
