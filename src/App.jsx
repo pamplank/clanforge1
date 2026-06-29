@@ -80,6 +80,15 @@ const TRANSLATIONS = {
     approvals: "Approvals",
     changePassword: "Change Password",
     coinsLabel: "coins",
+    welcomeBackTitle: "Welcome back,",
+    loginSummaryDesc: "Here's what happened since your last visit:",
+    fromAttendance: "from attendance",
+    fromBonuses: "from bonuses",
+    bonusesEarned: "Bonuses Earned",
+    auctionsWon: "Auctions Won",
+    gotIt: "Got It",
+    nothingNewMessage: "Nothing new since last time — check back later!",
+    dontShowToday: "Don't show again today",
     balanceRemaining: "Balance Remaining",
     // Page titles
     pageTitle_dashboard: "Clan HQ",
@@ -589,6 +598,15 @@ const TRANSLATIONS = {
     approvals: "待审批",
     changePassword: "修改密码",
     coinsLabel: "金币",
+    welcomeBackTitle: "欢迎回来，",
+    loginSummaryDesc: "这是您上次访问后发生的事情：",
+    fromAttendance: "来自出勤",
+    fromBonuses: "来自奖励",
+    bonusesEarned: "获得的奖励",
+    auctionsWon: "拍下的物品",
+    gotIt: "知道了",
+    nothingNewMessage: "自上次以来没有新动态，稍后再来看看吧！",
+    dontShowToday: "今天不再显示",
     balanceRemaining: "剩余余额",
     // Page titles
     pageTitle_dashboard: "公会总部",
@@ -4080,6 +4098,10 @@ function AppInner({ onMusicTrackChange }) {
   const [auctions, setAuctionsRaw] = useState(SEED_AUCTIONS);
   const [attendanceLogs, setAttendanceLogsRaw] = useState([]);
   const [loggedIn, setLoggedIn] = useState(false);
+  // Set once on login to {since, until} — the window the post-login
+  // "what's new" popup summarizes over. null means no popup should show
+  // (e.g. first-ever login, or already dismissed this session).
+  const [loginSummaryWindow, setLoginSummaryWindow] = useState(null);
   // ── Background music: tell the persistent <BackgroundMusic> player (mounted
   // in App, above AppInner, so it survives login/logout) which track — if
   // any — should be playing for the current screen.
@@ -4169,6 +4191,7 @@ function AppInner({ onMusicTrackChange }) {
           powerLog:    safeJson(r.power_log),
           profileRarity: r.profile_rarity || "uncommon",
           awakeningLevel: Number(r.awakening_level) || 0,
+          lastLoginTs: Number(r.last_login_ts) || 0,
         })));
       } else if (Array.isArray(mRows) && mRows.length === 0) {
         // Table genuinely empty (confirmed by a successful query) — safe to seed.
@@ -4286,8 +4309,18 @@ function AppInner({ onMusicTrackChange }) {
             powerLog: parseLog(found.power_log),
             profileRarity: found.profile_rarity || "uncommon",
             awakeningLevel: Number(found.awakening_level) || 0,
+            lastLoginTs: Date.now(),
           });
           setLoggedIn(true);
+          // Always show the popup on every page open (including a plain
+          // refresh) — per direct request, this isn't trying to detect
+          // "genuinely new sessions" anymore, it just always checks what
+          // changed since the last time this ran and shows something
+          // either way (see getLoginSummary's hasAnything flag for the
+          // "nothing changed" case).
+          const previousLoginTs = Number(found.last_login_ts) || 0;
+          setLoginSummaryWindow({ since: previousLoginTs, until: Date.now() });
+          setMembers(ms => ms.map(x => String(x.id)===String(savedId) ? {...x, lastLoginTs: Date.now()} : x));
         }
       }
     } catch (e) {
@@ -4323,6 +4356,7 @@ function AppInner({ onMusicTrackChange }) {
           power_log: JSON.stringify(m.powerLog || []),
           profile_rarity: m.profileRarity || "uncommon",
           awakening_level: m.awakeningLevel || 0,
+          last_login_ts: m.lastLoginTs || 0,
           discord: m.discord || "",
         };
         if (!skipCoinsWrite) row.coins = m.coins;
@@ -4495,6 +4529,7 @@ function AppInner({ onMusicTrackChange }) {
           powerLog:    safeJson(r.power_log),
           profileRarity: r.profile_rarity || "uncommon",
           awakeningLevel: Number(r.awakening_level) || 0,
+          lastLoginTs: Number(r.last_login_ts) || 0,
         }));
         // Merge: keep local state for fields not in DB, update coins/auctionWins from DB
         return incoming.map(dbM => {
@@ -4539,6 +4574,7 @@ function AppInner({ onMusicTrackChange }) {
             attendance:  dbM.attendance,
             profileRarity: dbM.profileRarity,
             awakeningLevel: dbM.awakeningLevel,
+            lastLoginTs: Math.max(dbM.lastLoginTs || 0, local.lastLoginTs || 0),
             attendLog:   unionLogs(dbM.attendLog, local.attendLog || []),
             decayLog:    unionByTs(dbM.decayLog, local.decayLog || []),
             txLog:       unionByTs(dbM.txLog, local.txLog || []),
@@ -4798,10 +4834,19 @@ function AppInner({ onMusicTrackChange }) {
   }
   function removeToast(id) { dismissToast(id); }
   function handleLogin(m) {
-    setCurrentUser(m);
+    // Capture the OLD lastLoginTs before overwriting it — this is the
+    // actual boundary the "what's new since you logged in" popup needs
+    // to compare against. If we updated lastLoginTs first and then tried
+    // to read it, we'd just see "now" and the summary would always be
+    // empty.
+    const previousLoginTs = m.lastLoginTs || 0;
+    const now = Date.now();
+    setCurrentUser({...m, lastLoginTs: now});
     setLoggedIn(true);
     setShowEntrance(true);
     localStorage.setItem("cf_user_id", m.id);
+    setMembers(ms => ms.map(x => x.id===m.id ? {...x, lastLoginTs: now} : x));
+    setLoginSummaryWindow({ since: previousLoginTs, until: now });
   }
   function handleLogout() {
     setLoggedIn(false);
@@ -5251,6 +5296,25 @@ function AppInner({ onMusicTrackChange }) {
       {modal?.type==="discord"      && <DiscordModal member={modal.data} onSave={(tag)=>linkDiscord(modal.data.id,tag)} onClose={()=>setModal(null)} />}
       {modal?.type==="changePassword" && <ChangePasswordModal ctx={ctx} />}
       {modal?.type==="renameMember"   && <RenameMemberModal ctx={ctx} />}
+      {(() => {
+        if (!loginSummaryWindow || !currentUser) return null;
+        // "Don't show again today" is tracked per-member (so a shared
+        // browser doesn't suppress it for someone else) and per-day (a
+        // plain Date string, so it naturally resets tomorrow without
+        // needing any cleanup logic).
+        const todayKey = `cf_login_summary_dismissed_${currentUser.id}_${new Date().toDateString()}`;
+        if (localStorage.getItem(todayKey)) return null;
+        const summary = getLoginSummary(currentUser, loginSummaryWindow);
+        if (!summary) return null;
+        return (
+          <LoginSummaryModal
+            summary={summary}
+            memberName={currentUser.name}
+            onClose={() => setLoginSummaryWindow(null)}
+            onDismissToday={() => localStorage.setItem(todayKey, "1")}
+          />
+        );
+      })()}
       {modal?.type==="deleteAttendance" && <DeleteAttendanceModal ctx={ctx} />}
       {modal?.type==="addMissingAttendance" && <AddMissingAttendanceModal ctx={ctx} />}
       <Toast toasts={toasts} remove={removeToast} />
@@ -6306,6 +6370,121 @@ function getWeeklyEventActivity(attendLog, now = Date.now()) {
 
 // Weekly version of getMonthlyPowerGains — same verified baseline-fallback
 // logic, on a 7-day cadence.
+// Builds the "what's new since you last logged in" summary shown right
+// after login. Pulls from data that's already tracked (attendLog, txLog,
+// powerLog) — nothing new recorded here besides the lastLoginTs window
+// itself. Returns null if there's nothing worth showing (e.g. first-ever
+// login, or genuinely nothing happened), so the caller can skip the
+// popup entirely rather than show an empty one.
+function getLoginSummary(member, window) {
+  // Only the genuine first-ever-login case skips the popup entirely —
+  // there's no prior point in time to compare against, so there's
+  // nothing meaningful to say (not even "nothing new," since we don't
+  // actually know that). Every other case, including "checked and
+  // genuinely nothing happened," returns a real object so the popup can
+  // show something (per direct request: always show on open).
+  if (!window || !window.since) return null;
+  const { since, until } = window;
+
+  const attendanceEntries = (member.attendLog || []).filter(e => (e.ts||0) > since && (e.ts||0) <= until && e.qualifier !== "afk");
+  const coinsFromAttendance = attendanceEntries.reduce((s,e) => s + (e.coins||0), 0);
+
+  const bonusEntries = (member.txLog || []).filter(e => (e.ts||0) > since && (e.ts||0) <= until && /Bonus$/.test(e.logType||""));
+  const coinsFromBonuses = bonusEntries.reduce((s,e) => s + (e.change||0), 0);
+
+  const auctionWins = (member.txLog || []).filter(e => (e.ts||0) > since && (e.ts||0) <= until && e.logType === "Auction Win");
+
+  const powerEntries = (member.powerLog || []).filter(e => (e.ts||0) > since && (e.ts||0) <= until).sort((a,b)=>a.ts-b.ts);
+  const powerChange = powerEntries.length > 0
+    ? powerEntries[powerEntries.length-1].power - (member.powerLog.filter(e=>(e.ts||0)<=since).sort((a,b)=>b.ts-a.ts)[0]?.power ?? powerEntries[0].power)
+    : 0;
+
+  const hasAnything = attendanceEntries.length > 0 || bonusEntries.length > 0 || auctionWins.length > 0 || powerChange !== 0;
+
+  return {
+    hasAnything,
+    coinsFromAttendance, coinsFromBonuses, totalCoins: coinsFromAttendance + coinsFromBonuses,
+    bonusCount: bonusEntries.length, bonusEntries,
+    auctionWins,
+    powerChange,
+  };
+}
+
+// Shown once right after login if getLoginSummary found anything to
+// report. Purely informational — closing it doesn't lose anything, since
+// the underlying data (attendLog/txLog/powerLog) is unaffected either way.
+function LoginSummaryModal({ summary, memberName, memberId, onClose, onDismissToday }) {
+  const { t } = useLang();
+  const [dontShowToday, setDontShowToday] = useState(false);
+  function handleClose() {
+    if (dontShowToday) onDismissToday();
+    onClose();
+  }
+  return (
+    <div className="modal-overlay" onClick={handleClose}>
+      <div className="modal" style={{maxWidth:420}} onClick={e=>e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title">{t("welcomeBackTitle")} {memberName}</div>
+          <button className="btn btn-ghost" onClick={handleClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:16}}>{t("loginSummaryDesc")}</div>
+          {!summary.hasAnything ? (
+            <div style={{textAlign:"center",padding:"20px 0",color:"var(--text-dim)",fontSize:13}}>{t("nothingNewMessage")}</div>
+          ) : (
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            {summary.totalCoins !== 0 && (
+              <div style={{display:"flex",alignItems:"center",gap:10,background:"rgba(201,151,42,0.08)",border:"1px solid rgba(201,151,42,0.25)",borderRadius:6,padding:"10px 14px"}}>
+                <StatIcon src={COINS_ICON} size={22}/>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:"var(--gold-light)"}}>{summary.totalCoins>0?"+":""}{fmt(summary.totalCoins)} {t("coinsLabel")}</div>
+                  <div style={{fontSize:11,color:"var(--text-dim)"}}>
+                    {summary.coinsFromAttendance>0 && `${fmt(summary.coinsFromAttendance)} ${t("fromAttendance")}`}
+                    {summary.coinsFromAttendance>0 && summary.coinsFromBonuses!==0 && " · "}
+                    {summary.coinsFromBonuses!==0 && `${summary.coinsFromBonuses>0?"+":""}${fmt(summary.coinsFromBonuses)} ${t("fromBonuses")}`}
+                  </div>
+                </div>
+              </div>
+            )}
+            {summary.bonusEntries.length > 0 && (
+              <div style={{background:"rgba(201,151,42,0.08)",border:"1px solid rgba(201,151,42,0.25)",borderRadius:6,padding:"10px 14px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:13,fontWeight:700,color:"var(--gold-light)",marginBottom:6}}><TrophyIcon size={14}/>{t("bonusesEarned")}</div>
+                {summary.bonusEntries.map((b,i) => (
+                  <div key={i} style={{fontSize:12,color:"var(--text)",display:"flex",justifyContent:"space-between"}}>
+                    <span>{b.logType}</span><span style={{color:"var(--gold-light)",fontWeight:700}}>+{fmt(b.change)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {summary.powerChange !== 0 && (
+              <div style={{display:"flex",alignItems:"center",gap:10,background:"rgba(70,130,200,0.08)",border:"1px solid rgba(70,130,200,0.25)",borderRadius:6,padding:"10px 14px"}}>
+                <PowerIcon size={20} style={{color:"#6fa8dc"}}/>
+                <div style={{fontSize:13,fontWeight:700,color:"#8cc0f0"}}>{summary.powerChange>0?"+":""}{fmt(summary.powerChange)} {t("powerLabel")}</div>
+              </div>
+            )}
+            {summary.auctionWins.length > 0 && (
+              <div style={{background:"rgba(180,80,80,0.08)",border:"1px solid rgba(180,80,80,0.25)",borderRadius:6,padding:"10px 14px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:13,fontWeight:700,color:"#e07070",marginBottom:6}}><StatIcon src={AUCTION_ICON} size={16}/>{t("auctionsWon")}</div>
+                {summary.auctionWins.map((a,i) => (
+                  <div key={i} style={{fontSize:12,color:"var(--text)"}}>{a.reason}</div>
+                ))}
+              </div>
+            )}
+          </div>
+          )}
+        </div>
+        <div className="modal-footer" style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+          <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--text-dim)",cursor:"pointer"}}>
+            <input type="checkbox" checked={dontShowToday} onChange={e=>setDontShowToday(e.target.checked)} />
+            {t("dontShowToday")}
+          </label>
+          <button className="btn btn-gold" onClick={handleClose}>{t("gotIt")}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function getWeeklyPowerGains(powerLog, now = Date.now()) {
   const weekMs = 7 * 24 * 60 * 60 * 1000;
   const sorted = [...(powerLog || [])].sort((a, b) => (a.ts||0) - (b.ts||0));
