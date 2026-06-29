@@ -82,6 +82,7 @@ const TRANSLATIONS = {
     coinsLabel: "coins",
     welcomeBackTitle: "Welcome back,",
     loginSummaryDesc: "Here's what happened since your last visit:",
+    currentBalanceLabel: "Your current balance",
     fromAttendance: "from attendance",
     fromBonuses: "from bonuses",
     bonusesEarned: "Bonuses Earned",
@@ -614,6 +615,7 @@ const TRANSLATIONS = {
     coinsLabel: "金币",
     welcomeBackTitle: "欢迎回来，",
     loginSummaryDesc: "这是您上次访问后发生的事情：",
+    currentBalanceLabel: "您当前的余额",
     fromAttendance: "来自出勤",
     fromBonuses: "来自奖励",
     bonusesEarned: "获得的奖励",
@@ -6445,14 +6447,24 @@ function getWeeklyEventActivity(attendLog, now = Date.now()) {
 // itself. Returns null if there's nothing worth showing (e.g. first-ever
 // login, or genuinely nothing happened), so the caller can skip the
 // popup entirely rather than show an empty one.
+// login, or genuinely nothing happened) but always shows the current
+// balance regardless — keeping coins visible is the point of this even
+// when there's no prior visit to compare against.
 function getLoginSummary(member, window) {
-  // Only the genuine first-ever-login case skips the popup entirely —
-  // there's no prior point in time to compare against, so there's
-  // nothing meaningful to say (not even "nothing new," since we don't
-  // actually know that). Every other case, including "checked and
-  // genuinely nothing happened," returns a real object so the popup can
-  // show something (per direct request: always show on open).
-  if (!window || !window.since) return null;
+  // First-ever login: no prior point in time to compare against, so
+  // there's nothing to report changing — but the balance itself should
+  // still show, since "always aware of their balance" doesn't depend on
+  // having a previous session to diff against.
+  if (!window || !window.since) {
+    return {
+      hasAnything: false,
+      coinsFromAttendance: 0, coinsFromBonuses: 0, totalCoins: 0,
+      bonusCount: 0, bonusEntries: [],
+      auctionWins: [],
+      powerChange: 0,
+      currentBalance: member.coins || 0,
+    };
+  }
   const { since, until } = window;
 
   const attendanceEntries = (member.attendLog || []).filter(e => (e.ts||0) > since && (e.ts||0) <= until && e.qualifier !== "afk");
@@ -6476,6 +6488,7 @@ function getLoginSummary(member, window) {
     bonusCount: bonusEntries.length, bonusEntries,
     auctionWins,
     powerChange,
+    currentBalance: member.coins || 0,
   };
 }
 
@@ -6564,6 +6577,16 @@ function LoginSummaryModal({ summary, memberName, announcements, onClose, onDism
           )}
           {summary && (
             <>
+          <div style={{
+            display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,
+            background:"rgba(201,151,42,0.05)",border:"1px solid rgba(201,151,42,0.2)",
+            borderRadius:6,padding:"10px 14px",marginBottom:16,
+          }}>
+            <span style={{fontSize:12,color:"var(--text-dim)"}}>{t("currentBalanceLabel")}</span>
+            <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:16,fontWeight:800,color:"var(--gold-light)"}}>
+              <StatIcon src={COINS_ICON} size={20}/>{fmt(summary.currentBalance)}
+            </span>
+          </div>
           <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:16}}>{t("loginSummaryDesc")}</div>
           {!summary.hasAnything ? (
             <div style={{textAlign:"center",padding:"20px 0",color:"var(--text-dim)",fontSize:13}}>{t("nothingNewMessage")}</div>
