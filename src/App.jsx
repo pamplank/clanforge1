@@ -2021,6 +2021,58 @@ const MUSPEL_AXE_IMG = "data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSU
 const SEED_AUCTIONS = [];
 
 function fmt(n) { return n?.toLocaleString() ?? "0"; }
+
+// Sends a message to Discord via our own /api/discord-notify serverless
+// function (see that file for why — keeps the real webhook URL out of
+// the browser entirely). Failures here are deliberately swallowed rather
+// than surfaced as an error toast: a Discord notification not going
+// through should never block or appear to break the actual in-app action
+// it's attached to (posting an announcement, starting an auction, etc.)
+// — those already succeeded by the time this runs.
+// `channel` picks which Discord channel this goes to (see WEBHOOK_MAP in
+// discord-notify.js) — e.g. "general" for clan announcements, "auctions"
+// for auction start/end notifications, so they don't all flood into one
+// channel.
+async function notifyDiscord(payload, channel = "general") {
+  try {
+    const res = await fetch("/api/discord-notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel, ...payload }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+// Wraps notifyDiscord with a best-effort dedupe check for the auction-
+// ended case specifically — multiple Elders' browsers can independently
+// notice the same auction ending within the same few milliseconds (the
+// canWriteClose gate alone doesn't prevent this, since EVERY currently-
+// online Elder/Master passes that check, not just one designated one).
+// This isn't a perfect lock — two browsers could still both pass the
+// check before either one's claim write lands — but it meaningfully
+// reduces how often duplicates actually happen, which is the realistic
+// goal here rather than a strict guarantee.
+async function notifyAuctionEndedOnce(auction) {
+  const claimKey = `discord_auction_ended_${auction.id}`;
+  try {
+    // dbLoad always returns the whole table — there's no per-row filter
+    // parameter — so the matching key is found client-side, the same
+    // pattern already used elsewhere for app_state (e.g. decay_rate).
+    const rows = await dbLoad("app_state");
+    if (Array.isArray(rows) && rows.some(r => r.key === claimKey)) return; // someone already claimed it
+  } catch {
+    // If the check itself fails, proceed anyway — better to risk an
+    // occasional duplicate than to silently never notify because of an
+    // unrelated read error.
+  }
+  await dbUpsert("app_state", { key: claimKey, value: "1", updated_at: Date.now() });
+  notifyDiscord({ content: auction.topBidder
+    ? `🏆 **Auction ended: ${auction.name}**\nWon by **${auction.topBidder}** for ${fmt(auction.currentBid)} coins!\n\n${window.location.origin}/?page=auctions`
+    : `🔨 **Auction ended: ${auction.name}**\nNo bids were placed.\n\n${window.location.origin}/?page=auctions`
+  }, "auctions");
+}
 // Formats a log entry's date for display — uses a precise millisecond
 // timestamp when available (either an explicit `ts` field, or an `id` that
 // was generated with Date.now()) so users see time-of-day, not just the day.
@@ -4846,6 +4898,14 @@ function AppInner({ onMusicTrackChange }) {
             };
             if (endImageData) endRow.image_data = endImageData;
             dbUpsert("auctions", endRow);
+            // Same canWriteClose gate as the DB write above reduces but
+            // doesn't fully eliminate duplicate notifications if 2+
+            // Elders are online at the exact same moment — the extra
+            // app_state check inside this function closes most of that
+            // remaining gap (not a perfect lock, but good enough: the
+            // odds of two browsers racing through the check within the
+            // same few milliseconds are low).
+            notifyAuctionEndedOnce(a);
           }
           // All clients flip local display to ended (UI update)
           return {...a, status:"ended"};
@@ -7574,6 +7634,7 @@ function Auctions({ ctx }) {
     setAuctions(prev=>[...prev,a]);
     addToast(`${t("auctionStarted")} ${a.name}`,"gold",t("auctionLive"));
     if (newAuction.postToNews) postAuctionToNews(a);
+    notifyDiscord({ content: `🔨 **New auction started: ${a.name}**\nStarting bid: ${fmt(minBid)} coins\n\n${window.location.origin}/?page=auctions` }, "auctions");
     setNewAuction({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000),postToNews:false});
   }
 
@@ -7606,6 +7667,7 @@ function Auctions({ ctx }) {
     if (ok) {
       setLoginAnnouncements(next);
       addToast(`Posted "${auction.name}" to the login news — everyone will see it next time they open the app.`, "gold", "Posted to News");
+      notifyDiscord({ content: `📌 **${auction.name}** is featured in this week's auction — current bid: ${fmt(auction.currentBid)} coins!\n\n${window.location.origin}/?page=auctions` }, "auctions");
     } else {
       addToast(
         <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't post — please try again.</span>,
@@ -9490,6 +9552,7 @@ function LoginAnnouncementEditor({ loginAnnouncements, setLoginAnnouncements, ad
       setLoginAnnouncements(next);
       setDraft("");
       addToast("Announcement posted — everyone will see it at their next login.", "gold", "Updated");
+      notifyDiscord({ content: `📢 **${CLAN_NAME} Announcement**\n${text}\n\n${window.location.origin}` }, "general");
     } else {
       addToast(
         <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't save — please try again.</span>,
