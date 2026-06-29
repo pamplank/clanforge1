@@ -89,6 +89,12 @@ const TRANSLATIONS = {
     gotIt: "Got It",
     nothingNewMessage: "Nothing new since last time — check back later!",
     dontShowToday: "Don't show again today",
+    loginAnnouncementTitle: "Login Announcement",
+    loginAnnouncementDesc: "Posted at the top of everyone's login summary popup until they personally dismiss it.",
+    loginAnnouncementLabel: "Current announcement:",
+    loginAnnouncementPlaceholder: "e.g. A rare item is now up for auction — check it out!",
+    noAnnouncementSet: "No announcement set",
+    clearBtn: "Clear",
     balanceRemaining: "Balance Remaining",
     // Page titles
     pageTitle_dashboard: "Clan HQ",
@@ -607,6 +613,12 @@ const TRANSLATIONS = {
     gotIt: "知道了",
     nothingNewMessage: "自上次以来没有新动态，稍后再来看看吧！",
     dontShowToday: "今天不再显示",
+    loginAnnouncementTitle: "登录公告",
+    loginAnnouncementDesc: "在每个人的登录摘要弹窗顶部显示，直到他们本人关闭为止。",
+    loginAnnouncementLabel: "当前公告：",
+    loginAnnouncementPlaceholder: "例如：稀有物品现已上架拍卖，快去看看吧！",
+    noAnnouncementSet: "未设置公告",
+    clearBtn: "清除",
     balanceRemaining: "剩余余额",
     // Page titles
     pageTitle_dashboard: "公会总部",
@@ -4147,6 +4159,14 @@ function AppInner({ onMusicTrackChange }) {
   // its own copy from the same app_state row, since that file runs
   // independently and can't share React state with this one.
   const [decayRate, setDecayRate] = useState(0.05);
+  // Admin-authored announcement shown at the top of the login summary
+  // popup (e.g. "an item is up for auction") — stored in app_state under
+  // key "login_announcement", same generic key/value table the decay
+  // rate uses. Shape: {id, text, postedAt} — id changes every time an
+  // admin posts a new one, which is what lets a per-person "dismissed"
+  // flag reset automatically for each new announcement without any
+  // separate cleanup (see dismissedAnnouncementId usage further down).
+  const [loginAnnouncement, setLoginAnnouncement] = useState(null);
 
   // ── Load all data from Supabase on mount ──────────────────────────────────
   useEffect(() => {
@@ -4288,6 +4308,10 @@ function AppInner({ onMusicTrackChange }) {
         const rateRow = asRows.find(r => r.key === "decay_rate");
         const parsedRate = rateRow ? parseFloat(rateRow.value) : NaN;
         if (Number.isFinite(parsedRate) && parsedRate >= 0) setDecayRate(parsedRate);
+        const announcementRow = asRows.find(r => r.key === "login_announcement");
+        if (announcementRow) {
+          try { setLoginAnnouncement(JSON.parse(announcementRow.value)); } catch {}
+        }
       }
       // ── Restore session from localStorage ───────────────────────────────
       const savedId = localStorage.getItem("cf_user_id");
@@ -5017,7 +5041,7 @@ function AppInner({ onMusicTrackChange }) {
 
 
   const ctx = { members, setMembers, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
-    currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion, decayRate, setDecayRate };
+    currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion, decayRate, setDecayRate, loginAnnouncement, setLoginAnnouncement };
 
   const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings")};
 
@@ -5298,20 +5322,33 @@ function AppInner({ onMusicTrackChange }) {
       {modal?.type==="renameMember"   && <RenameMemberModal ctx={ctx} />}
       {(() => {
         if (!loginSummaryWindow || !currentUser) return null;
-        // "Don't show again today" is tracked per-member (so a shared
-        // browser doesn't suppress it for someone else) and per-day (a
-        // plain Date string, so it naturally resets tomorrow without
-        // needing any cleanup logic).
+        // "Don't show again today" (the auto-summary) is tracked
+        // per-member and per-day. The announcement is tracked separately
+        // and persists until personally dismissed (no day boundary) —
+        // keyed by the announcement's own id, so posting a NEW
+        // announcement automatically becomes visible again even to
+        // someone who'd dismissed an earlier one.
         const todayKey = `cf_login_summary_dismissed_${currentUser.id}_${new Date().toDateString()}`;
-        if (localStorage.getItem(todayKey)) return null;
+        const summaryDismissedToday = !!localStorage.getItem(todayKey);
+        const announcementKey = loginAnnouncement ? `cf_announcement_dismissed_${currentUser.id}_${loginAnnouncement.id}` : null;
+        const announcementDismissed = announcementKey ? !!localStorage.getItem(announcementKey) : true;
+        const announcementToShow = (!announcementDismissed && loginAnnouncement) ? loginAnnouncement : null;
+
         const summary = getLoginSummary(currentUser, loginSummaryWindow);
-        if (!summary) return null;
+        const summaryToShow = (summary && !summaryDismissedToday) ? summary : null;
+
+        // Nothing to show at all (genuinely first login with no
+        // announcement, or everything's already been dismissed).
+        if (!summaryToShow && !announcementToShow) return null;
+
         return (
           <LoginSummaryModal
-            summary={summary}
+            summary={summaryToShow}
+            announcement={announcementToShow}
             memberName={currentUser.name}
             onClose={() => setLoginSummaryWindow(null)}
             onDismissToday={() => localStorage.setItem(todayKey, "1")}
+            onDismissAnnouncement={announcementKey ? () => localStorage.setItem(announcementKey, "1") : null}
           />
         );
       })()}
@@ -6413,11 +6450,12 @@ function getLoginSummary(member, window) {
 // Shown once right after login if getLoginSummary found anything to
 // report. Purely informational — closing it doesn't lose anything, since
 // the underlying data (attendLog/txLog/powerLog) is unaffected either way.
-function LoginSummaryModal({ summary, memberName, memberId, onClose, onDismissToday }) {
+function LoginSummaryModal({ summary, memberName, announcement, onClose, onDismissToday, onDismissAnnouncement }) {
   const { t } = useLang();
   const [dontShowToday, setDontShowToday] = useState(false);
   function handleClose() {
     if (dontShowToday) onDismissToday();
+    if (announcement && onDismissAnnouncement) onDismissAnnouncement();
     onClose();
   }
   return (
@@ -6428,6 +6466,18 @@ function LoginSummaryModal({ summary, memberName, memberId, onClose, onDismissTo
           <button className="btn btn-ghost" onClick={handleClose}>✕</button>
         </div>
         <div className="modal-body">
+          {announcement && (
+            <div style={{
+              display:"flex",alignItems:"flex-start",gap:10,
+              background:"linear-gradient(90deg, rgba(201,151,42,0.15), rgba(201,151,42,0.05))",
+              border:"1px solid rgba(201,151,42,0.4)",borderRadius:6,padding:"12px 14px",marginBottom: summary ? 16 : 0,
+            }}>
+              <span style={{fontSize:16,flexShrink:0}}>📢</span>
+              <div style={{fontSize:13,color:"var(--gold-light)",lineHeight:1.5}}>{announcement.text}</div>
+            </div>
+          )}
+          {summary && (
+            <>
           <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:16}}>{t("loginSummaryDesc")}</div>
           {!summary.hasAnything ? (
             <div style={{textAlign:"center",padding:"20px 0",color:"var(--text-dim)",fontSize:13}}>{t("nothingNewMessage")}</div>
@@ -6472,12 +6522,16 @@ function LoginSummaryModal({ summary, memberName, memberId, onClose, onDismissTo
             )}
           </div>
           )}
+            </>
+          )}
         </div>
-        <div className="modal-footer" style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
-          <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--text-dim)",cursor:"pointer"}}>
-            <input type="checkbox" checked={dontShowToday} onChange={e=>setDontShowToday(e.target.checked)} />
-            {t("dontShowToday")}
-          </label>
+        <div className="modal-footer" style={{display:"flex",alignItems:"center",justifyContent:summary?"space-between":"flex-end",gap:12}}>
+          {summary && (
+            <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--text-dim)",cursor:"pointer"}}>
+              <input type="checkbox" checked={dontShowToday} onChange={e=>setDontShowToday(e.target.checked)} />
+              {t("dontShowToday")}
+            </label>
+          )}
           <button className="btn btn-gold" onClick={handleClose}>{t("gotIt")}</button>
         </div>
       </div>
@@ -9219,8 +9273,79 @@ function DecayRateEditor({ decayRate, setDecayRate, addToast, t }) {
   );
 }
 
+function LoginAnnouncementEditor({ loginAnnouncement, setLoginAnnouncement, addToast, t }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(loginAnnouncement?.text || "");
+  const [saving, setSaving] = useState(false);
+
+  function startEdit() {
+    setDraft(loginAnnouncement?.text || "");
+    setEditing(true);
+  }
+  async function save() {
+    const text = draft.trim();
+    setSaving(true);
+    // A fresh id on every save is what lets each member's "dismissed"
+    // flag (stored client-side, keyed by id) naturally stop applying to
+    // a brand new announcement — they'll see this one even if they'd
+    // previously dismissed an older one with different text.
+    const value = text ? { id: Date.now(), text, postedAt: Date.now() } : null;
+    const ok = await dbUpsertReliable("app_state", { key: "login_announcement", value: JSON.stringify(value), updated_at: Date.now() });
+    setSaving(false);
+    if (ok) {
+      setLoginAnnouncement(value);
+      setEditing(false);
+      addToast(text ? "Announcement posted — everyone will see it at their next login." : "Announcement cleared.", "gold", "Updated");
+    } else {
+      addToast(
+        <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't save — please try again.</span>,
+        "red", "Save Failed"
+      );
+    }
+  }
+  async function clear() {
+    setDraft("");
+    setSaving(true);
+    const ok = await dbUpsertReliable("app_state", { key: "login_announcement", value: JSON.stringify(null), updated_at: Date.now() });
+    setSaving(false);
+    if (ok) {
+      setLoginAnnouncement(null);
+      setEditing(false);
+      addToast("Announcement cleared.", "gold", "Updated");
+    }
+  }
+
+  return (
+    <div style={{marginBottom:16}}>
+      <div style={{fontSize:13,color:"var(--text)",marginBottom:8}}>{t("loginAnnouncementLabel")}</div>
+      {editing ? (
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          <textarea
+            value={draft} onChange={e=>setDraft(e.target.value)}
+            placeholder={t("loginAnnouncementPlaceholder")}
+            rows={3} maxLength={300}
+            style={{background:"rgba(10,8,6,0.85)",border:"1px solid var(--gold)",color:"var(--text)",borderRadius:4,padding:"8px 10px",fontFamily:"'Inter',sans-serif",resize:"vertical"}}
+          />
+          <div style={{display:"flex",gap:8}}>
+            <button className="btn btn-gold btn-sm" disabled={saving} onClick={save}>{saving ? "…" : t("saveBtn")}</button>
+            <button className="btn btn-outline btn-sm" onClick={()=>setEditing(false)}>{t("cancelBtn")}</button>
+            {loginAnnouncement && <button className="btn btn-red btn-sm" disabled={saving} onClick={clear}>{t("clearBtn")}</button>}
+          </div>
+        </div>
+      ) : (
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:13,color:loginAnnouncement?"var(--text)":"var(--text-dim)",fontStyle:loginAnnouncement?"normal":"italic"}}>
+            {loginAnnouncement?.text || t("noAnnouncementSet")}
+          </span>
+          <button className="btn btn-outline btn-sm" onClick={startEdit}>{t("editBtn")}</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Settings({ ctx }) {
-  const { currentUser, members, setMembers, addToast, eventsVersion, setEventsVersion, decayRate, setDecayRate } = ctx;
+  const { currentUser, members, setMembers, addToast, eventsVersion, setEventsVersion, decayRate, setDecayRate, loginAnnouncement, setLoginAnnouncement } = ctx;
   const { t } = useLang();
   const isMaster = currentUser.role==="Master";
   // ── Auto-decay: every Wednesday at 7:00 AM, fixed to GMT+8 ───────────────
@@ -9361,6 +9486,11 @@ function Settings({ ctx }) {
           <div style={{fontSize:13,color:"var(--text)",marginBottom:16}}>{t("totalRecordsLabel")} <strong style={{color:"#60aadd"}}>{members.reduce((s,m)=>s+m.attendance,0)}</strong></div>
           <button className="btn btn-blue" onClick={resetAttendance}>{t("resetWeeklyAttendance")}</button>
         </div>
+      </div>
+      <div className="card" style={{marginTop:20}}>
+        <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:15,color:"var(--gold-light)",marginBottom:8}}>{t("loginAnnouncementTitle")}</div>
+        <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12,lineHeight:1.7}}>{t("loginAnnouncementDesc")}</div>
+        <LoginAnnouncementEditor loginAnnouncement={loginAnnouncement} setLoginAnnouncement={setLoginAnnouncement} addToast={addToast} t={t} />
       </div>
       <div className="card" style={{marginTop:20}}>
         <SectionTitle>{t("eventCoinValues")}</SectionTitle>
