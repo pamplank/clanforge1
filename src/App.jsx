@@ -97,6 +97,7 @@ const TRANSLATIONS = {
     noAnnouncementSet: "No announcement set",
     putInNewsTitle: "Put in News",
     putInNewsBtn: "Put in News",
+    postAllToDiscordBtn: "Post Live Auctions to Discord",
     postToNewsLabel: "Also post this to everyone's login news",
     postAnnouncementBtn: "Post Announcement",
     dismissAnnouncementTitle: "Dismiss this announcement",
@@ -630,6 +631,7 @@ const TRANSLATIONS = {
     noAnnouncementSet: "未设置公告",
     putInNewsTitle: "发布到公告",
     putInNewsBtn: "发布到公告",
+    postAllToDiscordBtn: "将进行中的拍卖发布到 Discord",
     postToNewsLabel: "同时发布到所有人的登录公告",
     postAnnouncementBtn: "发布公告",
     dismissAnnouncementTitle: "关闭此公告",
@@ -7675,6 +7677,32 @@ function Auctions({ ctx }) {
       );
     }
   }
+  // Posts a one-time snapshot of every currently active auction to the
+  // auctions Discord channel, as a single message — separate from
+  // "Put in News" (which features specific items in the in-app popup)
+  // and from the automatic start/end notifications. This is purely a
+  // manual "here's what's live right now" broadcast, triggered only when
+  // an admin clicks the button — nothing scheduled or automatic.
+  function postAllActiveAuctionsToDiscord() {
+    if (active.length === 0) {
+      addToast("There are no active auctions right now.", "red", "Nothing to Post");
+      return;
+    }
+    // Discord caps plain message content at 2000 characters — cap the
+    // listed items defensively so a large number of simultaneous
+    // auctions can't silently produce a message Discord would reject.
+    const MAX_ITEMS = 15;
+    const shown = active.slice(0, MAX_ITEMS);
+    const lines = shown.map(a => {
+      const bidder = a.topBidder ? ` (top: ${a.topBidder})` : " (no bids yet)";
+      return `• **${a.name}** — ${fmt(a.currentBid)} coins${bidder} — ${timeLeft(a.endsAt)} left`;
+    });
+    const overflow = active.length - shown.length;
+    const overflowLine = overflow > 0 ? `\n…and ${overflow} more` : "";
+    const content = `🔨 **Live Auctions Right Now**\n${lines.join("\n")}${overflowLine}\n\n${window.location.origin}/?page=auctions`;
+    notifyDiscord({ content }, "auctions");
+    addToast(`Posted ${shown.length} active auction${shown.length===1?"":"s"} to Discord.`, "gold", "Posted");
+  }
   // True if this specific auction is currently featured in the shared
   // auction-news card — drives the Put-in-News button's toggle state
   // (filled/active vs outline) so admins can see at a glance which items
@@ -7824,6 +7852,11 @@ function Auctions({ ctx }) {
 
       {(tab==="active"||tab==="ended") && (
         <div style={{display:"flex",alignItems:"center",gap:10,margin:"14px 0 4px",flexWrap:"wrap",justifyContent:"flex-end"}}>
+          {tab==="active" && isAdmin && (
+            <button className="btn btn-outline btn-sm" onClick={postAllActiveAuctionsToDiscord} style={{display:"flex",alignItems:"center",gap:6}}>
+              <BellIcon size={13}/>{t("postAllToDiscordBtn")}
+            </button>
+          )}
           <div style={{display:"flex",alignItems:"center",gap:6}}>
             <span style={{fontSize:11,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700,fontFamily:"'Inter',sans-serif"}}>{t("sortLabel")}</span>
             <select className="select" style={{width:"auto",fontSize:11,padding:"4px 10px",cursor:"pointer"}} value={sortBy} onChange={e=>setSortBy(e.target.value)}>
