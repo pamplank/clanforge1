@@ -2070,13 +2070,17 @@ async function notifyAuctionEndedOnce(auction) {
     // unrelated read error.
   }
   await dbUpsert("app_state", { key: claimKey, value: "1", updated_at: Date.now() });
-  const imgUrl = auction?.image?.name
-    ? `${SUPA_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${auction.image.name}`
+  // Same fix as auctionImageUrl in the Auctions component: the real,
+  // fetchable image URL (when the upload actually succeeded) is already
+  // sitting in image.dataUrl — reconstructing one from image.name used
+  // the original filename, which was never the actual Storage path.
+  const imgUrl = (auction?.image?.dataUrl && auction.image.dataUrl.startsWith("http"))
+    ? auction.image.dataUrl
     : null;
   notifyDiscord({ embeds: [{
     title: auction.topBidder ? `🏆 Auction ended: ${auction.name}` : `🔨 Auction ended: ${auction.name}`,
     description: auction.topBidder
-      ? `Won by **${auction.topBidder}** for ${fmt(auction.currentBid)} coins!`
+      ? `Won by ${auction.topBidder} for ${fmt(auction.currentBid)} coins!`
       : "No bids were placed.",
     color: auction.topBidder ? 0xc8922a : 0x8a7a64,
     url: `${window.location.origin}/?page=auctions`,
@@ -7647,8 +7651,8 @@ function Auctions({ ctx }) {
     {
       const imgUrl = auctionImageUrl(a);
       notifyDiscord({ embeds: [{
-        title: `🔨 New auction started: ${a.name}`,
-        description: `Starting bid: ${fmt(minBid)} coins`,
+        title: `🔨 New auction: ${a.name}`,
+        description: `Starting bid: ${fmt(minBid)} coins · Ends ${timeLeft(endsAt)}`,
         color: 0xc8922a,
         url: `${window.location.origin}/?page=auctions`,
         ...(imgUrl ? { thumbnail: { url: imgUrl } } : {}),
@@ -7689,8 +7693,8 @@ function Auctions({ ctx }) {
       {
         const imgUrl = auctionImageUrl(auction);
         notifyDiscord({ embeds: [{
-          title: `📌 ${auction.name} is featured in this week's auction!`,
-          description: `Current bid: ${fmt(auction.currentBid)} coins`,
+          title: `📌 Featured: ${auction.name}`,
+          description: `${fmt(auction.currentBid)} coins · ${auction.topBidder || "No bids yet"}`,
           color: 0xc8922a,
           url: `${window.location.origin}/?page=auctions`,
           ...(imgUrl ? { thumbnail: { url: imgUrl } } : {}),
@@ -7710,16 +7714,29 @@ function Auctions({ ctx }) {
   // public Supabase Storage bucket the app itself already loads auction
   // images from (see AuctionImage component), just without going through
   // the base64 data-URL step that component uses for in-app display.
+  // ROOT CAUSE of "some items have no image": this used to reconstruct a
+  // Storage URL from auction.image.NAME (the original filename, e.g.
+  // "storm_shoes.png") — but the actual file in Storage is saved under a
+  // randomly-generated path (see uploadAuctionImage), never the original
+  // filename. The real, correct URL is already sitting in
+  // auction.image.dataUrl whenever the upload succeeded — uploadAuctionImage
+  // returns the full real URL directly and that's what gets stored there.
+  // The only case with genuinely no usable image is when the original
+  // upload failed and the app fell back to embedding raw base64 data
+  // instead (see ItemImagePicker) — that's not a fetchable URL, so
+  // Discord can't display it either; there's no way to recover a real
+  // image URL after the fact for those specific items.
   function auctionImageUrl(auction) {
-    if (!auction?.image?.name) return null;
-    return `${SUPA_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${auction.image.name}`;
+    const dataUrl = auction?.image?.dataUrl;
+    if (dataUrl && dataUrl.startsWith("http")) return dataUrl;
+    return null;
   }
   function auctionToEmbed(a) {
-    const bidder = a.topBidder ? `Top bidder: **${a.topBidder}**` : "No bids yet";
     const imgUrl = auctionImageUrl(a);
+    const bidder = a.topBidder || "No bids yet";
     return {
       title: a.name,
-      description: `💰 ${fmt(a.currentBid)} coins\n${bidder}\n⏰ ${timeLeft(a.endsAt)} left`,
+      description: `${fmt(a.currentBid)} coins · ${bidder} · ${timeLeft(a.endsAt)} left`,
       color: 0xc8922a,
       url: `${window.location.origin}/?page=auctions`,
       ...(imgUrl ? { thumbnail: { url: imgUrl } } : {}),
