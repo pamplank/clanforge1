@@ -5634,6 +5634,21 @@ function WorldBossSchedule() {
 // ─── UPDATE NOTES ─────────────────────────────────────────────────────────────
 const UPDATE_NOTES = [
   {
+    version: "v2.2",
+    date: "June 2026",
+    title: "Login News & Real Data-Loss Fixes",
+    color: "#c8922a",
+    changes: [
+      { icon: "👋", text: "New: a welcome-back popup now shows every time you open the app — your current coin balance, plus anything new since your last visit (coins earned, bonuses, power changes, auctions won). If there's nothing new it just says so. Tick \"Don't show again today\" to skip it for the rest of the day." },
+      { icon: "📢", text: "New: Masters and Elders can post announcements in Settings that show at the top of everyone's welcome-back popup until each person personally closes it — great for things like \"Clan Sanctuary tonight at 8pm.\"" },
+      { icon: "🔨", text: "New: a \"Put in News\" button on any auction (and a checkbox when creating one) posts it straight to that same announcement space, with its image, current bid, and time left — exactly like the Live Auctions preview. Multiple items can be featured at once, and announcements + auction posts all coexist independently." },
+      { icon: "🪙", text: "Fixed a real and serious bug: the background sync that keeps coins and history in sync across devices used to assume \"whichever copy has more entries is the newest one.\" That assumption could be wrong, and it was silently deleting real attendance and bonus history — coins were unaffected, but the record of how they were earned could vanish. Replaced with a proper check that compares actual entries, not just counts, so this can't happen again." },
+      { icon: "🔧", text: "Recovered and restored attendance history that had been silently lost to the bug above for two recent events (Clan Sanctuary and World Boss), and manually paid out the Major Events Bonus to everyone who'd genuinely earned it but didn't receive it because of the missing records." },
+      { icon: "📊", text: "Fixed the Power Surge chart on Player Info showing no movement even after a power update — a background music crash was silently interrupting the save partway through. Power history now records correctly going forward; everyone's chart has been given a fresh starting point so gains begin tracking immediately." },
+      { icon: "🎬", text: "The clan's #1 and #2 most powerful members now get a special animated video backdrop on their Player Info page (currently live for Archer, more classes coming as assets are ready), with a class-specific title and flavor line. Falls back gracefully to the normal page on mobile and for classes without video yet." },
+    ],
+  },
+  {
     version: "v2.1",
     date: "June 2026",
     title: "Push Notifications & Coin Economy Fixes",
