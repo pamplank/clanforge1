@@ -97,6 +97,11 @@ const TRANSLATIONS = {
     putInNewsTitle: "Put in News",
     putInNewsBtn: "Put in News",
     postToNewsLabel: "Also post this to everyone's login news",
+    postAnnouncementBtn: "Post Announcement",
+    dismissAnnouncementTitle: "Dismiss this announcement",
+    removeFromNewsTitle: "Remove from News",
+    removeFromNewsBtn: "Remove from News",
+    auctionNewsTitle: "Up for Auction",
     clearBtn: "Clear",
     balanceRemaining: "Balance Remaining",
     // Page titles
@@ -624,6 +629,11 @@ const TRANSLATIONS = {
     putInNewsTitle: "发布到公告",
     putInNewsBtn: "发布到公告",
     postToNewsLabel: "同时发布到所有人的登录公告",
+    postAnnouncementBtn: "发布公告",
+    dismissAnnouncementTitle: "关闭此公告",
+    removeFromNewsTitle: "从公告中移除",
+    removeFromNewsBtn: "从公告中移除",
+    auctionNewsTitle: "拍卖上架",
     clearBtn: "清除",
     balanceRemaining: "剩余余额",
     // Page titles
@@ -4165,14 +4175,14 @@ function AppInner({ onMusicTrackChange }) {
   // its own copy from the same app_state row, since that file runs
   // independently and can't share React state with this one.
   const [decayRate, setDecayRate] = useState(0.05);
-  // Admin-authored announcement shown at the top of the login summary
+  // Admin-authored announcements shown at the top of the login summary
   // popup (e.g. "an item is up for auction") — stored in app_state under
-  // key "login_announcement", same generic key/value table the decay
-  // rate uses. Shape: {id, text, postedAt} — id changes every time an
-  // admin posts a new one, which is what lets a per-person "dismissed"
-  // flag reset automatically for each new announcement without any
-  // separate cleanup (see dismissedAnnouncementId usage further down).
-  const [loginAnnouncement, setLoginAnnouncement] = useState(null);
+  // key "login_announcements" (plural — this used to be a single object
+  // under "login_announcement", but multiple announcements need to be
+  // able to coexist: a manually-written one from Settings AND one or
+  // more auction "put in news" posts, all visible at once, each
+  // independently dismissible). Each entry: {id, text, postedAt}.
+  const [loginAnnouncements, setLoginAnnouncements] = useState([]);
 
   // ── Load all data from Supabase on mount ──────────────────────────────────
   useEffect(() => {
@@ -4314,9 +4324,24 @@ function AppInner({ onMusicTrackChange }) {
         const rateRow = asRows.find(r => r.key === "decay_rate");
         const parsedRate = rateRow ? parseFloat(rateRow.value) : NaN;
         if (Number.isFinite(parsedRate) && parsedRate >= 0) setDecayRate(parsedRate);
-        const announcementRow = asRows.find(r => r.key === "login_announcement");
-        if (announcementRow) {
-          try { setLoginAnnouncement(JSON.parse(announcementRow.value)); } catch {}
+        const announcementsRow = asRows.find(r => r.key === "login_announcements");
+        if (announcementsRow) {
+          try {
+            const parsed = JSON.parse(announcementsRow.value);
+            setLoginAnnouncements(Array.isArray(parsed) ? parsed : []);
+          } catch {}
+        } else {
+          // Migration: an older session may have left a single-object
+          // value under the old "login_announcement" key (singular) —
+          // pick it up once and treat it as a one-item array, rather than
+          // silently losing whatever was already posted there.
+          const oldRow = asRows.find(r => r.key === "login_announcement");
+          if (oldRow) {
+            try {
+              const old = JSON.parse(oldRow.value);
+              if (old && old.text) setLoginAnnouncements([old]);
+            } catch {}
+          }
         }
       }
       // ── Restore session from localStorage ───────────────────────────────
@@ -5047,7 +5072,7 @@ function AppInner({ onMusicTrackChange }) {
 
 
   const ctx = { members, setMembers, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
-    currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion, decayRate, setDecayRate, loginAnnouncement, setLoginAnnouncement };
+    currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion, decayRate, setDecayRate, loginAnnouncements, setLoginAnnouncements };
 
   const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings")};
 
@@ -5329,32 +5354,33 @@ function AppInner({ onMusicTrackChange }) {
       {(() => {
         if (!loginSummaryWindow || !currentUser) return null;
         // "Don't show again today" (the auto-summary) is tracked
-        // per-member and per-day. The announcement is tracked separately
-        // and persists until personally dismissed (no day boundary) —
-        // keyed by the announcement's own id, so posting a NEW
-        // announcement automatically becomes visible again even to
-        // someone who'd dismissed an earlier one.
+        // per-member and per-day. Each announcement is tracked
+        // separately and persists until personally dismissed (no day
+        // boundary) — keyed by that announcement's own id, so multiple
+        // announcements (e.g. a manual one from Settings AND one or more
+        // auction "put in news" posts) can coexist, each independently
+        // dismissible — closing one doesn't affect the others.
         const todayKey = `cf_login_summary_dismissed_${currentUser.id}_${new Date().toDateString()}`;
         const summaryDismissedToday = !!localStorage.getItem(todayKey);
-        const announcementKey = loginAnnouncement ? `cf_announcement_dismissed_${currentUser.id}_${loginAnnouncement.id}` : null;
-        const announcementDismissed = announcementKey ? !!localStorage.getItem(announcementKey) : true;
-        const announcementToShow = (!announcementDismissed && loginAnnouncement) ? loginAnnouncement : null;
+        const announcementsToShow = (loginAnnouncements || []).filter(
+          ann => !localStorage.getItem(`cf_announcement_dismissed_${currentUser.id}_${ann.id}`)
+        );
 
         const summary = getLoginSummary(currentUser, loginSummaryWindow);
         const summaryToShow = (summary && !summaryDismissedToday) ? summary : null;
 
         // Nothing to show at all (genuinely first login with no
-        // announcement, or everything's already been dismissed).
-        if (!summaryToShow && !announcementToShow) return null;
+        // announcements, or everything's already been dismissed).
+        if (!summaryToShow && announcementsToShow.length === 0) return null;
 
         return (
           <LoginSummaryModal
             summary={summaryToShow}
-            announcement={announcementToShow}
+            announcements={announcementsToShow}
             memberName={currentUser.name}
             onClose={() => setLoginSummaryWindow(null)}
             onDismissToday={() => localStorage.setItem(todayKey, "1")}
-            onDismissAnnouncement={announcementKey ? () => localStorage.setItem(announcementKey, "1") : null}
+            onDismissAnnouncement={(id) => localStorage.setItem(`cf_announcement_dismissed_${currentUser.id}_${id}`, "1")}
           />
         );
       })()}
@@ -6456,14 +6482,26 @@ function getLoginSummary(member, window) {
 // Shown once right after login if getLoginSummary found anything to
 // report. Purely informational — closing it doesn't lose anything, since
 // the underlying data (attendLog/txLog/powerLog) is unaffected either way.
-function LoginSummaryModal({ summary, memberName, announcement, onClose, onDismissToday, onDismissAnnouncement }) {
+function LoginSummaryModal({ summary, memberName, announcements, onClose, onDismissToday, onDismissAnnouncement }) {
   const { t } = useLang();
   const [dontShowToday, setDontShowToday] = useState(false);
+  const [locallyDismissed, setLocallyDismissed] = useState(() => new Set());
   function handleClose() {
     if (dontShowToday) onDismissToday();
-    if (announcement && onDismissAnnouncement) onDismissAnnouncement();
     onClose();
   }
+  function dismissAnnouncement(id) {
+    onDismissAnnouncement(id);
+    // Also hide it immediately within this already-open popup, rather
+    // than waiting for a re-render from the parent's state — otherwise
+    // a dismissed announcement would still visually sit there until the
+    // whole popup is closed and reopened.
+    const remaining = new Set(locallyDismissed); remaining.add(id);
+    setLocallyDismissed(remaining);
+    const stillVisible = (announcements || []).filter(a => !remaining.has(a.id));
+    if (stillVisible.length === 0 && !summary) onClose();
+  }
+  const visibleAnnouncements = (announcements || []).filter(a => !locallyDismissed.has(a.id));
   return (
     <div className="modal-overlay" onClick={handleClose}>
       <div className="modal" style={{maxWidth:420}} onClick={e=>e.stopPropagation()}>
@@ -6472,14 +6510,56 @@ function LoginSummaryModal({ summary, memberName, announcement, onClose, onDismi
           <button className="btn btn-ghost" onClick={handleClose}>✕</button>
         </div>
         <div className="modal-body">
-          {announcement && (
-            <div style={{
-              display:"flex",alignItems:"flex-start",gap:10,
-              background:"linear-gradient(90deg, rgba(201,151,42,0.15), rgba(201,151,42,0.05))",
-              border:"1px solid rgba(201,151,42,0.4)",borderRadius:6,padding:"12px 14px",marginBottom: summary ? 16 : 0,
-            }}>
-              <span style={{fontSize:16,flexShrink:0}}>📢</span>
-              <div style={{fontSize:13,color:"var(--gold-light)",lineHeight:1.5}}>{announcement.text}</div>
+          {visibleAnnouncements.length > 0 && (
+            <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom: summary ? 16 : 0}}>
+              {visibleAnnouncements.map(ann => (
+                ann.type === "auctions" ? (
+                  <div key={ann.id} style={{
+                    background:"linear-gradient(90deg, rgba(201,151,42,0.12), rgba(201,151,42,0.04))",
+                    border:"1px solid rgba(201,151,42,0.4)",borderRadius:6,padding:"12px 14px",
+                  }}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                      <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:13,fontWeight:700,color:"var(--gold-light)"}}><BellIcon size={14}/>{t("auctionNewsTitle")}</span>
+                      <button
+                        onClick={()=>dismissAnnouncement(ann.id)}
+                        title={t("dismissAnnouncementTitle")}
+                        style={{background:"none",border:"none",color:"var(--text-dim)",cursor:"pointer",fontSize:13,padding:0,lineHeight:1}}
+                      >✕</button>
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                      {ann.items.map(item => (
+                        <div key={item.auctionId} style={{display:"flex",alignItems:"center",gap:10}}>
+                          <div style={{width:38,height:38,borderRadius:2,overflow:"hidden",background:item.rarity==="epic"?"rgba(122,26,26,0.3)":"rgba(26,90,138,0.3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
+                            {item.image?<AuctionImage auction={item} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={<StatIcon src={AUCTION_ICON} size={20}/>}/>:<StatIcon src={AUCTION_ICON} size={20}/>}
+                          </div>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:12,color:"var(--text-bright)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.name}</div>
+                            <div style={{fontSize:10,color:"var(--text-dim)"}}>{item.topBidder ? `${t("topBidderLabel")}: ${item.topBidder}` : t("noBids")}</div>
+                          </div>
+                          <div style={{textAlign:"right",flexShrink:0}}>
+                            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:13,color:"var(--gold-light)",display:"inline-flex",alignItems:"center",gap:3}}><StatIcon src={COINS_ICON} size={16}/>{fmt(item.currentBid)}</div>
+                            <div style={{fontSize:9,color:"#e07070",fontWeight:700}}>{timeLeft(item.endsAt)}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                <div key={ann.id} style={{
+                  display:"flex",alignItems:"flex-start",gap:10,
+                  background:"linear-gradient(90deg, rgba(201,151,42,0.15), rgba(201,151,42,0.05))",
+                  border:"1px solid rgba(201,151,42,0.4)",borderRadius:6,padding:"12px 14px",
+                }}>
+                  <span style={{fontSize:16,flexShrink:0}}>📢</span>
+                  <div style={{fontSize:13,color:"var(--gold-light)",lineHeight:1.5,flex:1}}>{ann.text}</div>
+                  <button
+                    onClick={()=>dismissAnnouncement(ann.id)}
+                    title={t("dismissAnnouncementTitle")}
+                    style={{background:"none",border:"none",color:"var(--text-dim)",cursor:"pointer",fontSize:13,flexShrink:0,padding:0,lineHeight:1}}
+                  >✕</button>
+                </div>
+                )
+              ))}
             </div>
           )}
           {summary && (
@@ -7289,7 +7369,7 @@ function BidMarquee({ feed, auctions }) {
 
 // ─── AUCTIONS ─────────────────────────────────────────────────────────────────
 function Auctions({ ctx }) {
-  const { auctions, setAuctions, members, setMembers, currentUser, addToast, fireCoinBurst, fireBalancePopup, tick, imageLibrary, addImage, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, loginAnnouncement, setLoginAnnouncement } = ctx;
+  const { auctions, setAuctions, members, setMembers, currentUser, addToast, fireCoinBurst, fireBalancePopup, tick, imageLibrary, addImage, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, loginAnnouncements, setLoginAnnouncements } = ctx;
   const { t } = useLang();
   const [tab, setTab] = useState("active");
   const [bidAmounts, setBidAmounts] = useState({});
@@ -7459,23 +7539,64 @@ function Auctions({ ctx }) {
     setNewAuction({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000),postToNews:false});
   }
 
-  // Posts an auction item to the same login-announcement mechanism Settings
-  // uses (app_state key "login_announcement") — lets an admin highlight a
-  // specific item without re-typing anything, instead of needing to go to
-  // Settings and write a separate announcement by hand. Same dismiss
-  // behavior: shows until each person personally closes the popup.
+  // Posts an auction item into a single shared "auctions" announcement
+  // (app_state key "login_announcements") — every "Put in News" click adds
+  // to the SAME card's item list rather than creating a separate
+  // announcement each time, so multiple highlighted items show together
+  // in one rich preview (image, current bid, time left) instead of
+  // several plain-text lines. Coexists independently with any
+  // manually-written text announcement from Settings.
   async function postAuctionToNews(auction) {
-    const text = `🔨 ${auction.name} is up for auction — current bid: ${fmt(auction.currentBid)} coins!`;
-    const value = { id: Date.now(), text, postedAt: Date.now(), auctionId: auction.id };
-    const ok = await dbUpsertReliable("app_state", { key: "login_announcement", value: JSON.stringify(value), updated_at: Date.now() });
+    const snapshot = { auctionId: auction.id, name: auction.name, image: auction.image, rarity: auction.rarity, currentBid: auction.currentBid, topBidder: auction.topBidder, endsAt: auction.endsAt };
+    const list = loginAnnouncements || [];
+    const existingIdx = list.findIndex(a => a.type === "auctions");
+    let next;
+    if (existingIdx >= 0) {
+      // Already an auction-news card — replace this item if it's already
+      // in there (re-clicking "Put in News" refreshes the bid/time shown
+      // instead of creating a duplicate row), otherwise append it.
+      const existing = list[existingIdx];
+      const itemIdx = existing.items.findIndex(i => i.auctionId === auction.id);
+      const items = itemIdx >= 0
+        ? existing.items.map((it,i) => i===itemIdx ? snapshot : it)
+        : [...existing.items, snapshot];
+      next = list.map((a,i) => i===existingIdx ? {...a, items, postedAt: Date.now()} : a);
+    } else {
+      next = [...list, { id: Date.now(), type: "auctions", items: [snapshot], postedAt: Date.now() }];
+    }
+    const ok = await dbUpsertReliable("app_state", { key: "login_announcements", value: JSON.stringify(next), updated_at: Date.now() });
     if (ok) {
-      setLoginAnnouncement(value);
+      setLoginAnnouncements(next);
       addToast(`Posted "${auction.name}" to the login news — everyone will see it next time they open the app.`, "gold", "Posted to News");
     } else {
       addToast(
         <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't post — please try again.</span>,
         "red", "Post Failed"
       );
+    }
+  }
+  // True if this specific auction is currently featured in the shared
+  // auction-news card — drives the Put-in-News button's toggle state
+  // (filled/active vs outline) so admins can see at a glance which items
+  // are already featured without needing to open the popup separately.
+  function isAuctionInNews(auctionId) {
+    const card = (loginAnnouncements || []).find(a => a.type === "auctions");
+    return !!card?.items?.some(i => i.auctionId === auctionId);
+  }
+  async function removeAuctionFromNews(auctionId) {
+    const list = loginAnnouncements || [];
+    const idx = list.findIndex(a => a.type === "auctions");
+    if (idx < 0) return;
+    const items = list[idx].items.filter(i => i.auctionId !== auctionId);
+    // If that was the last item, drop the whole card rather than leaving
+    // an empty one sitting in the list.
+    const next = items.length > 0
+      ? list.map((a,i) => i===idx ? {...a, items} : a)
+      : list.filter((_,i) => i!==idx);
+    const ok = await dbUpsertReliable("app_state", { key: "login_announcements", value: JSON.stringify(next), updated_at: Date.now() });
+    if (ok) {
+      setLoginAnnouncements(next);
+      addToast("Removed from the login news.", "gold", "Updated");
     }
   }
 
@@ -7676,7 +7797,7 @@ function Auctions({ ctx }) {
                     {bidSubmitting[a.id]?"…":t("bidButton")}
                   </button>
 
-                  {isAdmin&&<button className="btn btn-outline btn-sm" onClick={()=>postAuctionToNews(a)} title={t("putInNewsTitle")} style={{flexShrink:0,padding:"5px 10px"}}><BellIcon size={12}/></button>}
+                  {isAdmin&&<button className={isAuctionInNews(a.id)?"btn btn-gold btn-sm":"btn btn-outline btn-sm"} onClick={()=>isAuctionInNews(a.id)?removeAuctionFromNews(a.id):postAuctionToNews(a)} title={isAuctionInNews(a.id)?t("removeFromNewsTitle"):t("putInNewsTitle")} style={{flexShrink:0,padding:"5px 10px"}}><BellIcon size={12}/></button>}
                   {isMaster&&<button className="btn btn-red btn-sm" onClick={()=>removeAuction(a.id)} title={t("removeTitle")} style={{flexShrink:0,padding:"5px 10px"}}>✕</button>}
                 </div>
               </div>
@@ -7715,7 +7836,7 @@ function Auctions({ ctx }) {
                     <button className="btn btn-gold" onClick={(e)=>placeBid(a.id,e)} disabled={!!bidSubmitting[a.id]}>{bidSubmitting[a.id]?"…":t("bidButton")}</button>
                   </div>
 
-                  {isAdmin&&<button className="btn btn-outline btn-sm" style={{width:"100%",marginTop:6,display:"flex",alignItems:"center",justifyContent:"center",gap:6}} onClick={()=>postAuctionToNews(a)}><BellIcon size={13}/>{t("putInNewsBtn")}</button>}
+                  {isAdmin&&<button className={isAuctionInNews(a.id)?"btn btn-gold btn-sm":"btn btn-outline btn-sm"} style={{width:"100%",marginTop:6,display:"flex",alignItems:"center",justifyContent:"center",gap:6}} onClick={()=>isAuctionInNews(a.id)?removeAuctionFromNews(a.id):postAuctionToNews(a)}><BellIcon size={13}/>{isAuctionInNews(a.id)?t("removeFromNewsBtn"):t("putInNewsBtn")}</button>}
                   {isMaster&&<button className="btn btn-red btn-sm" style={{width:"100%",marginTop:6}} onClick={()=>removeAuction(a.id)}>{t("removeAuctionBtn")}</button>}
                   {((a.bids||[]).length>0 || a.topBidder)&&(
                     <div style={{marginTop:10,fontSize:11,color:"var(--text-dim)",borderTop:"1px solid var(--border-dim)",paddingTop:8}}>
@@ -9307,29 +9428,30 @@ function DecayRateEditor({ decayRate, setDecayRate, addToast, t }) {
   );
 }
 
-function LoginAnnouncementEditor({ loginAnnouncement, setLoginAnnouncement, addToast, t }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(loginAnnouncement?.text || "");
+function LoginAnnouncementEditor({ loginAnnouncements, setLoginAnnouncements, addToast, t }) {
+  const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const list = loginAnnouncements || [];
 
-  function startEdit() {
-    setDraft(loginAnnouncement?.text || "");
-    setEditing(true);
+  async function persist(next) {
+    const ok = await dbUpsertReliable("app_state", { key: "login_announcements", value: JSON.stringify(next), updated_at: Date.now() });
+    return ok;
   }
-  async function save() {
+  async function post() {
     const text = draft.trim();
+    if (!text) return;
     setSaving(true);
-    // A fresh id on every save is what lets each member's "dismissed"
-    // flag (stored client-side, keyed by id) naturally stop applying to
-    // a brand new announcement — they'll see this one even if they'd
-    // previously dismissed an older one with different text.
-    const value = text ? { id: Date.now(), text, postedAt: Date.now() } : null;
-    const ok = await dbUpsertReliable("app_state", { key: "login_announcement", value: JSON.stringify(value), updated_at: Date.now() });
+    // A fresh id per post is what lets each member's "dismissed" flag
+    // (stored client-side, keyed by id) apply only to THIS specific
+    // announcement — dismissing one never affects any other, past or
+    // future.
+    const next = [...list, { id: Date.now(), text, postedAt: Date.now() }];
+    const ok = await persist(next);
     setSaving(false);
     if (ok) {
-      setLoginAnnouncement(value);
-      setEditing(false);
-      addToast(text ? "Announcement posted — everyone will see it at their next login." : "Announcement cleared.", "gold", "Updated");
+      setLoginAnnouncements(next);
+      setDraft("");
+      addToast("Announcement posted — everyone will see it at their next login.", "gold", "Updated");
     } else {
       addToast(
         <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't save — please try again.</span>,
@@ -9337,49 +9459,45 @@ function LoginAnnouncementEditor({ loginAnnouncement, setLoginAnnouncement, addT
       );
     }
   }
-  async function clear() {
-    setDraft("");
-    setSaving(true);
-    const ok = await dbUpsertReliable("app_state", { key: "login_announcement", value: JSON.stringify(null), updated_at: Date.now() });
-    setSaving(false);
+  async function remove(id) {
+    const next = list.filter(a => a.id !== id);
+    const ok = await persist(next);
     if (ok) {
-      setLoginAnnouncement(null);
-      setEditing(false);
-      addToast("Announcement cleared.", "gold", "Updated");
+      setLoginAnnouncements(next);
+      addToast("Announcement removed.", "gold", "Updated");
     }
   }
 
   return (
     <div style={{marginBottom:16}}>
       <div style={{fontSize:13,color:"var(--text)",marginBottom:8}}>{t("loginAnnouncementLabel")}</div>
-      {editing ? (
-        <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          <textarea
-            value={draft} onChange={e=>setDraft(e.target.value)}
-            placeholder={t("loginAnnouncementPlaceholder")}
-            rows={3} maxLength={300}
-            style={{background:"rgba(10,8,6,0.85)",border:"1px solid var(--gold)",color:"var(--text)",borderRadius:4,padding:"8px 10px",fontFamily:"'Inter',sans-serif",resize:"vertical"}}
-          />
-          <div style={{display:"flex",gap:8}}>
-            <button className="btn btn-gold btn-sm" disabled={saving} onClick={save}>{saving ? "…" : t("saveBtn")}</button>
-            <button className="btn btn-outline btn-sm" onClick={()=>setEditing(false)}>{t("cancelBtn")}</button>
-            {loginAnnouncement && <button className="btn btn-red btn-sm" disabled={saving} onClick={clear}>{t("clearBtn")}</button>}
-          </div>
-        </div>
+      {list.length === 0 ? (
+        <div style={{fontSize:13,color:"var(--text-dim)",fontStyle:"italic",marginBottom:12}}>{t("noAnnouncementSet")}</div>
       ) : (
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:13,color:loginAnnouncement?"var(--text)":"var(--text-dim)",fontStyle:loginAnnouncement?"normal":"italic"}}>
-            {loginAnnouncement?.text || t("noAnnouncementSet")}
-          </span>
-          <button className="btn btn-outline btn-sm" onClick={startEdit}>{t("editBtn")}</button>
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:12}}>
+          {list.map(ann => (
+            <div key={ann.id} style={{display:"flex",alignItems:"center",gap:10,background:"rgba(201,151,42,0.06)",border:"1px solid rgba(201,151,42,0.2)",borderRadius:4,padding:"8px 12px"}}>
+              <span style={{fontSize:13,color:"var(--text)",flex:1}}>{ann.text}</span>
+              <button className="btn btn-red btn-sm" onClick={()=>remove(ann.id)}>{t("clearBtn")}</button>
+            </div>
+          ))}
         </div>
       )}
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        <textarea
+          value={draft} onChange={e=>setDraft(e.target.value)}
+          placeholder={t("loginAnnouncementPlaceholder")}
+          rows={2} maxLength={300}
+          style={{background:"rgba(10,8,6,0.85)",border:"1px solid var(--gold)",color:"var(--text)",borderRadius:4,padding:"8px 10px",fontFamily:"'Inter',sans-serif",resize:"vertical"}}
+        />
+        <button className="btn btn-gold btn-sm" disabled={saving || !draft.trim()} onClick={post} style={{alignSelf:"flex-start"}}>{saving ? "…" : t("postAnnouncementBtn")}</button>
+      </div>
     </div>
   );
 }
 
 function Settings({ ctx }) {
-  const { currentUser, members, setMembers, addToast, eventsVersion, setEventsVersion, decayRate, setDecayRate, loginAnnouncement, setLoginAnnouncement } = ctx;
+  const { currentUser, members, setMembers, addToast, eventsVersion, setEventsVersion, decayRate, setDecayRate, loginAnnouncements, setLoginAnnouncements } = ctx;
   const { t } = useLang();
   const isMaster = currentUser.role==="Master";
   // ── Auto-decay: every Wednesday at 7:00 AM, fixed to GMT+8 ───────────────
@@ -9524,7 +9642,7 @@ function Settings({ ctx }) {
       <div className="card" style={{marginTop:20}}>
         <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:15,color:"var(--gold-light)",marginBottom:8}}>{t("loginAnnouncementTitle")}</div>
         <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12,lineHeight:1.7}}>{t("loginAnnouncementDesc")}</div>
-        <LoginAnnouncementEditor loginAnnouncement={loginAnnouncement} setLoginAnnouncement={setLoginAnnouncement} addToast={addToast} t={t} />
+        <LoginAnnouncementEditor loginAnnouncements={loginAnnouncements} setLoginAnnouncements={setLoginAnnouncements} addToast={addToast} t={t} />
       </div>
       <div className="card" style={{marginTop:20}}>
         <SectionTitle>{t("eventCoinValues")}</SectionTitle>
