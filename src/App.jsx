@@ -1242,6 +1242,27 @@ const supa = {
         }
         return json;
       },
+      // Plain insert — deliberately WITHOUT the merge-duplicates Prefer
+      // header upsert() uses, so a primary-key conflict genuinely fails
+      // the request (HTTP 409) instead of silently overwriting. This is
+      // what gives auction_win_claims real protection: only the first of
+      // however many browser tabs/sessions are racing to claim the same
+      // auction_id actually succeeds — Postgres itself enforces it, not
+      // any client-side "have I already done this?" check, which can't
+      // see what a DIFFERENT tab/session just did a moment ago.
+      async insert(data) {
+        const res = await fetchWithTimeout(base, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(Array.isArray(data) ? data : [data]),
+        });
+        if (res.status === 409) return { conflict: true };
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(`insert ${table} failed: HTTP ${res.status} ${json ? JSON.stringify(json) : "(no body)"}`);
+        }
+        return { conflict: false, data: json };
+      },
       async delete(match) {
         const params = Object.entries(match).map(([k,v])=>`${k}=eq.${encodeURIComponent(v)}`).join("&");
         const res = await fetchWithTimeout(`${base}?${params}`, {
@@ -1269,6 +1290,44 @@ async function dbLoadAuctionImage(id) {
     if (Array.isArray(rows) && rows[0]) return rows[0];
     return null;
   } catch { return null; }
+}
+// Genuine cross-session lock for "has this auction's win already been
+// logged" — unlike checking a member's local txLog (which can't see
+// what a DIFFERENT browser tab/session just wrote a moment ago, the
+// actual root cause of duplicate "Auction Win" entries even after the
+// single-codepath fix), this uses the auction_win_claims table's
+// auction_id PRIMARY KEY: Postgres itself guarantees only the first
+// insert for a given auction_id can ever succeed, no matter how many
+// tabs/sessions race for it simultaneously. Returns true only for
+// whichever caller actually wins that race — everyone else gets false
+// and should NOT proceed to log the win.
+async function claimAuctionWin(auctionId, claimedBy) {
+  try {
+    const t = await supa.from("auction_win_claims");
+    const result = await t.insert({ auction_id: String(auctionId), claimed_by: claimedBy, claimed_at: Date.now() });
+    return !result.conflict;
+  } catch {
+    // If the claim attempt itself fails for an unrelated reason (network
+    // blip, etc.), default to NOT proceeding — a missed win log is far
+    // less damaging than risking yet another duplicate, and the member
+    // sync poll will eventually reconcile most of these naturally since
+    // the underlying coins are tracked separately from this log.
+    return false;
+  }
+}
+// Attempts the real cross-session claim for this specific auction, and
+// only appends the "Auction Win" txLog entry if that claim genuinely
+// succeeded — called as a fire-and-forget side effect (not awaited by
+// its caller) since it needs to run async but the surrounding code is a
+// synchronous state updater.
+async function claimAuctionWinAndLog(auction, setMembers) {
+  const won = await claimAuctionWin(auction.id, auction.topBidder);
+  if (!won) return; // someone/something else already claimed this exact auction
+  setMembers(ms => ms.map(m => {
+    if (m.name !== auction.topBidder) return m;
+    return {...m, auctionWins: m.auctionWins+1,
+      txLog: [...(m.txLog||[]), {change:-auction.currentBid, reason:`Won auction: ${auction.name}`, date:new Date().toLocaleDateString(), ts:Date.now(), logType:"Auction Win", addedBy:"System", auctionId:auction.id}]};
+  }));
 }
 async function dbUpsert(table, data) {
   try {
@@ -4931,16 +4990,18 @@ function AppInner({ onMusicTrackChange }) {
           endedAuctionIds.current.add(a.id);
           if (a.topBidder) {
             addToast(`${a.topBidder} won ${a.name} for ${fmt(a.currentBid)} coins!`, "gold", "Auction Ended");
-            setMembers(ms => ms.map(m => {
-              if (m.name!==a.topBidder) return m;
-              // Same dedupe reasoning as the other "Won auction" log site above —
-              // endedAuctionIds alone can't prevent a different browser/session
-              // from re-logging the same win, so check txLog itself.
-              const alreadyLogged = (m.txLog||[]).some(e => e.auctionId === a.id);
-              if (alreadyLogged) return m;
-              return {...m,auctionWins:m.auctionWins+1,
-                txLog:[...(m.txLog||[]),{change:-a.currentBid,reason:`Won auction: ${a.name}`,date:new Date().toLocaleDateString(),ts:Date.now(),logType:"Auction Win",addedBy:"System",auctionId:a.id}]};
-            }));
+            // ROOT CAUSE of duplicate "Auction Win" entries that survived
+            // even after removing the redundant code path elsewhere: this
+            // used to check the member's own LOCAL txLog ("have I already
+            // logged this?") before writing — but that's a read of
+            // possibly-stale local state. A different browser tab/session
+            // (even one left open from earlier testing) checks its OWN
+            // local copy, which hasn't synced yet, sees nothing logged,
+            // and proceeds — both succeed, both write, duplicate created.
+            // claimAuctionWinAndLog below uses a real database constraint
+            // instead (see claimAuctionWin), so only the actual first
+            // claimant across ALL sessions ever logs the win, full stop.
+            claimAuctionWinAndLog(a, setMembers);
           }
           // Only Master/Elder writes to DB — prevents 50 clients racing each other
           if (canWriteClose) {
