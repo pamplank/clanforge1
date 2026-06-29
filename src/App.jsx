@@ -98,6 +98,11 @@ const TRANSLATIONS = {
     putInNewsTitle: "Put in News",
     putInNewsBtn: "Put in News",
     postAllToDiscordBtn: "Post Live Auctions to Discord",
+    outbidPopupTitle: "You've been outbid!",
+    outbidPopupBody1: "just outbid you on",
+    outbidPopupNewBid: "New top bid:",
+    outbidPopupDismiss: "Dismiss",
+    outbidPopupGoBid: "Go Bid",
     postToNewsLabel: "Also post this to everyone's login news",
     postAnnouncementBtn: "Post Announcement",
     dismissAnnouncementTitle: "Dismiss this announcement",
@@ -632,6 +637,11 @@ const TRANSLATIONS = {
     putInNewsTitle: "发布到公告",
     putInNewsBtn: "发布到公告",
     postAllToDiscordBtn: "将进行中的拍卖发布到 Discord",
+    outbidPopupTitle: "您已被超越出价！",
+    outbidPopupBody1: "刚刚在以下拍卖中超越了您的出价：",
+    outbidPopupNewBid: "最新最高出价：",
+    outbidPopupDismiss: "关闭",
+    outbidPopupGoBid: "立即出价",
     postToNewsLabel: "同时发布到所有人的登录公告",
     postAnnouncementBtn: "发布公告",
     dismissAnnouncementTitle: "关闭此公告",
@@ -4198,6 +4208,12 @@ function AppInner({ onMusicTrackChange }) {
   // "what's new" popup summarizes over. null means no popup should show
   // (e.g. first-ever login, or already dismissed this session).
   const [loginSummaryWindow, setLoginSummaryWindow] = useState(null);
+  // Set when the 3s auction poll detects the current user just got
+  // outbid while actively on the site — separate from the existing
+  // browser push notification (which fires even when the tab isn't
+  // open/focused). This is the in-app version: a popup with a direct
+  // "go bid" link, shown only while they're already here to act on it.
+  const [outbidPopup, setOutbidPopup] = useState(null);
   // ── Background music: tell the persistent <BackgroundMusic> player (mounted
   // in App, above AppInner, so it survives login/logout) which track — if
   // any — should be playing for the current screen.
@@ -4209,6 +4225,13 @@ function AppInner({ onMusicTrackChange }) {
   }, [loggedIn, page, onMusicTrackChange]);
   const [showEntrance, setShowEntrance] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  // Mirrors currentUser into a ref so callbacks captured once (e.g. the
+  // 3s auction poll below, which intentionally has an empty dependency
+  // array so its interval timer isn't torn down and recreated on every
+  // login/logout) can still read the LATEST currentUser instead of being
+  // stuck with whatever it was when that effect first ran.
+  const currentUserRef = useRef(null);
+  useEffect(() => { currentUserRef.current = currentUser; }, [currentUser]);
   const [toasts, setToasts] = useState([]);
   const [coinBursts, setCoinBursts] = useState([]);
   function fireCoinBurst(x, y) {
@@ -4735,30 +4758,55 @@ function AppInner({ onMusicTrackChange }) {
             bids:        (() => { try { const db = typeof r.bids === "string" ? JSON.parse(r.bids) : (Array.isArray(r.bids) ? r.bids : null); if (db && db.length > 0) return db; } catch {} return prevA?.bids || []; })(),
             image:       r.image_name ? { dataUrl: prevA?.image?.dataUrl || _auctionImageCache.get(String(r.id)) || null, name: r.image_name } : null,
           };
-          // If the DB just flipped this auction to "ended" and our local state
-          // still had it as "active", fire the win notification here so clients
-          // that didn't trigger the end themselves still see the toast.
+          // ROOT CAUSE of duplicate "Auction Win" entries in My Points
+          // History: this poll used to ALSO log the win here (whenever it
+          // noticed the DB already said "ended"), as a backup for browsers
+          // that didn't trigger the transition themselves. But the
+          // separate local-clock-based expiry effect below already logs
+          // the win unconditionally on EVERY browser, every second,
+          // regardless of admin role (only the actual DB write to flip
+          // status is role-gated, not the win-logging) — so that backup
+          // was never actually needed, and instead created a real race:
+          // two independent timers (this 3s poll and that 1s effect) each
+          // running their own "already logged?" check against txLog, with
+          // no coordination between them, occasionally both passing the
+          // check before either's update had been applied. Removing the
+          // duplicate here leaves exactly one place that logs the win.
           if (next.status === "ended" && prevA && prevA.status === "active" && !endedAuctionIds.current.has(next.id)) {
             endedAuctionIds.current.add(next.id);
             if (next.topBidder) {
               addToast(`${next.topBidder} won ${next.name} for ${fmt(next.currentBid)} coins!`, "gold", "Auction Ended");
-              setMembers(ms => ms.map(m => {
-                if (m.name!==next.topBidder) return m;
-                // endedAuctionIds is per-browser-session only (a plain in-memory
-                // ref), so it can't prevent the SAME win from being logged again
-                // by a different tab, a different member's browser, or even
-                // this same browser after a page reload — all of which start
-                // with an empty endedAuctionIds set and rediscover this auction
-                // as "newly ended" the first time they poll it. Checking the
-                // member's own txLog for an entry already tagged with this
-                // auction's id is what actually prevents duplicate entries,
-                // since txLog is the persisted, shared source of truth.
-                const alreadyLogged = (m.txLog||[]).some(e => e.auctionId === next.id);
-                if (alreadyLogged) return m;
-                return {...m,auctionWins:m.auctionWins+1,
-                  txLog:[...(m.txLog||[]),{change:-next.currentBid,reason:`Won auction: ${next.name}`,date:new Date().toLocaleDateString(),ts:Date.now(),logType:"Auction Win",addedBy:"System",auctionId:next.id}]};
-              }));
             }
+          }
+          // Live in-app outbid detection: this poll already has both the
+          // previous and the fresh state of every auction every 3s — if
+          // the current user WAS the top bidder a moment ago and now
+          // ISN'T (auction still active, not ended — that's a different,
+          // already-handled case above), they were just outbid while
+          // actively on the site. Surfaced as a real popup here, distinct
+          // from the existing push notification (sendPushNotification),
+          // which is the right channel for when they're NOT actively
+          // looking at the app, but is just a fire-and-forget OS-level
+          // notification, not something this code can drive an in-app UI
+          // from.
+          // Reads currentUserRef.current rather than the closed-over
+          // currentUser directly — this poll's effect has an empty
+          // dependency array ([]), so a direct reference would be frozen
+          // at whatever currentUser was when the component first mounted
+          // (likely null, before login), never updating after that.
+          const liveUser = currentUserRef.current;
+          if (
+            next.status === "active" &&
+            prevA?.topBidder === liveUser?.name &&
+            next.topBidder &&
+            next.topBidder !== liveUser?.name
+          ) {
+            setOutbidPopup({
+              auctionId: next.id,
+              name: next.name,
+              newBid: next.currentBid,
+              outbidBy: next.topBidder,
+            });
           }
           return next;
         }).filter(a => !deletedAuctionIds.current.has(a.id));
@@ -5460,6 +5508,13 @@ function AppInner({ onMusicTrackChange }) {
           />
         );
       })()}
+      {outbidPopup && (
+        <OutbidPopup
+          info={outbidPopup}
+          onClose={() => setOutbidPopup(null)}
+          onGoBid={() => { navigateToPage("auctions"); setOutbidPopup(null); }}
+        />
+      )}
       {modal?.type==="deleteAttendance" && <DeleteAttendanceModal ctx={ctx} />}
       {modal?.type==="addMissingAttendance" && <AddMissingAttendanceModal ctx={ctx} />}
       <Toast toasts={toasts} remove={removeToast} />
@@ -6584,6 +6639,41 @@ function getLoginSummary(member, window) {
 // Shown once right after login if getLoginSummary found anything to
 // report. Purely informational — closing it doesn't lose anything, since
 // the underlying data (attendLog/txLog/powerLog) is unaffected either way.
+// Shown immediately when the 3s auction poll detects the current user
+// just lost the top-bidder spot on an auction they're not actively
+// viewing/bidding on right this second (if they ARE actively bidding,
+// the existing inline "you were outbid, please retry" toast in placeBid
+// already covers that more specific moment). Distinct from the popup
+// system this app uses — deliberately lighter-weight (no "don't show
+// again" state, no dismiss persistence) since this is a one-off, timely
+// nudge tied to a specific live event, not recurring content to manage.
+function OutbidPopup({ info, onClose, onGoBid }) {
+  const { t } = useLang();
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{maxWidth:380}} onClick={e=>e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title">⚠️ {t("outbidPopupTitle")}</div>
+          <button className="btn btn-ghost" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <div style={{fontSize:13,color:"var(--text)",lineHeight:1.6,marginBottom:14}}>
+            <strong style={{color:"var(--text-bright)"}}>{info.outbidBy}</strong> {t("outbidPopupBody1")} <strong style={{color:"var(--text-bright)"}}>{info.name}</strong>.
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10,background:"rgba(180,80,80,0.08)",border:"1px solid rgba(180,80,80,0.25)",borderRadius:6,padding:"10px 14px"}}>
+            <StatIcon src={COINS_ICON} size={20}/>
+            <div style={{fontSize:14,fontWeight:700,color:"#e07070"}}>{t("outbidPopupNewBid")} {fmt(info.newBid)} {t("coinsLabel")}</div>
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-outline" onClick={onClose}>{t("outbidPopupDismiss")}</button>
+          <button className="btn btn-gold" onClick={onGoBid}>{t("outbidPopupGoBid")}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LoginSummaryModal({ summary, memberName, announcements, onClose, onDismissToday, onDismissAnnouncement }) {
   const { t } = useLang();
   const [dontShowToday, setDontShowToday] = useState(false);
