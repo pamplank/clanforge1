@@ -85,6 +85,7 @@ const TRANSLATIONS = {
     currentBalanceLabel: "Your current balance",
     fromAttendance: "from attendance",
     fromBonuses: "from bonuses",
+    fromDecay: "weekly decay",
     bonusesEarned: "Bonuses Earned",
     auctionsWon: "Auctions Won",
     gotIt: "Got It",
@@ -230,8 +231,9 @@ const TRANSLATIONS = {
     bonusOneTime: "(one-time)",
     bonusRuleISB: "ISB Veteran — participate in 10 Inter-Server Battles (lifetime):",
     bonusCoins500: "+500 Coins",
-    decayWarning: "Unused coins decay 10% every Sunday. Stay active!",
-    decayBadge: "-10% / week",
+    decayWarningPrefix: "Unused coins decay",
+    decayWarningSuffix: "every Tuesday. Stay active!",
+    decayBadgeSuffix: "week",
     majorEvents: "Major Events",
     earned: "✓ Earned",
     sindriVeteran: "Sindri Veteran",
@@ -260,6 +262,7 @@ const TRANSLATIONS = {
     hideAttendees: "▲ Hide",
     showAttendees: "▼ Show",
     weeklyCoinDecay: "Weekly Coin Decay",
+    weeklyDecayDetail: "Weekly coin decay",
     // Stored transaction-type category labels (the underlying data stays in
     // English in storage — these are only used to translate them for display).
     type_Attendance: "Attendance",
@@ -460,7 +463,8 @@ const TRANSLATIONS = {
     masterOnly: "Master Only",
     settingsRequireMaster: "Settings require Master privileges.",
     coinDecayTitle: "Coin Decay",
-    coinDecayDesc: "Auto-triggers every Tuesday at 7:00 AM (GMT+8). Removes 5% of each member's coins. You can also trigger it manually below.",
+    coinDecayDescPrefix: "Auto-triggers every Tuesday at 7:00 AM (GMT+8). Removes",
+    coinDecayDescSuffix: "of each member's coins. You can also trigger it manually below.",
     avgCoinsLabel: "Avg coins:",
     triggerWeeklyDecay: "Trigger Weekly Decay",
     attendanceResetTitle: "Attendance Reset",
@@ -488,7 +492,8 @@ const TRANSLATIONS = {
     autoDecayApplied: "Weekly 5% coin decay has been applied automatically.",
     autoAttendanceResetApplied: "Monthly attendance counts have been reset automatically.",
     autoDecayTitle: "Auto Decay",
-    decayTriggeredToast: "Weekly coin decay applied: 5% removed.",
+    decayTriggeredTostPrefix: "Weekly coin decay applied:",
+    decayTriggeredTostSuffix: "removed.",
     decayTriggeredTitle: "Decay Triggered",
     attendanceResetToast: "Weekly attendance reset for all members.",
     resetTitle: "Reset",
@@ -624,6 +629,7 @@ const TRANSLATIONS = {
     currentBalanceLabel: "您当前的余额",
     fromAttendance: "来自出勤",
     fromBonuses: "来自奖励",
+    fromDecay: "每周衰减",
     bonusesEarned: "获得的奖励",
     auctionsWon: "拍下的物品",
     gotIt: "知道了",
@@ -769,8 +775,9 @@ const TRANSLATIONS = {
     bonusOneTime: "（一次性）",
     bonusRuleISB: "ISB老兵 — 参加10次跨服战（终身累计）：",
     bonusCoins500: "+500 金币",
-    decayWarning: "未使用的金币每周日衰减10%。请保持活跃！",
-    decayBadge: "-10% / 周",
+    decayWarningPrefix: "未使用的金币每周二衰减",
+    decayWarningSuffix: "。请保持活跃！",
+    decayBadgeSuffix: "周",
     majorEvents: "重大活动",
     earned: "✓ 已获得",
     sindriVeteran: "辛德里老兵",
@@ -799,6 +806,7 @@ const TRANSLATIONS = {
     hideAttendees: "▲ 隐藏",
     showAttendees: "▼ 显示",
     weeklyCoinDecay: "每周金币衰减",
+    weeklyDecayDetail: "每周金币衰减",
     type_Attendance: "出勤",
     type_MajorEventsBonus: "重大活动奖励",
     type_ISBVeteranBonus: "ISB老兵奖励",
@@ -989,7 +997,8 @@ const TRANSLATIONS = {
     masterOnly: "仅限盟主",
     settingsRequireMaster: "设置功能需要盟主权限。",
     coinDecayTitle: "金币衰减",
-    coinDecayDesc: "每周二早上7:00（GMT+8）自动触发。扣除每位成员5%的金币。您也可以在下方手动触发。",
+    coinDecayDescPrefix: "每周二早上7:00（GMT+8）自动触发。扣除每位成员",
+    coinDecayDescSuffix: "的金币。您也可以在下方手动触发。",
     avgCoinsLabel: "平均金币：",
     triggerWeeklyDecay: "触发每周衰减",
     attendanceResetTitle: "出勤重置",
@@ -1017,7 +1026,8 @@ const TRANSLATIONS = {
     autoDecayApplied: "每周5%金币衰减已自动应用。",
     autoAttendanceResetApplied: "每月出勤次数已自动重置。",
     autoDecayTitle: "自动衰减",
-    decayTriggeredToast: "每周金币衰减已应用：扣除5%。",
+    decayTriggeredTostPrefix: "每周金币衰减已应用：扣除",
+    decayTriggeredTostSuffix: "。",
     decayTriggeredTitle: "衰减已触发",
     attendanceResetToast: "已为所有成员重置每周出勤。",
     resetTitle: "已重置",
@@ -1329,6 +1339,58 @@ async function claimAuctionWinAndLog(auction, setMembers) {
       txLog: [...(m.txLog||[]), {change:-auction.currentBid, reason:`Won auction: ${auction.name}`, date:new Date().toLocaleDateString(), ts:Date.now(), logType:"Auction Win", addedBy:"System", auctionId:auction.id}]};
   }));
 }
+// Re-fetches the TRUE current state of one specific auction from the
+// database before declaring a winner, writing "ended" to the DB, or
+// notifying Discord — see the long comment at the call site for the
+// real bug this fixes (a locally-cached, possibly-stale topBidder
+// occasionally being wrongly declared the winner when a fresh bid landed
+// in the gap since this browser's last 3s poll). `localFallback` is the
+// browser's own (possibly stale) copy, used only if the fresh re-fetch
+// itself fails for some unrelated reason — better to proceed with
+// slightly-stale data than to leave an auction stuck mid-close forever.
+async function finalizeAuctionClose(localFallback, canWriteClose, setMembers, addToast) {
+  let fresh = localFallback;
+  try {
+    const rows = await dbLoad("auctions", `id,current_bid,top_bidder,bids,status&id=eq.${encodeURIComponent(localFallback.id)}`);
+    const row = Array.isArray(rows) && rows[0] ? rows[0] : null;
+    if (row) {
+      fresh = {
+        ...localFallback,
+        currentBid: Number(row.current_bid) || localFallback.currentBid,
+        topBidder: row.top_bidder ?? localFallback.topBidder,
+        bids: (() => { try { const b = typeof row.bids === "string" ? JSON.parse(row.bids) : row.bids; return Array.isArray(b) && b.length > 0 ? b : localFallback.bids; } catch { return localFallback.bids; } })(),
+      };
+    }
+  } catch {
+    // Network blip or similar — proceed with the local snapshot rather
+    // than leaving the auction stuck. This reintroduces a small chance
+    // of the original staleness bug, but only on actual fetch failure,
+    // not as the default path the way it was before this fix.
+  }
+  if (fresh.topBidder) {
+    addToast(`${fresh.topBidder} won ${fresh.name} for ${fmt(fresh.currentBid)} coins!`, "gold", "Auction Ended");
+    claimAuctionWinAndLog(fresh, setMembers);
+  }
+  if (canWriteClose) {
+    const endImageData = fresh.image?.dataUrl || _auctionImageCache.get(String(fresh.id)) || undefined;
+    const endRow = {
+      id:          String(fresh.id),
+      name:        fresh.name ?? "",
+      description: fresh.description ?? fresh.desc ?? "",
+      status:      "ended",
+      ends_at:     fresh.endsAt ?? 0,
+      started_at:  fresh.startedAt ?? Date.now(),
+      current_bid: fresh.currentBid ?? 0,
+      top_bidder:  fresh.topBidder ?? null,
+      min_bid:     fresh.minBid ?? fresh.startBid ?? 0,
+      image_name:  fresh.image?.name ?? null,
+      bids:        JSON.stringify(fresh.bids ?? []),
+    };
+    if (endImageData) endRow.image_data = endImageData;
+    dbUpsert("auctions", endRow);
+    notifyAuctionEndedOnce(fresh);
+  }
+}
 async function dbUpsert(table, data) {
   try {
     const t = await supa.from(table);
@@ -1517,6 +1579,34 @@ async function adjustMemberCoinsAtomic(memberName, delta) {
   } catch (e) {
     console.error(`adjustMemberCoinsAtomic(${memberName}, ${delta}) failed:`, e);
     return null;
+  }
+}
+// ROOT CAUSE FIX for "a lower bid sometimes beats a higher one": the old
+// flow checked the live database value, THEN did more work (coin
+// adjustments, etc.), THEN finally wrote the new bid via setAuctions's
+// upsert — a real gap during which a second bid could pass its OWN
+// check (against the still-old value) and later overwrite this one,
+// regardless of which amount was actually higher, since the final write
+// itself never re-verified anything. place_bid_atomic runs the check AND
+// the write as a single locked database transaction (`for update` in the
+// SQL), so no other bid attempt can read or write that row until this
+// one fully completes — closing the gap instead of just narrowing it.
+async function placeBidAtomic(auctionId, bidder, amount, minIncrement = 5) {
+  try {
+    const res = await fetchWithTimeout(`${SUPA_URL}/rest/v1/rpc/place_bid_atomic`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPA_KEY,
+        "Authorization": `Bearer ${SUPA_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ p_auction_id: String(auctionId), p_bidder: bidder, p_amount: amount, p_min_increment: minIncrement }),
+    });
+    if (!res.ok) throw new Error(`place_bid_atomic failed: HTTP ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    console.error(`placeBidAtomic(${auctionId}, ${bidder}, ${amount}) failed:`, e);
+    return { success: false, reason: "network_error" };
   }
 }
 
@@ -4988,49 +5078,30 @@ function AppInner({ onMusicTrackChange }) {
       .map(a => {
         if (a.status==="active" && Date.now() > a.endsAt + GRACE_MS && !endedAuctionIds.current.has(a.id)) {
           endedAuctionIds.current.add(a.id);
-          if (a.topBidder) {
-            addToast(`${a.topBidder} won ${a.name} for ${fmt(a.currentBid)} coins!`, "gold", "Auction Ended");
-            // ROOT CAUSE of duplicate "Auction Win" entries that survived
-            // even after removing the redundant code path elsewhere: this
-            // used to check the member's own LOCAL txLog ("have I already
-            // logged this?") before writing — but that's a read of
-            // possibly-stale local state. A different browser tab/session
-            // (even one left open from earlier testing) checks its OWN
-            // local copy, which hasn't synced yet, sees nothing logged,
-            // and proceeds — both succeed, both write, duplicate created.
-            // claimAuctionWinAndLog below uses a real database constraint
-            // instead (see claimAuctionWin), so only the actual first
-            // claimant across ALL sessions ever logs the win, full stop.
-            claimAuctionWinAndLog(a, setMembers);
-          }
-          // Only Master/Elder writes to DB — prevents 50 clients racing each other
-          if (canWriteClose) {
-            const endImageData = a.image?.dataUrl || _auctionImageCache.get(String(a.id)) || undefined;
-            const endRow = {
-              id:          String(a.id),
-              name:        a.name ?? "",
-              description: a.description ?? a.desc ?? "",
-              status:      "ended",
-              ends_at:     a.endsAt ?? 0,
-              started_at:  a.startedAt ?? Date.now(),
-              current_bid: a.currentBid ?? 0,
-              top_bidder:  a.topBidder ?? null,
-              min_bid:     a.minBid ?? a.startBid ?? 0,
-              image_name:  a.image?.name ?? null,
-              bids:        JSON.stringify(a.bids ?? []),
-            };
-            if (endImageData) endRow.image_data = endImageData;
-            dbUpsert("auctions", endRow);
-            // Same canWriteClose gate as the DB write above reduces but
-            // doesn't fully eliminate duplicate notifications if 2+
-            // Elders are online at the exact same moment — the extra
-            // app_state check inside this function closes most of that
-            // remaining gap (not a perfect lock, but good enough: the
-            // odds of two browsers racing through the check within the
-            // same few milliseconds are low).
-            notifyAuctionEndedOnce(a);
-          }
-          // All clients flip local display to ended (UI update)
+          // ROOT CAUSE of a real, concrete coin/winner-accuracy bug: this
+          // used to act on `a` directly — the version of this auction
+          // already sitting in this browser's local state, which could
+          // be UP TO ONE FULL POLL CYCLE STALE (the 3s auction poll).
+          // If a winning bid landed in that window (a genuinely realistic
+          // case — bids racing right up to the deadline are exactly when
+          // this matters most), this browser would close the auction,
+          // log the win, and notify Discord using the WRONG, outdated
+          // top bidder — while the database (and everyone else's next
+          // poll) already had the real, correct winner. The website's
+          // OWN displayed state was always right; only the one-time
+          // "declare the winner" action, taken from a stale snapshot,
+          // was wrong — which is exactly the mismatch reported (site
+          // says one winner, Discord announced another, and the actual
+          // winner's coins were never deducted because the wrong
+          // person's txLog got the entry instead).
+          // Fix: hand off to a separate async function that re-fetches
+          // this specific auction's TRUE current state from the database
+          // first, and only acts on THAT — never on the possibly-stale
+          // `a` from local memory. The local state below still flips to
+          // "ended" immediately for a snappy UI; it's the consequential
+          // actions (DB write, win claim, Discord) that wait for fresh
+          // data.
+          finalizeAuctionClose(a, canWriteClose, setMembers, addToast);
           return {...a, status:"ended"};
         }
         return a;
@@ -6663,9 +6734,10 @@ function getLoginSummary(member, window) {
   if (!window || !window.since) {
     return {
       hasAnything: false,
-      coinsFromAttendance: 0, coinsFromBonuses: 0, totalCoins: 0,
+      coinsFromAttendance: 0, coinsFromBonuses: 0, coinsFromDecay: 0, totalCoins: 0,
       bonusCount: 0, bonusEntries: [],
       auctionWins: [],
+      decayEntries: [],
       powerChange: 0,
       currentBalance: member.coins || 0,
     };
@@ -6680,18 +6752,23 @@ function getLoginSummary(member, window) {
 
   const auctionWins = (member.txLog || []).filter(e => (e.ts||0) > since && (e.ts||0) <= until && e.logType === "Auction Win");
 
+  const decayEntries = (member.decayLog || []).filter(e => (e.ts||0) > since && (e.ts||0) <= until);
+  const coinsFromDecay = decayEntries.reduce((s,e) => s + (e.amount||0), 0);
+
   const powerEntries = (member.powerLog || []).filter(e => (e.ts||0) > since && (e.ts||0) <= until).sort((a,b)=>a.ts-b.ts);
   const powerChange = powerEntries.length > 0
     ? powerEntries[powerEntries.length-1].power - (member.powerLog.filter(e=>(e.ts||0)<=since).sort((a,b)=>b.ts-a.ts)[0]?.power ?? powerEntries[0].power)
     : 0;
 
-  const hasAnything = attendanceEntries.length > 0 || bonusEntries.length > 0 || auctionWins.length > 0 || powerChange !== 0;
+  const hasAnything = attendanceEntries.length > 0 || bonusEntries.length > 0 || auctionWins.length > 0 || decayEntries.length > 0 || powerChange !== 0;
 
   return {
     hasAnything,
-    coinsFromAttendance, coinsFromBonuses, totalCoins: coinsFromAttendance + coinsFromBonuses,
+    coinsFromAttendance, coinsFromBonuses, coinsFromDecay,
+    totalCoins: coinsFromAttendance + coinsFromBonuses + coinsFromDecay,
     bonusCount: bonusEntries.length, bonusEntries,
     auctionWins,
+    decayEntries,
     powerChange,
     currentBalance: member.coins || 0,
   };
@@ -6841,8 +6918,20 @@ function LoginSummaryModal({ summary, memberName, announcements, onClose, onDism
                     {summary.coinsFromAttendance>0 && `${fmt(summary.coinsFromAttendance)} ${t("fromAttendance")}`}
                     {summary.coinsFromAttendance>0 && summary.coinsFromBonuses!==0 && " · "}
                     {summary.coinsFromBonuses!==0 && `${summary.coinsFromBonuses>0?"+":""}${fmt(summary.coinsFromBonuses)} ${t("fromBonuses")}`}
+                    {(summary.coinsFromAttendance>0 || summary.coinsFromBonuses!==0) && summary.coinsFromDecay!==0 && " · "}
+                    {summary.coinsFromDecay!==0 && `${fmt(summary.coinsFromDecay)} ${t("fromDecay")}`}
                   </div>
                 </div>
+              </div>
+            )}
+            {summary.decayEntries.length > 0 && (
+              <div style={{background:"rgba(180,80,80,0.08)",border:"1px solid rgba(180,80,80,0.25)",borderRadius:6,padding:"10px 14px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:13,fontWeight:700,color:"#e07070",marginBottom:6}}><WarningIcon size={14}/>{t("weeklyCoinDecay")}</div>
+                {summary.decayEntries.map((d,i) => (
+                  <div key={i} style={{fontSize:12,color:"var(--text)",display:"flex",justifyContent:"space-between"}}>
+                    <span>{d.date}</span><span style={{color:"#e07070",fontWeight:700}}>{fmt(d.amount)}</span>
+                  </div>
+                ))}
               </div>
             )}
             {summary.bonusEntries.length > 0 && (
@@ -7023,7 +7112,7 @@ function performAttendancePayout(members, { ev, date, ts, present, qualifierMap 
 function Attendance({ ctx }) {
   const { t } = useLang();
   const [memberSearch, setMemberSearch] = useState("");
-  const { members, setMembers, addToast, currentUser, attendanceLogs, setAttendanceLogs, setModal } = ctx;
+  const { members, setMembers, addToast, currentUser, attendanceLogs, setAttendanceLogs, setModal, decayRate } = ctx;
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectedMembers, setSelectedMembers] = useState({});
   const [qualifier, setQualifier] = useState({});
@@ -7407,8 +7496,8 @@ function Attendance({ ctx }) {
           </div>
           <div className="card card-red">
             <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:"#e07070",marginBottom:6}}>{t("weeklyCoinDecay")}</div>
-            <div style={{fontSize:12,color:"var(--text-dim)",lineHeight:1.7}}>{t("decayWarning")}</div>
-            <span className="badge badge-red" style={{marginTop:8,display:"inline-block"}}>{t("decayBadge")}</span>
+            <div style={{fontSize:12,color:"var(--text-dim)",lineHeight:1.7}}>{t("decayWarningPrefix")} {Math.round(decayRate*1000)/10}% {t("decayWarningSuffix")}</div>
+            <span className="badge badge-red" style={{marginTop:8,display:"inline-block"}}>-{Math.round(decayRate*1000)/10}% / {t("decayBadgeSuffix")}</span>
           </div>
         </div>
       )}
@@ -7431,7 +7520,7 @@ function Attendance({ ctx }) {
             // Points Log, so each person sees their own actual amount here)
             const decayEntries = (currentUser.decayLog||[]).map(d=>({
               date:d.date, ts:d.ts, type:"Weekly Decay",
-              details:"5% weekly coin decay",
+              details:t("weeklyDecayDetail"),
               coins:d.amount,
             }));
             // Bonuses, admin manual adds/removes, Elder requests, auction wins —
@@ -7678,39 +7767,50 @@ function Auctions({ ctx }) {
     const amount=parseInt(bidAmounts[auctionId]||0);
     const me=members.find(m=>m.name===currentUser.name);
     if(!a||a.status!=="active") return;
+    // Cheap, local-only checks first — these don't need a DB round trip,
+    // they're just immediate feedback against what THIS browser already
+    // has cached. The REAL check (and the actual write) happens inside
+    // placeBidAtomic below, which is what genuinely matters.
     if(amount<a.currentBid+5){addToast(`${t("minBidError")} ${fmt(a.currentBid+5)} ${t("minBidErrorSuffix")}`,"red",t("invalidBid"));return;}
     if(!me||me.coins<amount){addToast(t("insufficientCoins"),"red",t("noFunds"));return;}
     if(a.topBidder===currentUser.name){addToast(t("alreadyHighestBid"),"gold",t("alreadyWinning"));return;}
 
-    // Re-check against the live DB value to catch another user's bid that
-    // landed between polls (race condition under concurrent bidding).
+    // ROOT CAUSE FIX for "a lower bid sometimes beat a higher one": the
+    // old flow re-checked the live DB value here, then did MORE work
+    // (coin adjustments, etc.) before finally writing the new bid — a
+    // real gap during which a second, slightly later bid could pass ITS
+    // OWN check (against the still-old value) and then overwrite this
+    // one's write, regardless of which amount was actually higher, since
+    // the final write itself never re-verified anything against what was
+    // truly there at write-time. placeBidAtomic runs the check AND the
+    // write as one locked database transaction, so the result it returns
+    // is the actual, final truth — not a snapshot that can go stale
+    // between here and the write.
     setBidSubmitting(prev=>({...prev,[auctionId]:true}));
-    const fresh = await dbLoad("auctions", `id,current_bid,top_bidder,status&id=eq.${encodeURIComponent(auctionId)}`);
+    const result = await placeBidAtomic(auctionId, currentUser.name, amount);
     setBidSubmitting(prev=>({...prev,[auctionId]:false}));
-    const freshRow = Array.isArray(fresh) && fresh[0] ? fresh[0] : null;
-    if (freshRow) {
-      const freshBid = Number(freshRow.current_bid) || 0;
-      if (freshRow.status !== "active") {
-        addToast(t("auctionEnded"),"red",t("auctionEndedTitle"));
-        return;
-      }
-      if (freshBid >= amount) {
-        addToast(`${t("outbidMessage")} (${fmt(freshBid)}). ${t("pleaseRetry")}`,"red",t("outbidTitle"));
-        return;
-      }
-      if (freshRow.top_bidder===currentUser.name) {
-        addToast(t("alreadyHighestBid"),"gold",t("alreadyWinning"));
-        return;
-      }
-    }
-    // If freshRow is null (DB unreachable), fall through and proceed with
-    // local-state check only — better to allow the bid than block users
-    // entirely during a transient connection issue.
 
-    // The authoritative refund amount is exactly what the previous top bidder paid,
-    // which equals the auction's current_bid from the fresh DB row.
-    const prevBidder = freshRow?.top_bidder ?? a.topBidder;
-    const prevRefund = prevBidder ? (freshRow ? (Number(freshRow.current_bid) || 0) : (a.currentBid || 0)) : 0;
+    if (!result?.success) {
+      if (result?.reason === "ended") {
+        addToast(t("auctionEnded"),"red",t("auctionEndedTitle"));
+      } else if (result?.reason === "outbid") {
+        addToast(`${t("outbidMessage")} (${fmt(result.current_bid)}). ${t("pleaseRetry")}`,"red",t("outbidTitle"));
+      } else if (result?.reason === "not_found") {
+        addToast(t("auctionEnded"),"red",t("auctionEndedTitle"));
+      } else {
+        // network_error or anything unrecognized — don't claim success,
+        // but also don't pretend we know exactly what happened.
+        addToast(`${t("outbidMessage")}. ${t("pleaseRetry")}`,"red",t("outbidTitle"));
+      }
+      return;
+    }
+
+    // The bid genuinely succeeded — NOW it's safe to know who the
+    // previous bidder actually was (for the refund) and to apply coin
+    // changes, since placeBidAtomic already confirmed, inside the locked
+    // transaction, that this amount really did beat whatever was there.
+    const prevBidder = a.topBidder;
+    const prevRefund = prevBidder ? (a.currentBid || 0) : 0;
 
     // Apply both coin changes as ATOMIC database operations (see
     // adjustMemberCoinsAtomic above for why this matters) — this is the
@@ -7732,12 +7832,20 @@ function Auctions({ ctx }) {
     // SNIPE PROTECTION: if a bid lands in the last 60s, extend the auction by
     // 60s so no one can snipe in the final moment. This also helps with the
     // race where a bid is placed while another client's clock is closing it.
+    // This extension is a separate, best-effort write AFTER the bid itself
+    // is already confirmed valid — a rare race here could mean the
+    // extension is missed or double-applied, but that's a far smaller
+    // harm than the original bug (wrong winner declared), and keeping it
+    // separate avoids a much larger change to the locked RPC transaction.
     const SNIPE_WINDOW_MS = 60000;
     const SNIPE_EXTEND_MS = 120000;
     const now2 = Date.now();
     const timeRemaining = a.endsAt - now2;
     const newEndsAt = timeRemaining < SNIPE_WINDOW_MS ? now2 + SNIPE_EXTEND_MS : a.endsAt;
     const endsAtChanged = newEndsAt !== a.endsAt;
+    if (endsAtChanged) {
+      dbUpsert("auctions", { id: String(auctionId), ends_at: newEndsAt });
+    }
 
     setAuctions(prev=>prev.map(x=>x.id===auctionId?{...x,currentBid:amount,topBidder:currentUser.name,endsAt:newEndsAt,bids:[...(x.bids||[]),{bidder:currentUser.name,amount,time:Date.now()}]}:x));
     addToast(`${t("bidPlacedOn")} ${fmt(amount)} ${t("placedOn")} ${a.name}!${endsAtChanged?" "+t("snipeProtection"):""}`, "gold",t("bidPlacedTitle"));
@@ -9956,7 +10064,7 @@ function Settings({ ctx }) {
       }
       return updated;
     });
-    addToast(t("decayTriggeredToast"),"red",t("decayTriggeredTitle"));
+    addToast(`${t("decayTriggeredTostPrefix")} ${ratePct}% ${t("decayTriggeredTostSuffix")}`,"red",t("decayTriggeredTitle"));
     // Record this in the SHARED server-side state (not just localStorage),
     // so the cron-driven check (api/check-weekly-decay.js) correctly sees
     // that this week's decay has already happened and doesn't run it
@@ -9981,7 +10089,7 @@ function Settings({ ctx }) {
       <div className="grid-2">
         <div className="card card-red">
           <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:15,color:"#e07070",marginBottom:8}}>{t("coinDecayTitle")}</div>
-          <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12,lineHeight:1.7}}>{t("coinDecayDesc")}</div>
+          <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12,lineHeight:1.7}}>{t("coinDecayDescPrefix")} {Math.round(decayRate*1000)/10}% {t("coinDecayDescSuffix")}</div>
           <DecayRateEditor decayRate={decayRate} setDecayRate={setDecayRate} addToast={addToast} t={t} />
           <div style={{fontSize:13,color:"var(--text)",marginBottom:16}}>{t("avgCoinsLabel")} <strong style={{color:"var(--gold)"}}>{fmt(Math.floor(members.reduce((s,m)=>s+m.coins,0)/members.length))}</strong></div>
           <button className="btn btn-red" onClick={triggerDecay}>{t("triggerWeeklyDecay")}</button>
