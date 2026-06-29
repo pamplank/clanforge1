@@ -5415,29 +5415,29 @@ function AppInner({ onMusicTrackChange }) {
       {modal?.type==="renameMember"   && <RenameMemberModal ctx={ctx} />}
       {(() => {
         if (!loginSummaryWindow || !currentUser) return null;
-        // "Don't show again today" (the auto-summary) is tracked
-        // per-member and per-day. Each announcement is tracked
-        // separately and persists until personally dismissed (no day
-        // boundary) — keyed by that announcement's own id, so multiple
-        // announcements (e.g. a manual one from Settings AND one or more
-        // auction "put in news" posts) can coexist, each independently
-        // dismissible — closing one doesn't affect the others.
+        // "Don't show again today" now suppresses the WHOLE popup for
+        // the rest of the day — summary AND any announcements — per
+        // direct request. This means an announcement could go unseen by
+        // someone who dismissed today before it was posted, reappearing
+        // for them tomorrow instead of immediately; that's an accepted
+        // tradeoff in exchange for "today" genuinely meaning "nothing
+        // else from this popup today," not a partial dismissal.
         const todayKey = `cf_login_summary_dismissed_${currentUser.id}_${new Date().toDateString()}`;
-        const summaryDismissedToday = !!localStorage.getItem(todayKey);
+        if (localStorage.getItem(todayKey)) return null;
+
         const announcementsToShow = (loginAnnouncements || []).filter(
           ann => !localStorage.getItem(`cf_announcement_dismissed_${currentUser.id}_${ann.id}`)
         );
-
         const summary = getLoginSummary(currentUser, loginSummaryWindow);
-        const summaryToShow = (summary && !summaryDismissedToday) ? summary : null;
 
         // Nothing to show at all (genuinely first login with no
-        // announcements, or everything's already been dismissed).
-        if (!summaryToShow && announcementsToShow.length === 0) return null;
+        // announcements — summary itself is never null anymore, see
+        // getLoginSummary, but announcements can still be empty).
+        if (!summary && announcementsToShow.length === 0) return null;
 
         return (
           <LoginSummaryModal
-            summary={summaryToShow}
+            summary={summary}
             announcements={announcementsToShow}
             memberName={currentUser.name}
             onClose={() => setLoginSummaryWindow(null)}
