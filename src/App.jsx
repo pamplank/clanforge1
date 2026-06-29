@@ -94,6 +94,9 @@ const TRANSLATIONS = {
     loginAnnouncementLabel: "Current announcement:",
     loginAnnouncementPlaceholder: "e.g. A rare item is now up for auction — check it out!",
     noAnnouncementSet: "No announcement set",
+    putInNewsTitle: "Put in News",
+    putInNewsBtn: "Put in News",
+    postToNewsLabel: "Also post this to everyone's login news",
     clearBtn: "Clear",
     balanceRemaining: "Balance Remaining",
     // Page titles
@@ -618,6 +621,9 @@ const TRANSLATIONS = {
     loginAnnouncementLabel: "当前公告：",
     loginAnnouncementPlaceholder: "例如：稀有物品现已上架拍卖，快去看看吧！",
     noAnnouncementSet: "未设置公告",
+    putInNewsTitle: "发布到公告",
+    putInNewsBtn: "发布到公告",
+    postToNewsLabel: "同时发布到所有人的登录公告",
     clearBtn: "清除",
     balanceRemaining: "剩余余额",
     // Page titles
@@ -7283,12 +7289,12 @@ function BidMarquee({ feed, auctions }) {
 
 // ─── AUCTIONS ─────────────────────────────────────────────────────────────────
 function Auctions({ ctx }) {
-  const { auctions, setAuctions, members, setMembers, currentUser, addToast, fireCoinBurst, fireBalancePopup, tick, imageLibrary, addImage, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed } = ctx;
+  const { auctions, setAuctions, members, setMembers, currentUser, addToast, fireCoinBurst, fireBalancePopup, tick, imageLibrary, addImage, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, loginAnnouncement, setLoginAnnouncement } = ctx;
   const { t } = useLang();
   const [tab, setTab] = useState("active");
   const [bidAmounts, setBidAmounts] = useState({});
   const [bidSubmitting, setBidSubmitting] = useState({});
-  const [newAuction, setNewAuction] = useState({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000)});
+  const [newAuction, setNewAuction] = useState({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000),postToNews:false});
   const [sortBy, setSortBy] = useState("default");
   const [viewMode, setViewMode] = useState("grid");
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
@@ -7449,7 +7455,28 @@ function Auctions({ ctx }) {
     };
     setAuctions(prev=>[...prev,a]);
     addToast(`${t("auctionStarted")} ${a.name}`,"gold",t("auctionLive"));
-    setNewAuction({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000)});
+    if (newAuction.postToNews) postAuctionToNews(a);
+    setNewAuction({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000),postToNews:false});
+  }
+
+  // Posts an auction item to the same login-announcement mechanism Settings
+  // uses (app_state key "login_announcement") — lets an admin highlight a
+  // specific item without re-typing anything, instead of needing to go to
+  // Settings and write a separate announcement by hand. Same dismiss
+  // behavior: shows until each person personally closes the popup.
+  async function postAuctionToNews(auction) {
+    const text = `🔨 ${auction.name} is up for auction — current bid: ${fmt(auction.currentBid)} coins!`;
+    const value = { id: Date.now(), text, postedAt: Date.now(), auctionId: auction.id };
+    const ok = await dbUpsertReliable("app_state", { key: "login_announcement", value: JSON.stringify(value), updated_at: Date.now() });
+    if (ok) {
+      setLoginAnnouncement(value);
+      addToast(`Posted "${auction.name}" to the login news — everyone will see it next time they open the app.`, "gold", "Posted to News");
+    } else {
+      addToast(
+        <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't post — please try again.</span>,
+        "red", "Post Failed"
+      );
+    }
   }
 
   const RARITY_OPTS=[
@@ -7649,6 +7676,7 @@ function Auctions({ ctx }) {
                     {bidSubmitting[a.id]?"…":t("bidButton")}
                   </button>
 
+                  {isAdmin&&<button className="btn btn-outline btn-sm" onClick={()=>postAuctionToNews(a)} title={t("putInNewsTitle")} style={{flexShrink:0,padding:"5px 10px"}}><BellIcon size={12}/></button>}
                   {isMaster&&<button className="btn btn-red btn-sm" onClick={()=>removeAuction(a.id)} title={t("removeTitle")} style={{flexShrink:0,padding:"5px 10px"}}>✕</button>}
                 </div>
               </div>
@@ -7687,6 +7715,7 @@ function Auctions({ ctx }) {
                     <button className="btn btn-gold" onClick={(e)=>placeBid(a.id,e)} disabled={!!bidSubmitting[a.id]}>{bidSubmitting[a.id]?"…":t("bidButton")}</button>
                   </div>
 
+                  {isAdmin&&<button className="btn btn-outline btn-sm" style={{width:"100%",marginTop:6,display:"flex",alignItems:"center",justifyContent:"center",gap:6}} onClick={()=>postAuctionToNews(a)}><BellIcon size={13}/>{t("putInNewsBtn")}</button>}
                   {isMaster&&<button className="btn btn-red btn-sm" style={{width:"100%",marginTop:6}} onClick={()=>removeAuction(a.id)}>{t("removeAuctionBtn")}</button>}
                   {((a.bids||[]).length>0 || a.topBidder)&&(
                     <div style={{marginTop:10,fontSize:11,color:"var(--text-dim)",borderTop:"1px solid var(--border-dim)",paddingTop:8}}>
@@ -8139,6 +8168,11 @@ function Auctions({ ctx }) {
               </div>
             </div>
           </div>
+          <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,fontSize:13,color:"var(--text)",cursor:"pointer"}}>
+            <input type="checkbox" checked={newAuction.postToNews||false} onChange={e=>setNewAuction(p=>({...p,postToNews:e.target.checked}))} />
+            <BellIcon size={14} style={{color:"var(--gold)"}}/>
+            {t("postToNewsLabel")}
+          </label>
           <button className="btn btn-gold" onClick={createAuction} style={{width:"100%",justifyContent:"center"}}><span style={{display:"inline-flex",alignItems:"center",gap:6}}><StatIcon src={AUCTION_ICON} size={28}/>{t("startAuction")}</span></button>
         </div>
       )}
