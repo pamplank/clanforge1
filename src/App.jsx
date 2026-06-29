@@ -2070,10 +2070,18 @@ async function notifyAuctionEndedOnce(auction) {
     // unrelated read error.
   }
   await dbUpsert("app_state", { key: claimKey, value: "1", updated_at: Date.now() });
-  notifyDiscord({ content: auction.topBidder
-    ? `🏆 **Auction ended: ${auction.name}**\nWon by **${auction.topBidder}** for ${fmt(auction.currentBid)} coins!\n\n${window.location.origin}/?page=auctions`
-    : `🔨 **Auction ended: ${auction.name}**\nNo bids were placed.\n\n${window.location.origin}/?page=auctions`
-  }, "auctions");
+  const imgUrl = auction?.image?.name
+    ? `${SUPA_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${auction.image.name}`
+    : null;
+  notifyDiscord({ embeds: [{
+    title: auction.topBidder ? `🏆 Auction ended: ${auction.name}` : `🔨 Auction ended: ${auction.name}`,
+    description: auction.topBidder
+      ? `Won by **${auction.topBidder}** for ${fmt(auction.currentBid)} coins!`
+      : "No bids were placed.",
+    color: auction.topBidder ? 0xc8922a : 0x8a7a64,
+    url: `${window.location.origin}/?page=auctions`,
+    ...(imgUrl ? { thumbnail: { url: imgUrl } } : {}),
+  }] }, "auctions");
 }
 // Formats a log entry's date for display — uses a precise millisecond
 // timestamp when available (either an explicit `ts` field, or an `id` that
@@ -7636,7 +7644,16 @@ function Auctions({ ctx }) {
     setAuctions(prev=>[...prev,a]);
     addToast(`${t("auctionStarted")} ${a.name}`,"gold",t("auctionLive"));
     if (newAuction.postToNews) postAuctionToNews(a);
-    notifyDiscord({ content: `🔨 **New auction started: ${a.name}**\nStarting bid: ${fmt(minBid)} coins\n\n${window.location.origin}/?page=auctions` }, "auctions");
+    {
+      const imgUrl = auctionImageUrl(a);
+      notifyDiscord({ embeds: [{
+        title: `🔨 New auction started: ${a.name}`,
+        description: `Starting bid: ${fmt(minBid)} coins`,
+        color: 0xc8922a,
+        url: `${window.location.origin}/?page=auctions`,
+        ...(imgUrl ? { thumbnail: { url: imgUrl } } : {}),
+      }] }, "auctions");
+    }
     setNewAuction({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000),postToNews:false});
   }
 
@@ -7669,7 +7686,16 @@ function Auctions({ ctx }) {
     if (ok) {
       setLoginAnnouncements(next);
       addToast(`Posted "${auction.name}" to the login news — everyone will see it next time they open the app.`, "gold", "Posted to News");
-      notifyDiscord({ content: `📌 **${auction.name}** is featured in this week's auction — current bid: ${fmt(auction.currentBid)} coins!\n\n${window.location.origin}/?page=auctions` }, "auctions");
+      {
+        const imgUrl = auctionImageUrl(auction);
+        notifyDiscord({ embeds: [{
+          title: `📌 ${auction.name} is featured in this week's auction!`,
+          description: `Current bid: ${fmt(auction.currentBid)} coins`,
+          color: 0xc8922a,
+          url: `${window.location.origin}/?page=auctions`,
+          ...(imgUrl ? { thumbnail: { url: imgUrl } } : {}),
+        }] }, "auctions");
+      }
     } else {
       addToast(
         <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't post — please try again.</span>,
@@ -7677,31 +7703,57 @@ function Auctions({ ctx }) {
       );
     }
   }
-  // Posts a one-time snapshot of every currently active auction to the
-  // auctions Discord channel, as a single message — separate from
-  // "Put in News" (which features specific items in the in-app popup)
-  // and from the automatic start/end notifications. This is purely a
-  // manual "here's what's live right now" broadcast, triggered only when
-  // an admin clicks the button — nothing scheduled or automatic.
-  function postAllActiveAuctionsToDiscord() {
+  // Builds a real, fetchable image URL for an auction from its stored
+  // filename — Discord's embed thumbnail needs an actual HTTP(S) URL it
+  // can fetch independently; it can't render inline base64 image data
+  // the way an <img> tag in the browser can. This points at the same
+  // public Supabase Storage bucket the app itself already loads auction
+  // images from (see AuctionImage component), just without going through
+  // the base64 data-URL step that component uses for in-app display.
+  function auctionImageUrl(auction) {
+    if (!auction?.image?.name) return null;
+    return `${SUPA_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${auction.image.name}`;
+  }
+  function auctionToEmbed(a) {
+    const bidder = a.topBidder ? `Top bidder: **${a.topBidder}**` : "No bids yet";
+    const imgUrl = auctionImageUrl(a);
+    return {
+      title: a.name,
+      description: `💰 ${fmt(a.currentBid)} coins\n${bidder}\n⏰ ${timeLeft(a.endsAt)} left`,
+      color: 0xc8922a,
+      url: `${window.location.origin}/?page=auctions`,
+      ...(imgUrl ? { thumbnail: { url: imgUrl } } : {}),
+    };
+  }
+  // Posts every currently active auction to the auctions Discord channel
+  // as its own message (with image, current bid, top bidder, time left)
+  // — separate from "Put in News" (which features specific items in the
+  // in-app popup) and from the automatic start/end notifications. This
+  // is purely a manual "here's what's live right now" broadcast,
+  // triggered only when an admin clicks the button.
+  //
+  // Sent in small batches with a pause between each — Discord allows 5
+  // requests per 2 seconds per webhook; firing dozens of messages all at
+  // once would blow through that limit and the later ones would simply
+  // fail. Batching keeps this reliable regardless of how many auctions
+  // are live at once, rather than capping the list and silently dropping
+  // anything past a fixed count.
+  async function postAllActiveAuctionsToDiscord() {
     if (active.length === 0) {
       addToast("There are no active auctions right now.", "red", "Nothing to Post");
       return;
     }
-    // Discord caps plain message content at 2000 characters — cap the
-    // listed items defensively so a large number of simultaneous
-    // auctions can't silently produce a message Discord would reject.
-    const MAX_ITEMS = 15;
-    const shown = active.slice(0, MAX_ITEMS);
-    const lines = shown.map(a => {
-      const bidder = a.topBidder ? ` (top: ${a.topBidder})` : " (no bids yet)";
-      return `• **${a.name}** — ${fmt(a.currentBid)} coins${bidder} — ${timeLeft(a.endsAt)} left`;
-    });
-    const overflow = active.length - shown.length;
-    const overflowLine = overflow > 0 ? `\n…and ${overflow} more` : "";
-    const content = `🔨 **Live Auctions Right Now**\n${lines.join("\n")}${overflowLine}\n\n${window.location.origin}/?page=auctions`;
-    notifyDiscord({ content }, "auctions");
-    addToast(`Posted ${shown.length} active auction${shown.length===1?"":"s"} to Discord.`, "gold", "Posted");
+    addToast(`Posting ${active.length} auction${active.length===1?"":"s"} to Discord — this may take a moment for a large list...`, "gold", "Posting");
+    const BATCH_SIZE = 4;       // stay comfortably under the 5-per-2s limit
+    const BATCH_DELAY_MS = 2200; // a little over 2s, leaving margin for network lag
+    for (let i = 0; i < active.length; i += BATCH_SIZE) {
+      const batch = active.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(a => notifyDiscord({ embeds: [auctionToEmbed(a)] }, "auctions")));
+      if (i + BATCH_SIZE < active.length) {
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+      }
+    }
+    addToast(`Posted all ${active.length} active auctions to Discord.`, "gold", "Posted");
   }
   // True if this specific auction is currently featured in the shared
   // auction-news card — drives the Put-in-News button's toggle state
