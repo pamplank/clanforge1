@@ -1293,6 +1293,17 @@ async function dbLoad(table, columns="*") {
 // fetch everything except image_data; fetch it separately per-item only
 // when needed (e.g. opening an auction's detail/edit view).
 const AUCTION_LIST_COLS = "id,name,description,rarity,status,ends_at,started_at,current_bid,min_bid,top_bidder,image_name,bids";
+// ROOT CAUSE of a real egress (data transfer) overage: the old members
+// poll used `select=*`, re-downloading every member's ENTIRE history
+// (attend_log, tx_log, decay_log, power_log — potentially hundreds of
+// past entries each) every single 5 seconds, for every open browser tab.
+// With 49 members and weeks of accumulated history, this alone could
+// generate several GB per day from just one tab left open. Those log
+// arrays barely change minute-to-minute, so there's no real need to
+// re-fetch them that often — only the few fields that genuinely need to
+// stay live (coins, power, etc.) are fetched on the fast 5s cycle below;
+// the full logs are fetched separately on a much slower cycle instead.
+const MEMBER_LIVE_COLS = "id,name,username,role,cls,power,coins,attendance,join_date,auction_wins,discord,profile_rarity,awakening_level,last_login_ts";
 async function dbLoadAuctionImage(id) {
   try {
     const t = await supa.from("auctions");
@@ -4771,9 +4782,21 @@ function AppInner({ onMusicTrackChange }) {
   // to DB. Everyone else just waits for the poll to pick up the DB change.
   // This prevents a race where 50 clients all simultaneously write status="ended".
   const isCloserRole = currentUser && (currentUser.role === "Master" || currentUser.role === "Elder");
-  // Poll members + attendance_logs every 5s so balances and history stay in sync
+  // TWO-TIER MEMBERS POLL — replaces the old single `select=*` every 5s
+  // that was the root cause of the egress overage (re-downloading every
+  // member's entire log history every 5 seconds, for every open tab).
+  //
+  // Fast poll (5s): only the small fields that genuinely need to stay
+  // live — coins, power, role, etc. Does NOT include the four large log
+  // arrays (attend_log, tx_log, decay_log, power_log) which barely change
+  // minute-to-minute and were responsible for the bulk of the data usage.
+  //
+  // Slow poll (60s): full select=* including all log arrays, for the
+  // union-merge logic that catches anything that might have drifted.
+  // Still correct, just not done wastefully on every 5-second tick.
   useJitteredInterval(async () => {
-      const [mRows, lRows] = await Promise.all([dbLoad("members"), dbLoad("attendance_logs")]);
+      const lRows = await dbLoad("attendance_logs");
+      const mRows = await dbLoad("members", MEMBER_LIVE_COLS);
       if (Array.isArray(lRows) && lRows.length > 0) {
         const fromDb = lRows.map(r => ({
           ...r,
@@ -4782,18 +4805,7 @@ function AppInner({ onMusicTrackChange }) {
           ts:         Number(r.ts) || (Number(r.id) > 1e11 ? Number(r.id) : null) || null,
           attendees:  (() => { try { return typeof r.attendees === "string" ? JSON.parse(r.attendees) : (r.attendees || []); } catch { return []; } })(),
         }));
-        // Merge by id-union instead of overwriting wholesale: a log just
-        // submitted locally may not have round-tripped to the DB yet when
-        // this poll's read started, so a row present only locally (and not
-        // explicitly deleted) is kept rather than dropped. Deleted ids are
-        // tracked in deletedAttendanceIds so a stale DB read can't resurrect
-        // a row the Master intentionally removed.
         setAttendanceLogsRaw(prev => {
-          // Compare by stringified id for the same reason as setAttendanceLogs
-          // above: a row just submitted locally has a numeric Date.now() id,
-          // but once it round-trips through Supabase it comes back as a
-          // string. Comparing raw ids here would never recognize them as the
-          // same entry, duplicating the row instead of reconciling it.
           const dbIds = new Set(fromDb.map(l => String(l.id)));
           const localOnly = prev.filter(l => !dbIds.has(String(l.id)) && !deletedAttendanceIds.current.has(l.id));
           return [...fromDb, ...localOnly].sort((a,b) => (b.ts||0) - (a.ts||0) || new Date(b.date) - new Date(a.date));
@@ -4808,10 +4820,54 @@ function AppInner({ onMusicTrackChange }) {
       setMembersRaw(prev => {
         const incoming = mRows.map(r => ({
           ...r,
-          // Same fix as the initial load: keep id numeric so it matches
-          // local state's ids (m.id === dbM.id below would otherwise
-          // never match, since Supabase's text column always returns a
-          // string).
+          id:          Number(r.id),
+          coins:       Number(r.coins)       || 0,
+          power:       Number(r.power)       || 0,
+          attendance:  Number(r.attendance)  || 0,
+          auctionWins: Number(r.auction_wins ?? r.auctionWins) || 0,
+          joinDate:    r.join_date || r.joinDate || "",
+          profileRarity: r.profile_rarity || "uncommon",
+          awakeningLevel: Number(r.awakening_level) || 0,
+          lastLoginTs: Number(r.last_login_ts) || 0,
+        }));
+        // Fast poll only updates the live fields — never touches the log
+        // arrays, since those aren't included in MEMBER_LIVE_COLS. This
+        // preserves any locally-pending log writes that haven't yet
+        // round-tripped back from the database.
+        return incoming.map(dbM => {
+          const local = prev.find(m => m.id === dbM.id);
+          if (!local) return dbM;
+          return {
+            ...local,
+            coins:         dbM.coins,
+            auctionWins:   dbM.auctionWins,
+            power:         dbM.power,
+            attendance:    dbM.attendance,
+            profileRarity: dbM.profileRarity,
+            awakeningLevel: dbM.awakeningLevel,
+            lastLoginTs:   Math.max(dbM.lastLoginTs || 0, local.lastLoginTs || 0),
+            role:          dbM.role,
+            cls:           dbM.cls,
+            discord:       dbM.discord,
+          };
+        });
+      });
+  }, 5000, 1500, []);
+
+  // Slow poll: full member data including all log arrays, for the
+  // union-merge logic. 60s interval dramatically reduces egress from
+  // the log arrays while still keeping history synced across tabs.
+  useJitteredInterval(async () => {
+      const mRows = await dbLoad("members");
+      if (!Array.isArray(mRows) || mRows.length === 0) return;
+      const safeJson = (v) => {
+        if (Array.isArray(v)) return v;
+        if (typeof v === "string") { try { return JSON.parse(v); } catch { return []; } }
+        return [];
+      };
+      setMembersRaw(prev => {
+        const incoming = mRows.map(r => ({
+          ...r,
           id:          Number(r.id),
           coins:       Number(r.coins)       || 0,
           power:       Number(r.power)       || 0,
@@ -4826,30 +4882,9 @@ function AppInner({ onMusicTrackChange }) {
           awakeningLevel: Number(r.awakening_level) || 0,
           lastLoginTs: Number(r.last_login_ts) || 0,
         }));
-        // Merge: keep local state for fields not in DB, update coins/auctionWins from DB
         return incoming.map(dbM => {
           const local = prev.find(m => m.id === dbM.id);
           if (!local) return dbM;
-          // ROOT CAUSE FIX: this used to compare array LENGTH ("whichever
-          // copy has more entries wins") to decide between the DB's
-          // attend_log and the local one, on the theory that a longer
-          // array means "more up to date." That's unsound: if the DB's
-          // array reached the same length (or longer) for an unrelated
-          // reason — e.g. a different event got logged for this member
-          // in the gap before this specific entry's write had finished
-          // round-tripping — the length check picks the DB version and
-          // silently discards the genuine local entry it doesn't contain,
-          // even though by count it looks "caught up or ahead." That
-          // looked exactly like what was reported: coins from the
-          // attendance went through (a separate write that did land),
-          // but the actual history entry vanished after a poll favored
-          // a DB snapshot that, for unrelated reasons, matched or
-          // exceeded the local array's length without actually
-          // containing the new entry.
-          // The real fix is a content-based union: merge by a real key
-          // (event+ts, since attendLog entries don't carry their own id)
-          // instead of trusting length as a proxy for completeness — any
-          // entry present in either copy survives the merge.
           function unionLogs(dbLog, localLog) {
             const key = (e) => `${e.event}|${e.ts}`;
             const seen = new Set(dbLog.map(key));
@@ -4863,21 +4898,21 @@ function AppInner({ onMusicTrackChange }) {
           }
           return {
             ...local,
-            coins:       dbM.coins,
-            auctionWins: dbM.auctionWins,
-            power:       dbM.power,
-            attendance:  dbM.attendance,
+            coins:         dbM.coins,
+            auctionWins:   dbM.auctionWins,
+            power:         dbM.power,
+            attendance:    dbM.attendance,
             profileRarity: dbM.profileRarity,
             awakeningLevel: dbM.awakeningLevel,
-            lastLoginTs: Math.max(dbM.lastLoginTs || 0, local.lastLoginTs || 0),
-            attendLog:   unionLogs(dbM.attendLog, local.attendLog || []),
-            decayLog:    unionByTs(dbM.decayLog, local.decayLog || []),
-            txLog:       unionByTs(dbM.txLog, local.txLog || []),
-            powerLog:    unionByTs(dbM.powerLog, local.powerLog || []),
+            lastLoginTs:   Math.max(dbM.lastLoginTs || 0, local.lastLoginTs || 0),
+            attendLog:     unionLogs(dbM.attendLog, local.attendLog || []),
+            decayLog:      unionByTs(dbM.decayLog, local.decayLog || []),
+            txLog:         unionByTs(dbM.txLog, local.txLog || []),
+            powerLog:      unionByTs(dbM.powerLog, local.powerLog || []),
           };
         });
       });
-  }, 5000, 1500, []);
+  }, 60000, 5000, []);
 
   // Poll auctions every 3s so all users see live bid updates
   useJitteredInterval(async () => {
