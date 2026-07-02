@@ -4675,6 +4675,19 @@ function AppInner({ onMusicTrackChange }) {
   const deletedAuctionIds = useRef(new Set());
   const endedAuctionIds = useRef(new Set());
   const deletedAttendanceIds = useRef(new Set());
+  // Tracks topBidder as last CONFIRMED by a DB poll read, per auction id —
+  // deliberately separate from the `auctions` React state, which placeBid
+  // updates optimistically (see setAuctions call in placeBid) the instant a
+  // bid succeeds, before the next poll has actually re-read the row. The
+  // outbid-detection check below used to compare against that optimistic
+  // state directly, so if a poll landed between the optimistic update and
+  // the DB catching up with it (any lag — replication, RPC latency, etc.),
+  // it would see "was me a moment ago, now isn't" and fire a false outbid
+  // popup on the bidder's OWN first bid. Comparing against this
+  // poll-confirmed-only map instead means the check can only ever "turn on"
+  // once a poll has actually verified the DB shows you as top bidder — so
+  // an outbid can only be flagged once your own win was for-real confirmed.
+  const confirmedTopBidders = useRef(new Map());
 
   function setAuctions(updater) {
     setAuctionsRaw(prev => {
@@ -4962,28 +4975,31 @@ function AppInner({ onMusicTrackChange }) {
               addToast(`${next.topBidder} won ${next.name} for ${fmt(next.currentBid)} coins!`, "gold", "Auction Ended");
             }
           }
-          // Live in-app outbid detection: this poll already has both the
-          // previous and the fresh state of every auction every 3s — if
-          // the current user WAS the top bidder a moment ago and now
-          // ISN'T (auction still active, not ended — that's a different,
-          // already-handled case above), they were just outbid while
-          // actively on the site. Surfaced as a real popup here, distinct
-          // from the existing push notification (sendPushNotification),
-          // which is the right channel for when they're NOT actively
-          // looking at the app, but is just a fire-and-forget OS-level
-          // notification, not something this code can drive an in-app UI
-          // from.
+          // Live in-app outbid detection: this poll already has the fresh
+          // state of every auction every 3s — if the current user was
+          // CONFIRMED (by a previous poll) as top bidder and now the DB
+          // shows someone else (auction still active, not ended — that's a
+          // different, already-handled case above), they were just outbid
+          // while actively on the site. Surfaced as a real popup here,
+          // distinct from the existing push notification
+          // (sendPushNotification), which is the right channel for when
+          // they're NOT actively looking at the app, but is just a
+          // fire-and-forget OS-level notification, not something this code
+          // can drive an in-app UI from.
           // Reads currentUserRef.current rather than the closed-over
           // currentUser directly — this poll's effect has an empty
           // dependency array ([]), so a direct reference would be frozen
           // at whatever currentUser was when the component first mounted
           // (likely null, before login), never updating after that.
           const liveUser = currentUserRef.current;
+          const auctionKey = String(next.id);
+          const prevConfirmed = confirmedTopBidders.current.get(auctionKey);
           if (
             next.status === "active" &&
-            prevA?.topBidder === liveUser?.name &&
+            !!liveUser?.name &&
+            prevConfirmed === liveUser.name &&
             next.topBidder &&
-            next.topBidder !== liveUser?.name
+            next.topBidder !== liveUser.name
           ) {
             setOutbidPopup({
               auctionId: next.id,
@@ -4992,6 +5008,7 @@ function AppInner({ onMusicTrackChange }) {
               outbidBy: next.topBidder,
             });
           }
+          confirmedTopBidders.current.set(auctionKey, next.topBidder ?? null);
           return next;
         }).filter(a => !deletedAuctionIds.current.has(a.id));
         return updated;
