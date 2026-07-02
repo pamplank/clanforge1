@@ -1395,7 +1395,10 @@ async function finalizeAuctionClose(localFallback, canWriteClose, setMembers, ad
       top_bidder:  fresh.topBidder ?? null,
       min_bid:     fresh.minBid ?? fresh.startBid ?? 0,
       image_name:  fresh.image?.name ?? null,
-      bids:        JSON.stringify(fresh.bids ?? []),
+      // See setAuctions for why this must NOT be JSON.stringify'd again —
+      // `bids` is a genuine jsonb array column and dbUpsert already
+      // stringifies the whole row object once.
+      bids:        fresh.bids ?? [],
     };
     if (endImageData) endRow.image_data = endImageData;
     dbUpsert("auctions", endRow);
@@ -4715,7 +4718,14 @@ function AppInner({ onMusicTrackChange }) {
           top_bidder:  a.topBidder ?? null,
           min_bid:     a.minBid ?? a.startBid ?? 0,
           image_name:  a.image?.name ?? null,
-          bids:        JSON.stringify(a.bids ?? []),
+          // `bids` is a genuine jsonb array column (see place_bid_atomic) —
+          // dbUpsert already JSON.stringifies the whole `row` object once
+          // when building the HTTP body, exactly like every other field
+          // here. Stringifying this value AGAIN would double-encode it
+          // into a jsonb STRING scalar (e.g. "[]") instead of a real jsonb
+          // ARRAY, breaking place_bid_atomic's `bids || jsonb_build_array(...)`
+          // concatenation for any row that goes through this write path.
+          bids:        a.bids ?? [],
         };
         if (endsAtChanged) row.ending_soon_notified = false;
         // Only write image_data if we actually have it — never overwrite DB with null
