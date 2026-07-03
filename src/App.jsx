@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 
 // ─── SUPABASE CONFIG ──────────────────────────────────────────────────────────
 // These come from environment variables (set per-deployment in Vercel,
@@ -82,6 +83,9 @@ const TRANSLATIONS = {
     coinsLabel: "coins",
     welcomeBackTitle: "Welcome back,",
     loginSummaryDesc: "Here's what happened since your last visit:",
+    sinceLastVisitLabel: "Since Your Last Visit",
+    featuredCountLabel: "featured",
+    closestEndsLabel: "closest ends in",
     currentBalanceLabel: "Your current balance",
     fromAttendance: "from attendance",
     fromBonuses: "from bonuses",
@@ -124,6 +128,8 @@ const TRANSLATIONS = {
     navSection_main: "Main",
     navSection_management: "Management",
     navSection_reports: "Reports",
+    navSection_myClan: "My Clan",
+    navSection_adminTools: "Admin Tools",
     // Nav sub-items
     sub_clanStats: "Clan Stats",
     sub_worldBoss: "World Boss",
@@ -146,6 +152,7 @@ const TRANSLATIONS = {
     liveAuctions: "Live Auctions",
     clanTotalPower: "Clan Total Power",
     acrossWarriors: "Across {count} warriors",
+    reigningChampion: "Reigning Champion",
     yourPower: "Your power",
     yourCoins: "Your coins",
     classComposition: "Class Composition",
@@ -204,6 +211,9 @@ const TRANSLATIONS = {
     tabBonuses: "Bonuses",
     tabMyLog: "My Points History",
     tabGlobalLog: "Global Points Log",
+    totalLogsLabel: "Total Logs",
+    thisWeekLabel: "This Week",
+    latestEventLabel: "Latest Event",
     elderOnlyAttendance: "Only Elders and Leaders can record attendance.",
     coinRules: "Coin Rules",
     full: "Full",
@@ -292,6 +302,8 @@ const TRANSLATIONS = {
     tabAuctionHistory: "History",
     tabLootRoulette: "Loot Roulette",
     tabCreateAuction: "Create Auction",
+    liveBidValueLabel: "Live Bid Value",
+    endingSoonestLabel: "Ending Soonest",
     sortLabel: "Sort:",
     viewLabel: "View:",
     sortDefault: "Default",
@@ -626,6 +638,9 @@ const TRANSLATIONS = {
     coinsLabel: "金币",
     welcomeBackTitle: "欢迎回来，",
     loginSummaryDesc: "这是您上次访问后发生的事情：",
+    sinceLastVisitLabel: "自您上次访问以来",
+    featuredCountLabel: "件上架",
+    closestEndsLabel: "最近将于",
     currentBalanceLabel: "您当前的余额",
     fromAttendance: "来自出勤",
     fromBonuses: "来自奖励",
@@ -668,6 +683,8 @@ const TRANSLATIONS = {
     navSection_main: "主菜单",
     navSection_management: "管理",
     navSection_reports: "报告",
+    navSection_myClan: "我的公会",
+    navSection_adminTools: "管理工具",
     // Nav sub-items
     sub_clanStats: "公会统计",
     sub_worldBoss: "世界首领",
@@ -690,6 +707,7 @@ const TRANSLATIONS = {
     liveAuctions: "进行中的拍卖",
     clanTotalPower: "军团总战力",
     acrossWarriors: "共 {count} 名勇士",
+    reigningChampion: "在位冠军",
     yourPower: "你的战力",
     yourCoins: "你的金币",
     classComposition: "职业构成",
@@ -748,6 +766,9 @@ const TRANSLATIONS = {
     tabBonuses: "奖励",
     tabMyLog: "我的积分历史",
     tabGlobalLog: "全局积分日志",
+    totalLogsLabel: "总记录数",
+    thisWeekLabel: "本周",
+    latestEventLabel: "最新活动",
     elderOnlyAttendance: "只有长老和首领可以记录出勤。",
     coinRules: "金币规则",
     full: "全勤",
@@ -833,6 +854,8 @@ const TRANSLATIONS = {
     tabAuctionHistory: "历史记录",
     tabLootRoulette: "战利品轮盘",
     tabCreateAuction: "创建拍卖",
+    liveBidValueLabel: "实时竞价总额",
+    endingSoonestLabel: "即将结束",
     sortLabel: "排序：",
     viewLabel: "视图：",
     sortDefault: "默认",
@@ -1286,7 +1309,7 @@ const supa = {
 };
 
 async function dbLoad(table, columns="*") {
-  try { const t = await supa.from(table); return await t.select(columns); } catch { return null; }
+  try { const t = await supa.from(table); return await t.select(columns); } catch (e) { console.error(`dbLoad(${table}) failed:`, e); return null; }
 }
 // auctions.image_data stores base64 image blobs that can be large enough
 // to cause "select=*" to hit the statement timeout. List/poll queries
@@ -1680,14 +1703,31 @@ const PROFILE_RANK1_VIDEO = {
     bg:    `${PROFILE_ASSETS_BASE}/archer_bg.webp`,
   },
 };
-// One-line flavor tagline shown next to the character on the rank-1 video
-// page (the open space beside the sidebar) — same pattern as the reference
-// site's "Ruthless and Bloodthirsty Fighter" under each class name. Only
-// Archer has one for now; other classes simply don't show this block
-// until a tagline's added here, same graceful-fallback approach as the
-// mythic portraits and rank-1 videos above.
-// Keyed by class, then by power rank (1 or 2) — restructured from a
-// flat per-class map because rank 1 and rank 2 can be the SAME class
+// Static per-class background stills for the ranks 4-10 "notable roster"
+// banner (Player Info page) — separate from PROFILE_RANK1_VIDEO above
+// since these are confirmed uploaded for all 6 classes already (verified
+// directly against the storage bucket), unlike the intro/looping videos
+// which currently only exist for Archer. "Rune Fighter" -> "runefighter"
+// (no space/underscore) was confirmed the same way, since it's the one
+// class name that doesn't lowercase-map obviously.
+const PROFILE_CLASS_BG = {
+  "Archer":       `${PROFILE_ASSETS_BASE}/archer_bg.webp`,
+  "Berserker":    `${PROFILE_ASSETS_BASE}/berserker_bg.webp`,
+  "Warlord":      `${PROFILE_ASSETS_BASE}/warlord_bg.webp`,
+  "Skald":        `${PROFILE_ASSETS_BASE}/skald_bg.webp`,
+  "Volva":        `${PROFILE_ASSETS_BASE}/volva_bg.webp`,
+  "Rune Fighter": `${PROFILE_ASSETS_BASE}/runefighter_bg.webp`,
+};
+// One-line flavor tagline shown next to the character on the rank-1/2/3
+// video page (the open space beside the sidebar) — same pattern as the
+// reference site's "Ruthless and Bloodthirsty Fighter" under each class
+// name. Populated for all 6 classes now, even though PROFILE_RANK1_VIDEO
+// above only has assets for Archer — this text is inert (never rendered)
+// until a class also has video assets, same graceful-fallback approach as
+// the mythic portraits, so it's ready the moment the remaining classes'
+// intro/looping videos are uploaded rather than needing a second pass.
+// Keyed by class, then by power rank (1, 2, or 3) — restructured from a
+// flat per-class map because two of the top 3 can be the SAME class
 // (e.g. two Archers), and they need their own distinct tagline/flavor
 // text rather than literally identical copy just because they share a
 // class and video asset.
@@ -1695,9 +1735,35 @@ const CLASS_TAGLINES = {
   "Archer": {
     1: "Precise and Unforgiving Hunter",
     2: "Relentless Marksman of the Arena",
+    3: "Sharp-Eyed Vanguard of the Hunt",
+  },
+  "Berserker": {
+    1: "Unstoppable Fury Incarnate",
+    2: "Undefeated Storm of Blades",
+    3: "Feared Vanguard of Ruin",
+  },
+  "Warlord": {
+    1: "Undisputed Master of the Field",
+    2: "Iron Will of the Clan",
+    3: "Battle-Forged Commander",
+  },
+  "Skald": {
+    1: "Voice That Rallies Armies",
+    2: "Keeper of a Thousand Victories",
+    3: "Bard of the Battle-Line",
+  },
+  "Volva": {
+    1: "Seer of Fates Unwritten",
+    2: "Whisperer of the Old Ways",
+    3: "Oracle of the Coming Storm",
+  },
+  "Rune Fighter": {
+    1: "Blade Bound in Ancient Runes",
+    2: "Warrior of the Old Script",
+    3: "Runeblade of the Vanguard",
   },
 };
-// Short lore/flavor line for the second, lower section on the rank-1/2
+// Short lore/flavor line for the second, lower section on the rank-1/2/3
 // video page — positioned further down than the title block so it clears
 // the rune circle's lower arc instead of crossing through it. Same
 // per-class-then-per-rank, graceful-fallback pattern as CLASS_TAGLINES.
@@ -1705,6 +1771,32 @@ const CLASS_FLAVOR_LINES = {
   "Archer": {
     1: "No target escapes her sight. Every arrow loosed has found its mark.",
     2: "He has broken more duelists than he can count. His bowstring sings only one note: victory.",
+    3: "Her aim thins every enemy line before the clash even begins.",
+  },
+  "Berserker": {
+    1: "She wades into battle laughing, and the battlefield remembers why. No shield has ever held against her for long.",
+    2: "His rage has broken shield walls and reputations alike. Few dare stand where he chooses to fight.",
+    3: "Every clash leaves fewer standing. Her charge is the last sound many enemies ever hear.",
+  },
+  "Warlord": {
+    1: "Armies fall in line at a single word from her. Where she stands, the battle is already decided.",
+    2: "His command has turned routs into victories more times than anyone can count.",
+    3: "Every warrior under his banner fights harder, knowing he never yields ground.",
+  },
+  "Skald": {
+    1: "Her songs have turned the tide of battles no blade could win alone. Warriors fight fiercer when she sings.",
+    2: "His verses are sung in every hall of the clan — each one earned in blood and glory.",
+    3: "Where her voice carries, courage follows. The clan fights on when she calls them forward.",
+  },
+  "Volva": {
+    1: "She reads the battle before it begins, and bends it to her will before the first blow lands.",
+    2: "His visions have saved the clan from ruin more than once. Few question what he foresees.",
+    3: "Every rune she casts reveals a path others cannot see. The clan walks it because she's never wrong.",
+  },
+  "Rune Fighter": {
+    1: "Her strikes carry a weight no ordinary steel can match. Runes glow brightest when she draws her blade.",
+    2: "Every rune he's mastered adds another edge no enemy has found a way past.",
+    3: "Steel and sorcery move as one in her hands. Few survive to describe how she fights.",
   },
 };
 
@@ -2365,6 +2457,11 @@ body{
   background-position:0% 0%,0% 0%,0 0,center top;
   background-repeat:no-repeat,no-repeat,no-repeat,no-repeat;
   color:var(--text);font-family:'Inter',sans-serif;font-size:16px;min-height:100vh;
+  /* Companion to .sidebar::before's 100vw full-bleed cloud overlay — 100vw
+     can be a hair wider than the visible viewport on some browsers (it
+     doesn't subtract the scrollbar's own width), which would otherwise
+     introduce a few px of unwanted horizontal scroll on every page. */
+  overflow-x:hidden;
 }
 ::-webkit-scrollbar{width:5px;height:5px;}
 ::-webkit-scrollbar-track{background:var(--bg-dark);}
@@ -2514,118 +2611,109 @@ body.bg-leaderboard{
 /* ── APP SHELL ── */
 .app-shell{display:flex;flex-direction:column;min-height:100vh;}
 
-/* ── NAV WRAPPER — centered island with top margin & large side margins ── */
-.nav-wrapper{
-  position:sticky;top:10px;z-index:100;
-  display:flex;justify-content:center;
-  padding:0 80px;
-  pointer-events:none;
-  overflow:visible;
-}
+/* ── TOP NAV — spacious horizontal bar (Legend of Ymir reference) ── */
+.nav-wrapper{}
 .sidebar{
   pointer-events:all;
-  width:100%;
-  max-width:1400px;
-  background:linear-gradient(90deg,rgba(14,11,9,0.99),rgba(11,8,6,0.99));
-  border:1px solid var(--border-bright);
-  border-radius:10px;
-  display:flex;flex-direction:row;align-items:center;
-  height:52px;
-  padding:0 20px;
+  /* fixed rather than sticky — sticky reserves its own space in the
+     .app-shell flex column, which is fine in theory, but fixed guarantees
+     it stays pinned to the viewport regardless of any ancestor's overflow/
+     scroll-container quirks. .main below carries the compensating
+     margin-top so content doesn't render underneath it. */
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  width:100%;height:68px;
+  background:none;border:none;box-shadow:none;
+  display:grid;grid-template-columns:auto 1fr auto;align-items:center;
+  padding:0 clamp(20px,4vw,64px);
   flex-shrink:0;
-  box-shadow:0 4px 32px rgba(0,0,0,0.7),0 0 0 1px rgba(201,151,42,0.08);
-  position:relative;
-  overflow:visible;
 }
-.sidebar::after{
-  content:'';position:absolute;bottom:0;left:10%;right:10%;height:1px;
-  background:linear-gradient(90deg,transparent,var(--gold-dim),transparent);
+/* Soft misty cloud gradient behind the nav row instead of a solid bar —
+   taller than the bar itself and masked to fade out downward, so it reads
+   as mist drifting behind the nav rather than a hard-edged background
+   image. Negative z-index keeps it behind the nav content without needing
+   every nav child to carry its own z-index. */
+.sidebar::before{
+  content:'';
+  /* Full-bleed trick: anchored to the exact viewport width via left:50% +
+     width:100vw + translateX(-50%), rather than left:0;right:0 relative to
+     .sidebar's own box — that version wasn't reliably reaching the true
+     screen edge. This version is anchored to the viewport directly, so
+     it's independent of .sidebar's own width/padding/box model entirely. */
+  position:absolute;top:0;left:50%;width:100vw;transform:translateX(-50%);height:240px;
+  background-image:url(/images/cloud.webp);
+  background-size:100% auto;background-position:top center;background-repeat:no-repeat;
+  -webkit-mask-image:linear-gradient(to bottom, black 0%, black 20%, transparent 92%);
+  mask-image:linear-gradient(to bottom, black 0%, black 20%, transparent 92%);
   pointer-events:none;
+  z-index:-1;
 }
 .sidebar-logo{
-  padding:0 14px 0 2px;
-  border-right:1px solid var(--border);
-  margin-right:8px;
-  display:flex;align-items:center;
-  height:100%;flex-shrink:0;
+  grid-column:1;
+  padding:0;border:none;margin:0;
+  display:flex;align-items:center;justify-content:center;
+  width:auto;height:auto;flex-shrink:0;
 }
 .sidebar-logo-mark{
-  width:24px;height:24px;object-fit:contain;display:block;
+  width:40px;height:40px;object-fit:contain;display:block;
   filter:drop-shadow(0 0 5px rgba(201,151,42,0.4));
 }
 .logo-emblem{font-size:20px;filter:drop-shadow(0 0 8px rgba(200,146,42,0.8));}
 .logo-title{font-family:'Spectral',serif;font-size:14px;font-weight:800;color:var(--gold-light);letter-spacing:1.5px;text-align:left;line-height:1;}
 .logo-sub{font-size:7px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;font-weight:600;margin-top:2px;text-align:left;line-height:1;}
 
-.nav-section{display:flex;flex-direction:row;align-items:center;gap:0;padding:0 2px;}
-.nav-label{display:none;}
-.nav-item{
-  display:flex;align-items:center;gap:7px;
-  padding:0 13px;cursor:pointer;
-  color:var(--text-dim);font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;
-  transition:all 0.25s;border-radius:5px;
-  font-family:'Inter',sans-serif;
-  position:relative;height:38px;white-space:nowrap;margin:0 1px;
+/* Main "My Clan" row — generous gaps are the whole point of this redesign.
+   grid-column:2 + justify-content:center means it's truly centered in the
+   bar as a whole, not just centered within the leftover space next to the
+   logo (which would drift off-center whenever the logo/icon groups differ
+   in width). */
+/* clamp()-based sizing (not fixed px) so the row scales proportionally
+   between the mobile breakpoint and very wide desktop monitors, instead of
+   staying rigidly one size and either cramping on narrower windows or
+   looking undersized/lost on ultra-wide ones. */
+.topnav-items{grid-column:2;display:flex;align-items:center;justify-content:center;gap:clamp(20px,3vw,40px);}
+.topnav-item{
+  position:relative;
+  font-family:'Spectral',serif;font-weight:600;
+  font-size:clamp(11px,0.85vw,14px);
+  letter-spacing:clamp(1px,0.15vw,2px);text-transform:uppercase;
+  color:var(--text-mid);cursor:pointer;
+  padding:4px 0;white-space:nowrap;
+  transition:color 0.2s;
+  display:flex;align-items:center;gap:6px;
 }
-.nav-item::before{
-  content:'';position:absolute;bottom:0;left:10%;right:10%;height:1px;
-  background:linear-gradient(90deg,transparent,var(--gold),transparent);
-  opacity:0;transition:opacity 0.25s;
+.topnav-item:hover{color:var(--gold-light);}
+.topnav-item.active{color:var(--gold-bright);}
+.topnav-item.active::after{
+  content:'';position:absolute;left:0;right:0;bottom:-10px;height:2px;
+  background:var(--gold);
 }
-.nav-item:hover{color:var(--gold-light);background:rgba(200,146,42,0.08);}
-.nav-item:hover::before{opacity:0.5;}
-.nav-item.active{
-  color:var(--gold-bright);
-  background:linear-gradient(180deg,rgba(200,146,42,0.18) 0%,rgba(200,146,42,0.06) 100%);
-  box-shadow:inset 0 0 0 1px rgba(201,151,42,0.3), 0 0 12px rgba(200,146,42,0.12);
-}
-.nav-item.active::before{opacity:1;}
-.nav-item.active::after{
-  content:'';position:absolute;top:0;left:10%;right:10%;height:1px;
-  background:linear-gradient(90deg,transparent,rgba(200,146,42,0.6),transparent);
-}
-.nav-icon{display:flex;align-items:center;justify-content:center;opacity:0.7;flex-shrink:0;}
-.nav-item.active .nav-icon{opacity:1;filter:drop-shadow(0 0 4px rgba(200,146,42,0.7));}
-.nav-section-divider{width:1px;height:22px;background:linear-gradient(180deg,transparent,rgba(200,146,42,0.2),transparent);margin:0 4px;flex-shrink:0;}
-/* ── NAV DROPDOWN ── */
-.nav-group{position:relative;display:flex;align-items:center;}
-.nav-group:hover .nav-dropdown,.nav-group.dd-open .nav-dropdown{opacity:1;pointer-events:all;transform:translateX(-50%) translateY(0);}
-.nav-dropdown{
-  position:absolute;top:100%;left:50%;transform:translateX(-50%) translateY(-6px);
-  background:transparent;
-  padding-top:10px;
+.topnav-item-chevron{font-size:8px;opacity:0.6;transition:transform 0.18s;}
+.topnav-item.dd-open .topnav-item-chevron{transform:rotate(180deg);}
+
+/* Admin Tools dropdown — reuses the same dark/gold-bordered panel look as
+   the profile dropdown (.user-dropdown-inner) rather than inventing a
+   fourth visual style for popovers in this app. */
+.topnav-admin{position:relative;}
+.topnav-admin-dropdown{
+  position:absolute;top:100%;left:0;
+  padding-top:14px;
   opacity:0;pointer-events:none;
+  transform:translateY(-6px);
   transition:opacity 0.18s, transform 0.18s;
   z-index:9999;
 }
-.nav-dropdown-inner{
-  background:linear-gradient(160deg,rgba(16,12,10,0.99),rgba(12,9,7,0.99));
-  border:1px solid var(--border-bright);border-radius:8px;
-  min-width:170px;padding:6px 0;
-  box-shadow:0 12px 40px rgba(0,0,0,0.9),0 0 0 1px rgba(201,151,42,0.06);
-}
-.nav-dropdown-inner::before{
-  content:'';position:absolute;top:-6px;left:50%;transform:translateX(-50%);
-  border:6px solid transparent;border-bottom-color:var(--border-bright);
-  border-top:none;
-}
-.nav-dropdown-inner{position:relative;}
-.nav-dd-item{
-  display:flex;align-items:center;gap:8px;
-  padding:8px 16px;cursor:pointer;
-  color:var(--text-mid);font-size:10px;font-weight:700;letter-spacing:1px;
-  text-transform:uppercase;font-family:'Inter',sans-serif;
-  transition:all 0.15s;white-space:nowrap;
-}
-.nav-dd-item:hover{color:var(--gold-light);background:rgba(200,146,42,0.08);}
-.nav-dd-item.active{color:var(--gold-bright);}
+.topnav-admin.dd-open .topnav-admin-dropdown{opacity:1;pointer-events:all;transform:translateY(0);}
+
+.nav-section-divider{width:calc(100% - 32px);height:1px;background:linear-gradient(90deg,transparent,rgba(200,146,42,0.2),transparent);margin:10px 16px;flex-shrink:0;}
+.nav-item-badge{display:inline-flex;align-items:center;justify-content:center;min-width:15px;height:15px;padding:0 4px;margin-left:4px;border-radius:50%;background:#e85d3a;color:#fff;font-size:9px;font-weight:900;flex-shrink:0;}
 .nav-dd-sep{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:4px 10px;}
 .nav-dd-label{
   font-size:8px;font-weight:700;letter-spacing:2.5px;color:var(--text-dim);
   padding:6px 16px 2px;text-transform:uppercase;font-family:'Inter',sans-serif;
 }
-/* ── PROFILE CHIP (replaces old separate avatar + "Menu" button) ── */
-.user-menu{position:relative;margin-left:auto;padding-left:10px;flex-shrink:0;}
+/* ── ICON GROUP (right side) — profile chip + language switcher ── */
+.topnav-icons{grid-column:3;display:flex;align-items:center;gap:18px;flex-shrink:0;}
+.user-menu{position:relative;flex-shrink:0;}
 .user-menu:hover .user-dropdown,.user-menu.dd-open .user-dropdown{opacity:1;pointer-events:all;transform:translateY(0);}
 .profile-chip{
   box-sizing:border-box;
@@ -2654,9 +2742,9 @@ body.bg-leaderboard{
 .profile-chip:hover .profile-chip-caret,.user-menu.dd-open .profile-chip-caret{color:var(--gold-light);}
 .user-menu.dd-open .profile-chip-caret{transform:rotate(180deg);}
 .user-dropdown{
-  position:absolute;top:100%;right:0;
+  position:absolute;top:100%;bottom:auto;right:0;left:auto;
   background:transparent;
-  padding-top:10px;
+  padding-top:10px;padding-bottom:0;
   opacity:0;pointer-events:none;
   transform:translateY(-6px);
   transition:opacity 0.18s, transform 0.18s;
@@ -2691,7 +2779,7 @@ body.bg-leaderboard{
 .user-coins{font-size:11px;color:var(--gold);font-family:'Inter',sans-serif;font-weight:700;}
 
 /* ── HAMBURGER ── */
-.hamburger{display:none;flex-direction:column;justify-content:center;gap:5px;cursor:pointer;
+.hamburger{grid-column:3;display:none;flex-direction:column;justify-content:center;gap:5px;cursor:pointer;
   padding:6px;margin-left:auto;flex-shrink:0;background:none;border:none;}
 .hamburger span{display:block;width:20px;height:2px;background:var(--gold-light);border-radius:2px;
   transition:all 0.3s;}
@@ -2717,6 +2805,7 @@ body.bg-leaderboard{
 .drawer-nav{padding:12px 0;flex:1;}
 .drawer-section-label{font-size:8px;font-weight:700;letter-spacing:3px;text-transform:uppercase;
   color:var(--text-dim);padding:10px 20px 6px;font-family:'Inter',sans-serif;}
+.drawer-section-label.collapsible{cursor:pointer;color:#e07070;display:flex;align-items:center;}
 .drawer-nav-item{display:flex;align-items:center;gap:10px;padding:11px 20px;cursor:pointer;
   color:var(--text-mid);font-size:13px;font-weight:600;letter-spacing:0.5px;
   transition:all 0.2s;border-left:2px solid transparent;font-family:'Inter',sans-serif;}
@@ -2728,7 +2817,7 @@ body.bg-leaderboard{
 .drawer-user-actions{display:flex;gap:8px;flex-wrap:wrap;}
 
 /* ── MAIN ── */
-.main{flex:1;display:flex;flex-direction:column;margin-top:10px;}
+.main{flex:1;display:flex;flex-direction:column;margin-top:68px;margin-left:0;}
 .topbar{
   padding:20px 80px 28px;display:flex;align-items:center;justify-content:space-between;
   flex-wrap:wrap;gap:12px;
@@ -2758,22 +2847,20 @@ tbody tr:last-child td{border-bottom:none;}
 
 /* ── RESPONSIVE ── */
 @media(max-width:1100px){
-  .nav-wrapper{padding:0 40px;}
   .topbar{padding:13px 40px;}
   .content{padding:28px 40px;}
 }
 @media(max-width:900px){
-  .nav-wrapper{padding:0 20px;}
   .topbar{padding:12px 20px;}
   .content{padding:20px 20px;}
-  
+
 }
 @media(max-width:700px){
-  .nav-wrapper{padding:0 12px;top:8px;}
-  .sidebar{padding:0 14px;height:48px;}
-  .nav-section,.user-menu{display:none;}
+  .sidebar{height:48px;padding:0 14px;}
+  .sidebar::before{height:140px;}
+  .topnav-items,.topnav-icons{display:none;}
   .hamburger{display:flex;}
-  .main{margin-top:8px;}
+  .main{margin-top:48px;margin-left:0;}
   .topbar{padding:10px 16px;}
   .topbar .page-title{font-size:18px;text-align:left;}
   .topbar .page-sub{text-align:left;}
@@ -2849,6 +2936,42 @@ tbody tr:last-child td{border-bottom:none;}
   border-color:rgba(26,90,138,0.5);
   background:linear-gradient(135deg,var(--bg-card) 0%,rgba(26,90,138,0.07) 100%);
 }
+
+/* ── PREMIUM PANELS — the Clan HQ dashboard's ornament language (gradient
+   panel + hover lift/glow), now also reused on Attendance for visual
+   consistency across pages. Deliberately NOT part of .card (used 37+ times
+   app-wide) so this treatment stays opt-in rather than leaking everywhere. */
+.dash-panel{
+  transition:transform 0.2s ease-out, box-shadow 0.2s ease-out, border-color 0.2s ease-out;
+}
+.dash-panel:hover{
+  transform:translateY(-2px);
+  box-shadow:0 10px 32px rgba(0,0,0,0.6), 0 0 20px rgba(200,146,42,0.12);
+  border-color:rgba(200,146,42,0.5)!important;
+}
+/* Lighter-weight sibling for repeated list-item cards (log rows, per-member
+   bonus cards) — same panel material as .dash-panel, but no corner-bracket
+   ornamentation, since dozens of bracket sets on a long list reads as
+   cluttered rather than premium. Brackets stay reserved for the handful of
+   distinct structural panels per page. */
+.dash-subcard{
+  background:linear-gradient(135deg,#161110 0%,#1c1410 60%,#161110 100%);
+  border:1px solid rgba(200,146,42,0.15);border-radius:5px;
+  transition:border-color 0.2s ease-out, background 0.2s ease-out;
+}
+.dash-subcard:hover{border-color:rgba(200,146,42,0.35);}
+
+/* Connected-spine bulleting for the Welcome Back popup's activity digest
+   — a single vertical line with a small glowing dot per row, colored
+   per category via each row's own --dot custom property, instead of
+   giving every category its own separately bordered box. Pseudo-
+   elements can't be expressed as inline styles, hence real CSS classes
+   here rather than the usual style={{}} objects used everywhere else. */
+.login-summary-spine{position:relative;padding-left:20px;}
+.login-summary-spine::before{content:'';position:absolute;left:5px;top:6px;bottom:6px;width:1px;background:linear-gradient(180deg,rgba(200,146,42,0.5),rgba(200,146,42,0.1));}
+.login-summary-row{position:relative;padding:9px 0;border-bottom:1px solid rgba(200,146,42,0.08);}
+.login-summary-row:last-child{border-bottom:none;}
+.login-summary-row::before{content:'';position:absolute;left:-19px;top:16px;width:7px;height:7px;border-radius:50%;background:var(--dot,var(--gold));box-shadow:0 0 6px var(--dot,var(--gold));}
 
 .stat-card{text-align:center;padding:28px 16px;overflow:hidden;}
 .dashboard-banner-left{text-align:left!important;}
@@ -3068,12 +3191,35 @@ tbody tr:last-child td{border-bottom:none;}
 .tab:hover{color:var(--gold-light);}
 .tab.active{color:var(--gold-bright);border-bottom-color:var(--gold);}
 
+/* ── DASH TABS — same underline-tab mechanics as .tabs/.tab (kept as a
+   separate scoped class rather than editing .tab directly, since .tab is
+   shared with at least one other page), styled to match the top nav's
+   Spectral-serif + wider tracking instead of Inter, for full nav→hero→tabs
+   consistency on pages using the Clan HQ ornament language. ── */
+.dash-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:24px;position:relative;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.dash-tabs::-webkit-scrollbar{height:0;}
+.dash-tabs::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--border),transparent);}
+.dash-tab{
+  padding:10px 24px;cursor:pointer;color:var(--text-mid);
+  font-family:'Spectral',serif;font-size:13px;font-weight:600;letter-spacing:2px;text-transform:uppercase;
+  border-bottom:2px solid transparent;margin-bottom:-1px;
+  transition:all 0.2s;white-space:nowrap;flex-shrink:0;
+}
+.dash-tab:hover{color:var(--gold-light);}
+.dash-tab.active{color:var(--gold-bright);border-bottom-color:var(--gold);text-shadow:0 0 12px rgba(200,146,42,0.4);}
+
 /* ── AUCTION CARD ── */
 .auction-card{min-width:0;word-break:break-word;
   background:var(--bg-card);border:1px solid var(--border);
-  border-radius:4px;overflow:hidden;transition:all 0.25s;
+  border-radius:4px;overflow:hidden;
+  /* box-shadow/border-color only — NOT transform: the hover-reveal cards
+     drive their own scale/lift via framer-motion's whileHover (spring
+     physics), and a CSS transition on the same "transform" property would
+     fight the motion-value updates framer-motion writes inline. */
+  transition:box-shadow 0.25s, border-color 0.25s;
 }
-.auction-card:hover{box-shadow:0 6px 30px rgba(0,0,0,0.5);transform:translateY(-2px);}
+.auction-card:hover{box-shadow:0 6px 30px rgba(0,0,0,0.5);}
 .auction-card.rarity-epic{border-color:rgba(122,26,26,0.5);}
 .auction-card.rarity-epic:hover{border-color:var(--blood-light);box-shadow:0 6px 30px rgba(122,26,26,0.2);}
 .auction-card.rarity-rare{border-color:rgba(26,90,138,0.5);}
@@ -3238,6 +3384,38 @@ tbody tr:last-child td{border-bottom:none;}
 @keyframes profileCardShimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
 @keyframes fadeInUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
 
+/* ── LOADING SIGIL — "awakening ward circle" loading indicator ──
+   A static central icon (not spinning, unlike the old generic spinner)
+   with a slow breathing glow, ringed by a thin tick-mark circle that
+   rotates almost imperceptibly (60s/revolution) — reads as an ancient
+   seal coming alive rather than a UI loading spinner. Pure CSS
+   transform/opacity animations only, no new image/font assets, so it
+   costs nothing extra on top of actual load time. */
+@keyframes sigilSpin{to{transform:rotate(360deg);}}
+@keyframes sigilBreathe{
+  0%,100%{opacity:0.55;transform:scale(0.94);}
+  50%{opacity:1;transform:scale(1.05);}
+}
+.loading-sigil{position:relative;width:120px;height:120px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.loading-sigil-ring{
+  position:absolute;inset:0;border-radius:50%;
+  background:repeating-conic-gradient(var(--gold-dim) 0deg 3deg, transparent 3deg 18deg);
+  -webkit-mask:radial-gradient(closest-side, transparent calc(100% - 6px), #000 calc(100% - 6px));
+  mask:radial-gradient(closest-side, transparent calc(100% - 6px), #000 calc(100% - 6px));
+  animation:sigilSpin 60s linear infinite;
+}
+.loading-sigil-glow{
+  position:absolute;width:70px;height:70px;border-radius:50%;
+  background:radial-gradient(circle, rgba(200,146,42,0.45), rgba(168,50,40,0.15) 60%, transparent 75%);
+  filter:blur(6px);
+  animation:sigilBreathe 2.2s ease-in-out infinite;
+}
+.loading-sigil-icon{position:relative;z-index:1;display:flex;filter:drop-shadow(0 0 6px rgba(230,176,72,0.6));}
+@media (prefers-reduced-motion: reduce){
+  .loading-sigil-ring{animation:none;}
+  .loading-sigil-glow{animation:none;opacity:0.85;transform:none;}
+}
+
 /* ── MISC ── */
 .pulse{animation:pulse 2s infinite;}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.6;}}
@@ -3364,9 +3542,6 @@ tbody tr:last-child td{border-bottom:none;}
 /* ── RESPONSIVE ── */
 @media(max-width:900px){
   .grid-4{grid-template-columns:1fr 1fr;}.grid-3{grid-template-columns:1fr 1fr;}
-}
-@media(max-width:720px){
-  .nav-item{padding:0 9px;font-size:10px;}
 }
 @media(max-width:640px){
   .content{padding:16px 20px;}.grid-2,.grid-3,.grid-4{grid-template-columns:1fr;}
@@ -3697,6 +3872,16 @@ function LoginScreen({ members, onLogin }) {
     onLogin(m);
   }
 
+  // Clan Total Power + Reigning Champion — both computed straight from
+  // members (already passed to this screen), same "sum of all power" /
+  // "top by power" logic used by the Dashboard hero and the Leaderboard
+  // podium, so these numbers always agree with what's shown once logged
+  // in. Guarded for an empty members array (fresh clan, nothing seeded
+  // yet) so the login screen never shows a misleading "0 Power" moment —
+  // both blocks simply don't render instead.
+  const totalPower = members.reduce((s,m)=>s+(m.power||0),0);
+  const topByPower = members.length > 0 ? [...members].sort((a,b)=>b.power-a.power)[0] : null;
+
   // Rendered via a portal straight into <body>, NOT in place. This is
   // deliberate: the login screen must always fill the entire viewport,
   // and if it's mounted inside whatever wrapper happens to contain the
@@ -3735,7 +3920,23 @@ function LoginScreen({ members, onLogin }) {
         <div className="login-hero-title login-hero-title--left">{CLAN_NAME}</div>
         <div className="login-quote login-quote--left">"{CLAN_QUOTE}"</div>
 
+        {/* Addition 1 — Clan Total Power, same stat/wording the Dashboard
+            hero already uses, so the number agrees with what's shown
+            once logged in. Hidden for a fresh clan with no members yet
+            rather than showing a misleading "0 Power". */}
+        {members.length > 0 && (
+          <div style={{marginBottom:24}}>
+            <div style={{fontSize:10,letterSpacing:2,textTransform:"uppercase",color:"rgba(200,146,42,0.7)",fontWeight:700,fontFamily:"'Inter',sans-serif",marginBottom:4}}>{t("clanTotalPower")}</div>
+            <div style={{fontFamily:"'Spectral',serif",fontSize:30,fontWeight:800,color:"var(--gold-bright)",textShadow:"0 0 22px rgba(200,146,42,0.4)",lineHeight:1,fontVariantNumeric:"tabular-nums"}}>{fmt(totalPower)}</div>
+            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:4,fontFamily:"'Inter',sans-serif"}}>{t("acrossWarriors").replace("{count}", members.length)}</div>
+          </div>
+        )}
+
+        {/* Addition 2 — corner brackets on the login card, matching the
+            ornament language every other panel in the app now uses.
+            The card's existing gradient/glow/top-accent-line stay as-is. */}
         <div className="login-card login-card--left">
+          <CornerBrackets size={13} thickness={1.5} inset={8} opacity={0.4}/>
           {error && <div className="login-error">{error}</div>}
           <div className="form-group">
             <label className="form-label">{t("username")}</label>
@@ -3747,6 +3948,33 @@ function LoginScreen({ members, onLogin }) {
           </div>
           <button className="btn btn-gold" style={{width:"100%",justifyContent:"center",padding:"12px 20px"}} onClick={doLogin}>{t("enter")}</button>
         </div>
+
+        {/* Addition 3 — Reigning Champion tag: current #1 by Power, name
+            + power split by a thin divider, sized tightly to that content
+            rather than a pill built with room for more than a name. */}
+        {topByPower && (
+          <div style={{
+            display:"inline-flex",alignItems:"center",gap:7,marginTop:16,
+            background:"rgba(200,146,42,0.08)",border:"1px solid rgba(200,146,42,0.28)",
+            borderRadius:8,padding:"7px 12px",
+          }}>
+            <div style={{
+              width:16,height:16,borderRadius:"50%",flexShrink:0,
+              background:"radial-gradient(circle,rgba(200,146,42,0.4),rgba(20,15,10,0.9) 70%)",
+              border:"1px solid rgba(200,146,42,0.5)",
+              display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,
+            }}><CrownIcon size={9} style={{color:"var(--gold-light)"}}/></div>
+            <div>
+              <div style={{fontSize:7.5,letterSpacing:1.5,textTransform:"uppercase",color:"rgba(200,146,42,0.7)",fontWeight:700,fontFamily:"'Inter',sans-serif"}}>{t("reigningChampion")}</div>
+              <div style={{fontFamily:"'Spectral',serif",fontSize:12,fontWeight:800,color:"var(--gold-bright)"}}>{topByPower.name}</div>
+            </div>
+            <div style={{width:1,alignSelf:"stretch",background:"rgba(200,146,42,0.25)",margin:"0 2px"}}/>
+            <div style={{display:"flex",alignItems:"center",gap:3,fontSize:11,fontWeight:700,color:"var(--text-dim)",fontVariantNumeric:"tabular-nums"}}>
+              <span style={{color:"var(--gold-light)",fontWeight:800}}>{fmt(topByPower.power)}</span>&nbsp;{t("powerLabel")}
+            </div>
+          </div>
+        )}
+
         <div className="login-footnote login-footnote--left">
           {t("contactMaster")}
         </div>
@@ -4359,7 +4587,12 @@ function AppInner({ onMusicTrackChange }) {
   // viewport width with zero seams, since it's the same element/rule that
   // already paints Clan HQ's background everywhere else.
   useEffect(() => {
-    document.body.classList.toggle("bg-auctions", page === "auctions");
+    // !globalViewingProfile on both — PlayerInfo can render on top of ANY
+    // underlying page (page itself doesn't change when a profile opens),
+    // so without this guard bg-auctions could stay active behind the
+    // profile view too. bg-leaderboard already had this guard; bg-auctions
+    // was missing it.
+    document.body.classList.toggle("bg-auctions", page === "auctions" && !globalViewingProfile);
     document.body.classList.toggle("bg-leaderboard", page === "leaderboard" && !globalViewingProfile);
   }, [page, globalViewingProfile]);
 
@@ -5353,8 +5586,16 @@ function AppInner({ onMusicTrackChange }) {
 
   const [pendingCoinRequests, setPendingCoinRequests] = useState([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState(null);
   const [openUserMenu, setOpenUserMenu] = useState(false);
+  // adminToolsOpen: the MOBILE DRAWER's collapsible "Admin Tools" section
+  // (expanded by default is the desired drawer behavior). adminDropdownOpen:
+  // the DESKTOP nav's Admin Tools dropdown POPOVER — a separate state
+  // because a popover must default to closed like any other dropdown;
+  // these two used to share one variable, which meant the desktop dropdown
+  // incorrectly rendered open on every page load (it inherited the
+  // drawer-section's "start expanded" default of true).
+  const [adminToolsOpen, setAdminToolsOpen] = useState(true);
+  const [adminDropdownOpen, setAdminDropdownOpen] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   // Reflects actual subscription state (not just browser permission) —
@@ -5392,7 +5633,7 @@ function AppInner({ onMusicTrackChange }) {
   const ctx = { members, setMembers, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
     currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion, decayRate, setDecayRate, loginAnnouncements, setLoginAnnouncements };
 
-  const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings")};
+  const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings"),"record-attendance":t("tabRecordAttendance"),"create-auction":t("tabCreateAuction")};
 
   // ── Connection error screen (DB unreachable — do NOT show empty/seed state) ─
   if (dbError) return (
@@ -5414,7 +5655,11 @@ function AppInner({ onMusicTrackChange }) {
     <>
       <style>{GLOBAL_CSS}</style>
       <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--bg-dark)",flexDirection:"column",gap:16}}>
-        <div style={{animation:"spin 1.2s linear infinite",display:"flex"}}><SwordsIcon size={38} style={{color:"var(--gold-light)"}}/></div>
+        <div className="loading-sigil">
+          <div className="loading-sigil-ring"/>
+          <div className="loading-sigil-glow"/>
+          <div className="loading-sigil-icon"><SwordsIcon size={40} style={{color:"var(--gold-light)"}}/></div>
+        </div>
         <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:18,color:"var(--gold-light)",letterSpacing:2}}>Loading ClanForge…</div>
         <div style={{fontSize:12,color:"var(--text-dim)"}}>Connecting to database</div>
       </div>
@@ -5436,18 +5681,80 @@ function AppInner({ onMusicTrackChange }) {
   if (_isLeader || _isElder || _isMaster) _reportPages.push({id:"export",label:t("pageTitle_export")});
   if (_isLeader || _isMaster) _reportPages.push({id:"settings",label:t("pageTitle_settings")});
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
+  // Two-tier nav: "My Clan" is always shown (every member's own stats/
+  // actions); "Admin Tools" is Elder/Master-only and visually separated
+  // (own section + collapse toggle) rather than admin controls being
+  // scattered across the sidebar dropdowns, the topbar, and in-page tabs
+  // as they were before this reorg. The old per-item `sub` arrays were
+  // decorative only — clicking any of those labels just navigated to the
+  // same parent page regardless of which label was clicked — so they're
+  // dropped here rather than carried forward; `subPages` (Reports) are
+  // real distinct routes and are kept.
   const NAV = [
-    { section:t("navSection_main"), items:[
-        {id:"dashboard",icon:<StatIcon src={WARRIORS_ICON} size={16}/>,label:t("pageTitle_dashboard"),sub:[t("sub_clanStats"),t("sub_worldBoss"),t("sub_liveAuctions"),t("sub_weeklyTop")]},
-        {id:"leaderboard",icon:<LBIcon src={LEADERBOARD_ICON} size={14}/>,label:t("leaderboards"),sub:[t("sub_topPower"),t("sub_richest"),t("sub_topAttendance"),t("sub_auctionWinners")]},
+    { section:t("navSection_myClan"), items:[
+        {id:"dashboard",icon:<StatIcon src={WARRIORS_ICON} size={16}/>,label:t("pageTitle_dashboard")},
+        {id:"leaderboard",icon:<LBIcon src={LEADERBOARD_ICON} size={14}/>,label:t("leaderboards")},
+        {id:"members",icon:<StatIcon src={WARRIORS_ICON} size={16}/>,label:t("members")},
+        {id:"attendance",icon:<StatIcon src={ATTENDANCE_ICON} size={16}/>,label:t("attendance")},
+        {id:"auctions",icon:<StatIcon src={AUCTION_ICON} size={16}/>,label:t("auctions")},
       ]},
-    { section:t("navSection_management"), items:[
-        {id:"members",icon:<StatIcon src={WARRIORS_ICON} size={16}/>,label:t("members"),sub:[t("sub_memberRoster"),t("sub_profiles"),t("sub_coinPowerAdjust")]},
-        {id:"attendance",icon:<StatIcon src={ATTENDANCE_ICON} size={16}/>,label:t("attendance"),sub:[t("sub_recordAttendance"),t("sub_history"),t("sub_eventTracker")]},
-        {id:"auctions",icon:<StatIcon src={AUCTION_ICON} size={16}/>,label:t("auctions"),sub:[t("sub_liveAuctions"),t("sub_history"),t("sub_lootRoulette"),...(isAdmin?[t("sub_createAuction")]:[])]},
-      ]},
-    ...(_reportPages.length>0?[{ section:t("navSection_reports"), items:[{id:"reports",icon:"📊",label:t("reports"),subPages:_reportPages}]}]:[]),
   ];
+  if (isAdmin) {
+    NAV.push({
+      section: t("navSection_adminTools"),
+      collapsible: true,
+      items: [
+        {id:"record-attendance",icon:<StatIcon src={ATTENDANCE_ICON} size={16}/>,label:t("tabRecordAttendance")},
+        {id:"create-auction",icon:<StatIcon src={AUCTION_ICON} size={16}/>,label:t("tabCreateAuction")},
+        {id:"add-member",icon:"➕",label:t("addMember"),action:()=>setModal({type:"addMember"})},
+        ...(_isMaster?[{id:"approvals",icon:"⏳",label:t("approvals"),action:()=>setModal({type:"pendingRequests"}),badge:pendingCoinRequests.length}]:[]),
+        ...(_reportPages.length>0?[{id:"reports",icon:"📊",label:t("reports"),subPages:_reportPages}]:[]),
+      ],
+    });
+  }
+
+  // Shared vertical nav list — rendered both as the persistent desktop
+  // sidebar and inside the mobile slide-in drawer, so the two never drift
+  // out of sync with each other (they used to be two separately-maintained
+  // NAV.map blocks with different markup). setDrawerOpen(false) on click is
+  // a harmless no-op when there's no drawer open (desktop context).
+  const navContent = (
+    <div className="drawer-nav">
+      {NAV.map((section, si) => (
+        <div key={section.section}>
+          {si > 0 && <div className="nav-section-divider"/>}
+          <div
+            className={`drawer-section-label${section.collapsible?" collapsible":""}`}
+            onClick={section.collapsible?()=>setAdminToolsOpen(v=>!v):undefined}
+          >
+            {section.section}
+            {section.collapsible && <span style={{marginLeft:6,display:"inline-block",transform:adminToolsOpen?"none":"rotate(-90deg)",transition:"transform 0.18s"}}>▾</span>}
+          </div>
+          <AnimatePresence initial={false}>
+          {(!section.collapsible || adminToolsOpen) && section.items.map(item => (
+            item.subPages ? item.subPages.map(sp=>(
+              <motion.div key={sp.id} className={`drawer-nav-item${page===sp.id?" active":""}`}
+                initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.16 }} style={{ overflow: "hidden" }}
+                onClick={()=>{navigateToPage(sp.id);setDrawerOpen(false);}}>
+                {item.icon && <span style={{display:"flex",alignItems:"center",opacity:0.8}}>{item.icon}</span>}{sp.label}
+              </motion.div>
+            )) : (
+              <motion.div key={item.id} className={`drawer-nav-item${page===item.id?" active":""}`}
+                initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.16 }} style={{ overflow: "hidden" }}
+                onClick={()=>{
+                  if(item.action){ item.action(); setDrawerOpen(false); }
+                  else { navigateToPage(item.id); setDrawerOpen(false); }
+                }}>
+                {item.icon && <span style={{display:"flex",alignItems:"center",opacity:0.8}}>{item.icon}</span>}{item.label}
+                {!!item.badge && <span className="nav-item-badge">{item.badge}</span>}
+              </motion.div>
+            )
+          ))}
+          </AnimatePresence>
+        </div>
+      ))}
+    </div>
+  );
 
   return (
     <>
@@ -5467,49 +5774,57 @@ function AppInner({ onMusicTrackChange }) {
           <div className="sidebar-logo" onClick={()=>setGlobalViewingProfile(currentUser.id)} style={{cursor:"pointer"}} title="View your profile">
             <img src="/images/ymir-logo-gold.png" alt="" className="sidebar-logo-mark" />
           </div>
-          {NAV.map((section, si) => (
-            <div key={section.section} style={{display:"flex",flexDirection:"row",alignItems:"center"}}>
-              {si > 0 && <div className="nav-section-divider"/>}
-              <div className="nav-section">
-              {section.items.map(item => (
-                <div key={item.id} className={`nav-group${openDropdown===item.id?" dd-open":""}`}
-                  onMouseLeave={()=>setOpenDropdown(null)}>
-                  <div className={`nav-item${(item.subPages?item.subPages.some(sp=>sp.id===page):page===item.id)?" active":""}`}
-                    onClick={()=>{
-                      if(item.subPages){ setOpenDropdown(openDropdown===item.id?null:item.id); }
-                      else { navigateToPage(item.id); setOpenDropdown(openDropdown===item.id?null:item.id); }
-                    }}>
-                    {item.icon && <span className="nav-icon">{item.icon}</span>}
+          {(() => {
+            const mainSection = NAV.find(s => !s.collapsible);
+            const adminSection = NAV.find(s => s.collapsible);
+            const isAdminActive = adminSection && adminSection.items.some(item =>
+              item.subPages ? item.subPages.some(sp => sp.id === page) : page === item.id
+            );
+            return (
+              <div className="topnav-items">
+                {mainSection && mainSection.items.map(item => (
+                  <div key={item.id} className={`topnav-item${page===item.id?" active":""}`} onClick={()=>navigateToPage(item.id)}>
                     {item.label}
-                    {((item.sub&&item.sub.length>0)||(item.subPages&&item.subPages.length>0))&&<span style={{fontSize:7,marginLeft:2,opacity:0.5}}>▾</span>}
                   </div>
-                  {item.sub&&item.sub.length>0&&(
-                    <div className="nav-dropdown">
-                      <div className="nav-dropdown-inner">
-                        <div className="nav-dd-label">{item.label}</div>
+                ))}
+                {adminSection && (
+                  <div
+                    className={`topnav-item topnav-admin${isAdminActive?" active":""}${adminDropdownOpen?" dd-open":""}`}
+                    onClick={()=>setAdminDropdownOpen(v=>!v)}
+                    onMouseLeave={()=>setAdminDropdownOpen(false)}
+                  >
+                    {adminSection.section}
+                    <span className="topnav-item-chevron">▾</span>
+                    <div className="topnav-admin-dropdown">
+                      <div className="user-dropdown-inner">
+                        <div className="nav-dd-label">{adminSection.section}</div>
                         <div className="nav-dd-sep"/>
-                        {item.sub.map(s=>(
-                          <div key={s} className={`nav-dd-item${page===item.id?" active":""}`} onClick={()=>{ navigateToPage(item.id); setOpenDropdown(null); }}>{s}</div>
+                        {adminSection.items.map(item => (
+                          item.subPages ? item.subPages.map(sp => (
+                            <div key={sp.id} className={`user-dd-item${page===sp.id?" active":""}`}
+                              onClick={(e)=>{e.stopPropagation();navigateToPage(sp.id);setAdminDropdownOpen(false);}}>
+                              {sp.label}
+                            </div>
+                          )) : (
+                            <div key={item.id} className={`user-dd-item${page===item.id?" active":""}`}
+                              onClick={(e)=>{
+                                e.stopPropagation();
+                                if(item.action){ item.action(); } else { navigateToPage(item.id); }
+                                setAdminDropdownOpen(false);
+                              }}>
+                              {item.label}{!!item.badge && <span className="nav-item-badge">{item.badge}</span>}
+                            </div>
+                          )
                         ))}
                       </div>
                     </div>
-                  )}
-                  {item.subPages&&item.subPages.length>0&&(
-                    <div className="nav-dropdown">
-                      <div className="nav-dropdown-inner">
-                        <div className="nav-dd-label">{item.label}</div>
-                        <div className="nav-dd-sep"/>
-                        {item.subPages.map(sp=>(
-                          <div key={sp.id} className={`nav-dd-item${page===sp.id?" active":""}`} onClick={()=>{ navigateToPage(sp.id); setOpenDropdown(null); }}>{sp.label}</div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })()}
+          <div className="topnav-icons">
+          <LangSwitcher />
           <div className={`user-menu${openUserMenu?" dd-open":""}`} onMouseLeave={()=>setOpenUserMenu(false)}>
             <div
               className="profile-chip"
@@ -5528,7 +5843,7 @@ function AppInner({ onMusicTrackChange }) {
               <div className="user-dropdown-inner">
                 <div className="nav-dd-label">{currentUser.name}</div>
                 <div className="nav-dd-sep"/>
-                <div className="user-dd-item" onClick={()=>{setGlobalViewingProfile(currentUser.id);setOpenUserMenu(false);setOpenDropdown(null);}}>
+                <div className="user-dd-item" onClick={()=>{setGlobalViewingProfile(currentUser.id);setOpenUserMenu(false);}}>
                   Your Profile
                 </div>
                 <div className="nav-dd-sep"/>
@@ -5536,7 +5851,7 @@ function AppInner({ onMusicTrackChange }) {
                   <StatIcon src={COINS_ICON} size={22}/>{fmt(currentUser.coins)} {t("coinsLabel")}
                 </div>
                 <div className="nav-dd-sep"/>
-                <div className="user-dd-item" onClick={()=>{setModal({type:"changePassword",data:currentUser});setOpenUserMenu(false);setOpenDropdown(null);}}>
+                <div className="user-dd-item" onClick={()=>{setModal({type:"changePassword",data:currentUser});setOpenUserMenu(false);}}>
                   {t("changePassword")}
                 </div>
                 <div className="user-dd-item" onClick={togglePushNotifications} style={pushBusy?{opacity:0.6,pointerEvents:"none"}:undefined}>
@@ -5545,6 +5860,7 @@ function AppInner({ onMusicTrackChange }) {
                 <div className="user-dd-item danger" onClick={handleLogout}>{t("logOut")}</div>
               </div>
             </div>
+          </div>
           </div>
           {/* Hamburger — mobile only */}
           <button className="hamburger" onClick={()=>setDrawerOpen(true)} aria-label="Open menu">
@@ -5560,26 +5876,7 @@ function AppInner({ onMusicTrackChange }) {
             <div className="drawer-header">
               <button className="drawer-close" onClick={()=>setDrawerOpen(false)}>✕</button>
             </div>
-            <div className="drawer-nav">
-              {NAV.map(section => (
-                <div key={section.section}>
-                  <div className="drawer-section-label">{section.section}</div>
-                  {section.items.map(item => (
-                    item.subPages ? item.subPages.map(sp=>(
-                      <div key={sp.id} className={`drawer-nav-item${page===sp.id?" active":""}`}
-                        onClick={()=>{navigateToPage(sp.id);setDrawerOpen(false);}}>
-                        {item.icon && <span style={{display:"flex",alignItems:"center",opacity:0.8}}>{item.icon}</span>}{sp.label}
-                      </div>
-                    )) : (
-                      <div key={item.id} className={`drawer-nav-item${page===item.id?" active":""}`}
-                        onClick={()=>{navigateToPage(item.id);setDrawerOpen(false);}}>
-                        {item.icon && <span style={{display:"flex",alignItems:"center",opacity:0.8}}>{item.icon}</span>}{item.label}
-                      </div>
-                    )
-                  ))}
-                </div>
-              ))}
-            </div>
+            {navContent}
             <div className="drawer-user">
               <div className="drawer-user-row">
                 <div className="user-avatar"><ClassIcon cls={currentUser.cls} size={22}/></div>
@@ -5615,47 +5912,48 @@ function AppInner({ onMusicTrackChange }) {
               <div className="page-sub">{currentUser.name} · {currentUser.role}</div>
             </div>
             <div className="topbar-actions">
-              <LangSwitcher />
-              {(currentUser.role==="Master"||currentUser.role==="Elder") && (
-                <button className="btn btn-gold btn-sm" onClick={()=>setModal({type:"addMember"})}>{t("addMember")}</button>
-              )}
-              {/* ROOT CAUSE FIX: this used to only render when
-                  pendingCoinRequests.length>0 — so if an Elder's request
-                  hadn't synced in yet (the poll runs every 10s, not
-                  instantly) or simply hadn't loaded on first render, there
-                  was no button at all and nothing to click; the Master had
-                  no way to even check. Always showing the button (badge
-                  only appears when there's a real count) means there's
-                  always a reliable way in, and the modal itself shows a
-                  clear "nothing pending" state when the queue is empty. */}
-              {currentUser.role==="Master" && (
-                <button className="btn btn-red btn-sm" style={{position:"relative"}} onClick={()=>setModal({type:"pendingRequests"})}>
-                  ⏳ {t("approvals")}
-                  {pendingCoinRequests.length>0 && (
-                    <span style={{position:"absolute",top:-6,right:-6,background:"#e85d3a",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:9,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>{pendingCoinRequests.length}</span>
-                  )}
-                </button>
-              )}
+              {/* Add Member / Approvals live in the top nav's Admin Tools
+                  dropdown (see NAV construction above) — this keeps admin
+                  actions in one visually distinct place instead of split
+                  between the topbar and the nav. The "always render for
+                  Master, badge only when count>0" behavior from the old
+                  Approvals button is preserved on the nav item itself.
+                  LangSwitcher now lives in the nav bar's icon group
+                  (.topnav-icons) instead of here. */}
             </div>
           </div>
           <div className="content">
-            {globalViewingProfile ? (
-              <PlayerInfo
-                member={members.find(m => m.id === globalViewingProfile) || globalViewingProfile}
-                members={members}
-                onBack={() => setGlobalViewingProfile(null)}
-              />
-            ) : (
-              <>
-                {page==="dashboard"   && <Dashboard ctx={ctx} setPage={navigateToPage} />}
-                {page==="members"     && <Members ctx={ctx} />}
-                {page==="attendance"  && <Attendance ctx={ctx} />}
-                {page==="auctions"    && <Auctions ctx={ctx} />}
-                {page==="leaderboard" && <Leaderboard ctx={ctx} />}
-                {page==="export"      && <Export ctx={ctx} />}
-                {page==="settings"    && <Settings ctx={ctx} />}
-              </>
-            )}
+            {/* mode="popLayout" lets a ProfileCard's shared layoutId project
+                across this exit/enter boundary (see ProfileCard) instead of
+                the outgoing and incoming trees fighting for layout space
+                while both are briefly mounted during the transition. */}
+            <AnimatePresence mode="popLayout" initial={false}>
+              {globalViewingProfile ? (
+                <motion.div key="profile" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={{duration:0.25}}>
+                  <PlayerInfo
+                    member={members.find(m => m.id === globalViewingProfile) || globalViewingProfile}
+                    members={members}
+                    onBack={() => setGlobalViewingProfile(null)}
+                  />
+                </motion.div>
+              ) : (
+                <motion.div key="page" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={{duration:0.25}}>
+                  {page==="dashboard"   && <Dashboard ctx={ctx} setPage={navigateToPage} />}
+                  {page==="members"     && <Members ctx={ctx} />}
+                  {page==="attendance"  && <Attendance ctx={ctx} />}
+                  {page==="auctions"    && <Auctions ctx={ctx} />}
+                  {page==="leaderboard" && <Leaderboard ctx={ctx} />}
+                  {page==="export"      && <Export ctx={ctx} />}
+                  {page==="settings"    && <Settings ctx={ctx} />}
+                  {/* Admin-only pages — gated here too (not just hidden from
+                      nav) as defense-in-depth, matching how Reports/Settings
+                      already gate by role rather than relying solely on the
+                      sidebar not showing a link. */}
+                  {page==="record-attendance" && isAdmin && <RecordAttendancePanel ctx={ctx} />}
+                  {page==="create-auction"    && isAdmin && <CreateAuctionPanel ctx={ctx} />}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </main>
       </div>
@@ -5857,7 +6155,7 @@ function WorldBossSchedule() {
     <div id="world-boss-schedule" style={{
       background:"linear-gradient(135deg,rgba(10,8,6,0.65) 0%,rgba(18,14,11,0.9) 100%)",
       border:"1px solid rgba(200,146,42,0.2)", borderRadius:8,
-      padding:"22px 24px", marginBottom:24, position:"relative", overflow:"hidden",
+      padding:"22px 24px", marginBottom:36, position:"relative", overflow:"hidden",
     }}>
       {/* Rune pattern bg */}
       <div style={{position:"absolute",inset:0,opacity:0.025,backgroundImage:"repeating-linear-gradient(45deg,#c8922a 0,#c8922a 1px,transparent 0,transparent 50%)",backgroundSize:"22px 22px",pointerEvents:"none"}} />
@@ -6222,6 +6520,25 @@ function UpdateNotes() {
   );
 }
 
+// Reusable 4-corner bracket ornament — the hero banner and World Boss
+// Schedule sections each hand-rolled their own copy of this same 4-div
+// pattern; extracted here since Dashboard's redesign reuses it several
+// more times across differently-sized cards (hence the size/inset/opacity
+// knobs, so smaller cards can get proportionally smaller brackets instead
+// of the hero's full-size ones looking oversized on a compact stat card).
+function CornerBrackets({ size = 18, thickness = 2, inset = 6, opacity = 0.4 }) {
+  const base = { position:"absolute", width:size, height:size, pointerEvents:"none" };
+  const color = `rgba(200,146,42,${opacity})`;
+  return (
+    <>
+      <div style={{...base, top:inset, left:inset, borderTop:`${thickness}px solid ${color}`, borderLeft:`${thickness}px solid ${color}`}} />
+      <div style={{...base, top:inset, right:inset, borderTop:`${thickness}px solid ${color}`, borderRight:`${thickness}px solid ${color}`}} />
+      <div style={{...base, bottom:inset, left:inset, borderBottom:`${thickness}px solid ${color}`, borderLeft:`${thickness}px solid ${color}`}} />
+      <div style={{...base, bottom:inset, right:inset, borderBottom:`${thickness}px solid ${color}`, borderRight:`${thickness}px solid ${color}`}} />
+    </>
+  );
+}
+
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function Dashboard({ ctx, setPage }) {
   const { members, auctions, currentUser } = ctx;
@@ -6321,83 +6638,79 @@ function Dashboard({ ctx, setPage }) {
               </div>
             </div>
 
-          </div>
-        </div>
-      </div>
+            {/* Right — Total Power + Class Composition, folded into the hero
+                itself (rather than separate cards below it) so identity and
+                at-a-glance stats read as one unified zone instead of two. */}
+            <div style={{flex:"1 1 280px",minWidth:0,textAlign:"left"}}>
+              <div style={{fontSize:10,letterSpacing:3,textTransform:"uppercase",color:"rgba(200,146,42,0.7)",fontWeight:700,marginBottom:6,fontFamily:"'Inter',sans-serif"}}>{t("clanTotalPower")}</div>
+              <div style={{
+                fontFamily:"'Spectral',serif",fontSize:40,fontWeight:800,lineHeight:1,marginBottom:4,
+                background:"linear-gradient(135deg,#f2d98a 0%,#c8922a 50%,#f2d98a 100%)",
+                WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",
+                textShadow:"0 0 30px rgba(200,146,42,0.35)",
+              }}>{fmt(totalPower)}</div>
+              <div style={{fontSize:11,color:"#7c6d58",marginBottom:16,fontFamily:"'Inter',sans-serif"}}>{t("acrossWarriors").replace("{count}", members.length)}</div>
 
-      {/* ── Clan Power & Class Composition ── */}
-      <div style={{display:"flex",flexWrap:"wrap",gap:16,marginBottom:16}}>
-        {/* Total Power */}
-        <div style={{
-          flex:"1 1 280px",minWidth:0,position:"relative",overflow:"hidden",
-          background:"linear-gradient(135deg,#161110 0%,#1c1410 60%,#161110 100%)",
-          border:"1px solid rgba(200,146,42,0.3)",borderRadius:6,padding:"20px 22px",
-          display:"flex",flexDirection:"column",justifyContent:"flex-start",
-        }}>
-          <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,rgba(200,146,42,0.8),transparent)"}} />
-          <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 80% 0%,rgba(200,146,42,0.08) 0%,transparent 60%)",pointerEvents:"none"}} />
-          <div style={{position:"relative"}}>
-            <div style={{fontSize:10,letterSpacing:3,textTransform:"uppercase",color:"rgba(200,146,42,0.7)",fontWeight:700,marginBottom:6,fontFamily:"'Inter',sans-serif"}}>{t("clanTotalPower")}</div>
-            <div style={{
-              fontFamily:"'Spectral',serif",fontSize:34,fontWeight:800,lineHeight:1,
-              background:"linear-gradient(135deg,#f2d98a 0%,#c8922a 50%,#f2d98a 100%)",
-              WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",
-            }}>{fmt(totalPower)}</div>
-            <div style={{fontSize:11,color:"#7c6d58",marginTop:10,marginBottom:16,fontFamily:"'Inter',sans-serif"}}>{t("acrossWarriors").replace("{count}", members.length)}</div>
-            <div style={{display:"flex",justifyContent:"space-between",gap:12,borderTop:"1px solid rgba(200,146,42,0.15)",paddingTop:14}}>
-              <div>
-                <div style={{fontSize:10,letterSpacing:1.5,textTransform:"uppercase",color:"#7c6d58",marginBottom:4,fontFamily:"'Inter',sans-serif"}}>{t("yourPower")}</div>
-                <div style={{fontSize:15,fontWeight:800,color:"var(--gold-light)",fontFamily:"'Inter',sans-serif"}}>{fmt(currentUser.power)}</div>
+              <div style={{display:"flex",gap:24,marginBottom:18}}>
+                <div>
+                  <div style={{fontSize:10,letterSpacing:1.5,textTransform:"uppercase",color:"#7c6d58",marginBottom:4,fontFamily:"'Inter',sans-serif"}}>{t("yourPower")}</div>
+                  <div style={{fontSize:15,fontWeight:800,color:"var(--gold-light)",fontFamily:"'Inter',sans-serif",display:"inline-flex",alignItems:"center",gap:5}}><PowerIcon size={14}/>{fmt(currentUser.power)}</div>
+                </div>
+                <div>
+                  <div style={{fontSize:10,letterSpacing:1.5,textTransform:"uppercase",color:"#7c6d58",marginBottom:4,fontFamily:"'Inter',sans-serif"}}>{t("yourCoins")}</div>
+                  <div style={{fontSize:15,fontWeight:800,color:"var(--gold-light)",fontFamily:"'Inter',sans-serif",display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={22}/>{fmt(currentUser.coins)}</div>
+                </div>
               </div>
-              <div style={{textAlign:"right",minWidth:0}}>
-                <div style={{fontSize:10,letterSpacing:1.5,textTransform:"uppercase",color:"#7c6d58",marginBottom:4,fontFamily:"'Inter',sans-serif"}}>{t("yourCoins")}</div>
-                <div style={{fontSize:15,fontWeight:800,color:"var(--gold-light)",fontFamily:"'Inter',sans-serif"}}>{fmt(currentUser.coins)}</div>
+
+              {/* Class Composition — condensed to the top 3 classes as
+                  slim glowing bars, rather than the full bar-chart the
+                  standalone card used to show; this is a hero readout, not
+                  a detailed breakdown. */}
+              <div style={{fontSize:10,letterSpacing:3,textTransform:"uppercase",color:"rgba(200,146,42,0.7)",fontWeight:700,marginBottom:10,fontFamily:"'Inter',sans-serif"}}>{t("classComposition")}</div>
+              <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                {classBreakdown.slice(0,3).map(({cls,pct}) => {
+                  const col = CLASS_COLORS[cls] || "#9c8c7c";
+                  return (
+                    <div key={cls} style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{fontSize:10,color:"#9c8c7c",width:76,flexShrink:0,fontFamily:"'Inter',sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cls}</span>
+                      <div style={{flex:1,height:5,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden"}}>
+                        <div style={{width:`${(pct/maxClassPct)*100}%`,height:"100%",background:`linear-gradient(90deg,${col},${col}cc)`,boxShadow:`0 0 6px ${col}66`}} />
+                      </div>
+                      <span style={{fontSize:10,fontWeight:800,color:col,width:30,textAlign:"right",flexShrink:0,fontFamily:"'Inter',sans-serif"}}>{Math.round(pct)}%</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Class Composition */}
-        <div style={{
-          flex:"1 1 320px",minWidth:0,position:"relative",
-          background:"linear-gradient(135deg,#161110 0%,#1c1410 60%,#161110 100%)",
-          border:"1px solid rgba(200,146,42,0.2)",borderRadius:6,padding:"20px 22px",
-        }}>
-          <div style={{fontSize:10,letterSpacing:3,textTransform:"uppercase",color:"rgba(200,146,42,0.7)",fontWeight:700,marginBottom:16,fontFamily:"'Inter',sans-serif"}}>{t("classComposition")}</div>
-          <div style={{display:"flex",alignItems:"flex-end",gap:8,height:90,marginBottom:14}}>
-            {classBreakdown.map(({cls,pct}) => {
-              const col = CLASS_COLORS[cls] || "#9c8c7c";
-              return (
-                <div key={cls} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:6,height:"100%",justifyContent:"flex-end"}}>
-                  <span style={{fontSize:11,fontWeight:800,color:col,fontFamily:"'Inter',sans-serif"}}>{Math.round(pct)}%</span>
-                  <div style={{
-                    width:"100%",height:`${Math.max(8,(pct/maxClassPct)*72)}%`,
-                    background:`linear-gradient(180deg,${col},${col}cc)`,
-                    borderRadius:"3px 3px 0 0",boxShadow:`0 0 10px ${col}66`,
-                    transition:"height 0.3s",
-                  }} />
-                </div>
-              );
-            })}
-          </div>
-          <div style={{display:"flex",borderTop:"1px solid rgba(200,146,42,0.15)",paddingTop:10}}>
-            {classBreakdown.map(({cls}) => (
-              <span key={cls} style={{fontSize:10,color:"#9c8c7c",textAlign:"center",flex:1,fontFamily:"'Inter',sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",padding:"0 2px"}}>{cls}</span>
-            ))}
           </div>
         </div>
       </div>
 
-      {/* World Boss Schedule */}
-      <WorldBossSchedule />
+      {/* Update Notes — clan-wide announcements, sits just under the hero
+          rather than inside either column below since it isn't part of
+          either column's theme (timely activity vs. at-a-glance stats). */}
+      <div style={{marginBottom:36}}><UpdateNotes /></div>
 
-      {/* Update Notes */}
-      <UpdateNotes />
+      {/* ── Command Deck — asymmetric two-column split below the hero:
+          a wide primary column for timely/content-rich material (World
+          Boss Schedule, Live Auctions) and a narrower sidebar column for
+          at-a-glance secondary widgets (Mini Leaderboard, Recent Winners,
+          Event Points) — replaces the previous uniform stacked-card-row
+          structure with real hierarchy between primary and secondary
+          content. Stacks to a single column below ~900px. */}
+      <div style={{display:"flex",flexWrap:"wrap",gap:24}}>
+        {/* Primary column */}
+        <div style={{flex:"2 1 500px",minWidth:0}}>
+          <WorldBossSchedule />
 
-      {/* ── Live Auctions + Mini Leaderboard ── */}
-      <div style={{display:"flex",flexWrap:"wrap",gap:16,marginBottom:16}}>
-        {/* Live Auctions Preview */}
-        <div className="card" style={{flex:"1 1 280px",minWidth:0}}>
+          {/* Live Auctions Preview */}
+          <div className="dash-panel" style={{
+            marginTop:24,position:"relative",overflow:"hidden",
+            background:"linear-gradient(135deg,#161110 0%,#1c1410 60%,#161110 100%)",
+            border:"1px solid rgba(200,146,42,0.2)",borderRadius:6,padding:20,
+          }}>
+          <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.35}/>
           <SectionTitle><span style={{display:"inline-flex",alignItems:"center",gap:6}}><StatIcon src={AUCTION_ICON} size={32}/>{t("liveAuctions")}</span></SectionTitle>
           {activeAuctions.length===0&&<div style={{color:"var(--text-dim)",fontSize:13,fontFamily:"'Inter',sans-serif"}}>{t("noActiveAuctions")}</div>}
           {[...activeAuctions].sort((a,b)=>b.currentBid-a.currentBid).slice(0,3).map(a=>(
@@ -6416,10 +6729,18 @@ function Dashboard({ ctx, setPage }) {
             </div>
           ))}
           <button className="btn btn-outline btn-sm" style={{marginTop:14,width:"100%"}} onClick={()=>setPage("auctions")}>{t("viewAllAuctions")}</button>
+          </div>
         </div>
 
+        {/* Sidebar column — at-a-glance secondary widgets */}
+        <div style={{flex:"1 1 320px",minWidth:0}}>
         {/* Mini Leaderboard Switcher */}
-        <div className="card" style={{flex:"1 1 280px",minWidth:0}}>
+        <div className="dash-panel" style={{
+          position:"relative",overflow:"hidden",
+          background:"linear-gradient(135deg,#161110 0%,#1c1410 60%,#161110 100%)",
+          border:"1px solid rgba(200,146,42,0.2)",borderRadius:6,padding:20,
+        }}>
+          <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.35}/>
           {(()=>{
             const WT_MODES=[{id:"attendance",label:t("topAttendance")},{id:"power",label:t("topPower")},{id:"coins",label:t("richest")}];
             const sorted=[...members].sort((a,b)=>b[wtMode]-a[wtMode]).slice(0,5);
@@ -6449,11 +6770,14 @@ function Dashboard({ ctx, setPage }) {
             </>);
           })()}
         </div>
-      </div>
 
-      {/* ── Recent Winners + Event Points ── */}
-      <div style={{display:"flex",flexWrap:"wrap",gap:16}}>
-        <div className="card card-gold" style={{flex:"1 1 280px",minWidth:0}}>
+        {/* Recent Winners */}
+        <div className="dash-panel" style={{
+          marginTop:24,position:"relative",overflow:"hidden",
+          background:"linear-gradient(135deg,#161110 0%,rgba(201,151,42,0.08) 60%,#161110 100%)",
+          border:"1px solid rgba(201,151,42,0.3)",borderRadius:6,padding:20,
+        }}>
+          <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.4}/>
           <SectionTitle>{t("recentWinners")}</SectionTitle>
           {recentWinners.length===0&&<div style={{color:"var(--text-dim)",fontSize:13,fontFamily:"'Inter',sans-serif"}}>{t("noRecentWinners")}</div>}
           {recentWinners.map(a=>(
@@ -6469,7 +6793,14 @@ function Dashboard({ ctx, setPage }) {
             </div>
           ))}
         </div>
-        <div className="card card-blue" style={{flex:"1 1 280px",minWidth:0}}>
+
+        {/* Event Points */}
+        <div className="dash-panel" style={{
+          marginTop:24,position:"relative",overflow:"hidden",
+          background:"linear-gradient(135deg,#0d1218 0%,rgba(26,90,138,0.1) 60%,#0d1218 100%)",
+          border:"1px solid rgba(26,90,138,0.4)",borderRadius:6,padding:20,
+        }}>
+          <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.35}/>
           <SectionTitle>{t("eventPoints")}</SectionTitle>
           {EVENTS.map(ev=>(
             <div key={ev.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid rgba(26,90,138,0.12)"}}>
@@ -6479,6 +6810,7 @@ function Dashboard({ ctx, setPage }) {
               <span className="badge badge-blue">{ev.id}</span>
             </div>
           ))}
+        </div>
         </div>
       </div>
     </div>
@@ -6661,6 +6993,24 @@ function getMonthBoundaryGmt8(now, monthsAgo) {
   const start = Date.UTC(y, m - monthsAgo, 1) - GMT8_OFFSET_MS_GLOBAL;
   const end = Date.UTC(y, m - monthsAgo + 1, 1) - GMT8_OFFSET_MS_GLOBAL;
   return [start, end];
+}
+// Oldest-to-newest booleans for whether a member checked into anything
+// (qualifier !== "afk") on each of the last 7 GMT+8 calendar days,
+// including today — powers the Battle Streak banner's pulse row. Real
+// calendar-day boundaries (not a rolling 7*24h window) for the same
+// reason getMonthBoundaryGmt8 anchors to GMT+8 calendar months instead
+// of a rolling 30 days.
+function getLast7DaysPulseGmt8(attendLog, now = Date.now()) {
+  const log = attendLog || [];
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const shifted = new Date(now - i*24*60*60*1000 + GMT8_OFFSET_MS_GLOBAL);
+    const y = shifted.getUTCFullYear(), m = shifted.getUTCMonth(), d = shifted.getUTCDate();
+    const dayStart = Date.UTC(y, m, d) - GMT8_OFFSET_MS_GLOBAL;
+    const dayEnd = dayStart + 24*60*60*1000;
+    days.push(log.some(e => e.qualifier!=="afk" && (e.ts||0) >= dayStart && (e.ts||0) < dayEnd));
+  }
+  return days;
 }
 // Maximum possible attendances per event WITHIN A SPECIFIC CALENDAR MONTH —
 // computed by counting how many times each weekday actually falls in that
@@ -6874,6 +7224,23 @@ function OutbidPopup({ info, onClose, onGoBid }) {
   );
 }
 
+// Groups auction-news items that share the same name (this app allows
+// the identical item to be listed as several separate auctions — same
+// name, different auction IDs, different bids/end times) into one entry
+// with a count, instead of rendering N near-identical rows. The
+// representative item shown is whichever of the group is closing
+// soonest, since that's the most actionable one to surface.
+function groupNewsItemsByName(items) {
+  const groups = {};
+  (items || []).forEach(item => {
+    (groups[item.name] = groups[item.name] || []).push(item);
+  });
+  return Object.values(groups).map(group => {
+    const soonest = [...group].sort((a,b) => (a.endsAt ?? Infinity) - (b.endsAt ?? Infinity))[0];
+    return { ...soonest, count: group.length };
+  });
+}
+
 function LoginSummaryModal({ summary, memberName, announcements, onClose, onDismissToday, onDismissAnnouncement }) {
   const { t } = useLang();
   const [dontShowToday, setDontShowToday] = useState(false);
@@ -6896,51 +7263,86 @@ function LoginSummaryModal({ summary, memberName, announcements, onClose, onDism
   const visibleAnnouncements = (announcements || []).filter(a => !locallyDismissed.has(a.id));
   return (
     <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal" style={{maxWidth:420}} onClick={e=>e.stopPropagation()}>
-        <div className="modal-header">
-          <div className="modal-title">{t("welcomeBackTitle")} {memberName}</div>
-          <button className="btn btn-ghost" onClick={handleClose}>✕</button>
+      <div className="modal" style={{maxWidth:420,position:"relative",overflow:"hidden",padding:0}} onClick={e=>e.stopPropagation()}>
+        <CornerBrackets size={14} thickness={1.5} inset={10} opacity={0.4}/>
+
+        {/* ── HERO BAND — eyebrow, welcome title, glowing balance number.
+            Same weight/language as the Dashboard/Auctions/Profile hero
+            strips built earlier, so this popup finally reads as part of
+            the same redesigned app instead of a leftover utility modal. ── */}
+        <div style={{
+          position:"relative",overflow:"hidden",padding:"26px 24px 20px",
+          background:"radial-gradient(ellipse at 30% -10%, rgba(200,146,42,0.22) 0%, transparent 60%), linear-gradient(160deg,#1c140c 0%,#120d08 70%)",
+          borderBottom:"1px solid rgba(200,146,42,0.48)",
+        }}>
+          <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,var(--gold),transparent)"}}/>
+          <button className="btn btn-ghost" style={{position:"absolute",top:14,right:14}} onClick={handleClose}>✕</button>
+          <div style={{fontSize:9.5,letterSpacing:3,textTransform:"uppercase",color:"rgba(200,146,42,0.75)",fontWeight:700,fontFamily:"'Inter',sans-serif",marginBottom:6}}>
+            {CLAN_SEASON_LABEL} &middot; {CLAN_NAME}
+          </div>
+          <div style={{fontFamily:"'Spectral',serif",fontSize:22,fontWeight:800,color:"var(--text-bright)",marginBottom: summary?14:0}}>
+            {t("welcomeBackTitle")} {memberName}
+          </div>
+          {summary && (
+            <>
+              <div style={{fontFamily:"'Spectral',serif",fontSize:36,fontWeight:800,color:"var(--gold-bright)",textShadow:"0 0 26px rgba(200,146,42,0.5)",lineHeight:1,display:"inline-flex",alignItems:"center",gap:8}}>
+                <StatIcon src={COINS_ICON} size={30}/>{fmt(summary.currentBalance)}
+              </div>
+              <div style={{fontSize:9.5,letterSpacing:2,textTransform:"uppercase",color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",marginTop:6}}>{t("currentBalanceLabel")}</div>
+            </>
+          )}
         </div>
-        <div className="modal-body">
-          {visibleAnnouncements.length > 0 && (
-            <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom: summary ? 16 : 0}}>
-              {visibleAnnouncements.map(ann => (
-                ann.type === "auctions" ? (
-                  <div key={ann.id} style={{
-                    background:"linear-gradient(90deg, rgba(201,151,42,0.12), rgba(201,151,42,0.04))",
-                    border:"1px solid rgba(201,151,42,0.4)",borderRadius:6,padding:"12px 14px",
+
+        {/* ── AUCTION / CLAN NEWS — its own zone between the hero and the
+            personal digest, since this is admin-curated clan-wide content,
+            not this member's own activity, and shouldn't blend into their
+            personal history below it. ── */}
+        {visibleAnnouncements.length > 0 && (
+          <div style={{padding:"16px 24px 4px"}}>
+            {visibleAnnouncements.map(ann => (
+              ann.type === "auctions" ? (
+                <div key={ann.id} style={{marginBottom:14}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                    <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:9.5,letterSpacing:2,textTransform:"uppercase",fontWeight:700,color:"rgba(200,146,42,0.75)",fontFamily:"'Inter',sans-serif"}}><BellIcon size={12}/>{t("auctionNewsTitle")}</span>
+                    <button
+                      onClick={()=>dismissAnnouncement(ann.id)}
+                      title={t("dismissAnnouncementTitle")}
+                      style={{background:"none",border:"none",color:"var(--text-dim)",cursor:"pointer",fontSize:13,padding:0,lineHeight:1}}
+                    >✕</button>
+                  </div>
+                  <div style={{
+                    background:"linear-gradient(135deg, rgba(200,146,42,0.1) 0%, rgba(200,146,42,0.03) 100%)",
+                    border:"1px solid rgba(200,146,42,0.3)",borderRadius:7,padding:"12px 14px",
                   }}>
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                      <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:13,fontWeight:700,color:"var(--gold-light)"}}><BellIcon size={14}/>{t("auctionNewsTitle")}</span>
-                      <button
-                        onClick={()=>dismissAnnouncement(ann.id)}
-                        title={t("dismissAnnouncementTitle")}
-                        style={{background:"none",border:"none",color:"var(--text-dim)",cursor:"pointer",fontSize:13,padding:0,lineHeight:1}}
-                      >✕</button>
-                    </div>
-                    <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                      {ann.items.map(item => (
-                        <div key={item.auctionId} style={{display:"flex",alignItems:"center",gap:10}}>
-                          <div style={{width:38,height:38,borderRadius:2,overflow:"hidden",background:item.rarity==="epic"?"rgba(122,26,26,0.3)":"rgba(26,90,138,0.3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
-                            {item.image?<AuctionImage auction={item} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={<StatIcon src={AUCTION_ICON} size={20}/>}/>:<StatIcon src={AUCTION_ICON} size={20}/>}
-                          </div>
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:12,color:"var(--text-bright)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.name}</div>
-                            <div style={{fontSize:10,color:"var(--text-dim)"}}>{item.topBidder ? `${t("topBidderLabel")}: ${item.topBidder}` : t("noBids")}</div>
-                          </div>
-                          <div style={{textAlign:"right",flexShrink:0}}>
-                            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:13,color:"var(--gold-light)",display:"inline-flex",alignItems:"center",gap:3}}><StatIcon src={COINS_ICON} size={16}/>{fmt(item.currentBid)}</div>
-                            <div style={{fontSize:9,color:"#e07070",fontWeight:700}}>{timeLeft(item.endsAt)}</div>
+                    {groupNewsItemsByName(ann.items).map((item,i) => (
+                      <div key={item.auctionId} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",borderTop: i>0 ? "1px solid rgba(200,146,42,0.12)" : "none"}}>
+                        <div style={{position:"relative",width:38,height:38,borderRadius:4,overflow:"hidden",background:item.rarity==="epic"?"rgba(122,26,26,0.3)":"rgba(26,90,138,0.3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
+                          {item.image?<AuctionImage auction={item} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={<StatIcon src={AUCTION_ICON} size={20}/>}/>:<StatIcon src={AUCTION_ICON} size={20}/>}
+                          {item.count > 1 && (
+                            <span style={{position:"absolute",bottom:-5,right:-5,background:"var(--gold)",color:"#241a08",fontSize:9,fontWeight:800,padding:"1px 5px",borderRadius:8,border:"1.5px solid var(--bg-card)",fontFamily:"'Inter',sans-serif",lineHeight:1.3}}>&times;{item.count}</span>
+                          )}
+                        </div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:12,color:"var(--text-bright)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.name}</div>
+                          <div style={{fontSize:10,color:"var(--text-dim)"}}>
+                            {item.count > 1
+                              ? `${item.count} ${t("featuredCountLabel")} · ${t("closestEndsLabel")} ${timeLeft(item.endsAt)}`
+                              : (item.topBidder ? `${t("topBidderLabel")}: ${item.topBidder}` : t("noBids"))}
                           </div>
                         </div>
-                      ))}
-                    </div>
+                        <div style={{textAlign:"right",flexShrink:0}}>
+                          <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:13,color:"var(--gold-light)",display:"inline-flex",alignItems:"center",gap:3}}><StatIcon src={COINS_ICON} size={16}/>{fmt(item.currentBid)}</div>
+                          <div style={{fontSize:9,color:"#e07070",fontWeight:700}}>{timeLeft(item.endsAt)}</div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ) : (
+                </div>
+              ) : (
                 <div key={ann.id} style={{
-                  display:"flex",alignItems:"flex-start",gap:10,
-                  background:"linear-gradient(90deg, rgba(201,151,42,0.15), rgba(201,151,42,0.05))",
-                  border:"1px solid rgba(201,151,42,0.4)",borderRadius:6,padding:"12px 14px",
+                  display:"flex",alignItems:"flex-start",gap:10,marginBottom:14,
+                  background:"linear-gradient(135deg, rgba(200,146,42,0.1) 0%, rgba(200,146,42,0.03) 100%)",
+                  border:"1px solid rgba(200,146,42,0.3)",borderRadius:7,padding:"12px 14px",
                 }}>
                   <span style={{fontSize:16,flexShrink:0}}>📢</span>
                   <div style={{fontSize:13,color:"var(--gold-light)",lineHeight:1.5,flex:1}}>{ann.text}</div>
@@ -6950,81 +7352,79 @@ function LoginSummaryModal({ summary, memberName, announcements, onClose, onDism
                     style={{background:"none",border:"none",color:"var(--text-dim)",cursor:"pointer",fontSize:13,flexShrink:0,padding:0,lineHeight:1}}
                   >✕</button>
                 </div>
-                )
-              ))}
-            </div>
-          )}
-          {summary && (
-            <>
-          <div style={{
-            display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,
-            background:"rgba(201,151,42,0.05)",border:"1px solid rgba(201,151,42,0.2)",
-            borderRadius:6,padding:"10px 14px",marginBottom:16,
-          }}>
-            <span style={{fontSize:12,color:"var(--text-dim)"}}>{t("currentBalanceLabel")}</span>
-            <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:16,fontWeight:800,color:"var(--gold-light)"}}>
-              <StatIcon src={COINS_ICON} size={20}/>{fmt(summary.currentBalance)}
-            </span>
+              )
+            ))}
           </div>
-          <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:16}}>{t("loginSummaryDesc")}</div>
-          {!summary.hasAnything ? (
-            <div style={{textAlign:"center",padding:"20px 0",color:"var(--text-dim)",fontSize:13}}>{t("nothingNewMessage")}</div>
-          ) : (
-          <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            {summary.totalCoins !== 0 && (
-              <div style={{display:"flex",alignItems:"center",gap:10,background:"rgba(201,151,42,0.08)",border:"1px solid rgba(201,151,42,0.25)",borderRadius:6,padding:"10px 14px"}}>
-                <StatIcon src={COINS_ICON} size={22}/>
-                <div>
-                  <div style={{fontSize:13,fontWeight:700,color:"var(--gold-light)"}}>{summary.totalCoins>0?"+":""}{fmt(summary.totalCoins)} {t("coinsLabel")}</div>
-                  <div style={{fontSize:11,color:"var(--text-dim)"}}>
-                    {summary.coinsFromAttendance>0 && `${fmt(summary.coinsFromAttendance)} ${t("fromAttendance")}`}
-                    {summary.coinsFromAttendance>0 && summary.coinsFromBonuses!==0 && " · "}
-                    {summary.coinsFromBonuses!==0 && `${summary.coinsFromBonuses>0?"+":""}${fmt(summary.coinsFromBonuses)} ${t("fromBonuses")}`}
-                    {(summary.coinsFromAttendance>0 || summary.coinsFromBonuses!==0) && summary.coinsFromDecay!==0 && " · "}
-                    {summary.coinsFromDecay!==0 && `${fmt(summary.coinsFromDecay)} ${t("fromDecay")}`}
-                  </div>
+        )}
+
+        {/* ── PERSONAL ACTIVITY DIGEST — labeled section, connected-spine
+            bulleting (see .login-summary-spine/.login-summary-row in
+            GLOBAL_CSS) instead of five separately bordered colored boxes. ── */}
+        {summary && (
+          <div style={{padding:"4px 24px 18px"}}>
+            {!summary.hasAnything ? (
+              <div style={{textAlign:"center",padding:"20px 0",color:"var(--text-dim)",fontSize:13}}>{t("nothingNewMessage")}</div>
+            ) : (
+              <>
+                <div style={{fontSize:9.5,letterSpacing:2,textTransform:"uppercase",color:"var(--text-dim)",fontWeight:700,fontFamily:"'Inter',sans-serif",margin: visibleAnnouncements.length>0 ? "14px 0 8px" : "0 0 8px", paddingTop: visibleAnnouncements.length>0 ? 12 : 0, borderTop: visibleAnnouncements.length>0 ? "1px solid var(--border)" : "none"}}>
+                  {t("sinceLastVisitLabel")}
                 </div>
-              </div>
-            )}
-            {summary.decayEntries.length > 0 && (
-              <div style={{background:"rgba(180,80,80,0.08)",border:"1px solid rgba(180,80,80,0.25)",borderRadius:6,padding:"10px 14px"}}>
-                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:13,fontWeight:700,color:"#e07070",marginBottom:6}}><WarningIcon size={14}/>{t("weeklyCoinDecay")}</div>
-                {summary.decayEntries.map((d,i) => (
-                  <div key={i} style={{fontSize:12,color:"var(--text)",display:"flex",justifyContent:"space-between"}}>
-                    <span>{d.date}</span><span style={{color:"#e07070",fontWeight:700}}>{fmt(d.amount)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {summary.bonusEntries.length > 0 && (
-              <div style={{background:"rgba(201,151,42,0.08)",border:"1px solid rgba(201,151,42,0.25)",borderRadius:6,padding:"10px 14px"}}>
-                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:13,fontWeight:700,color:"var(--gold-light)",marginBottom:6}}><TrophyIcon size={14}/>{t("bonusesEarned")}</div>
-                {summary.bonusEntries.map((b,i) => (
-                  <div key={i} style={{fontSize:12,color:"var(--text)",display:"flex",justifyContent:"space-between"}}>
-                    <span>{b.logType}</span><span style={{color:"var(--gold-light)",fontWeight:700}}>+{fmt(b.change)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {summary.powerChange !== 0 && (
-              <div style={{display:"flex",alignItems:"center",gap:10,background:"rgba(70,130,200,0.08)",border:"1px solid rgba(70,130,200,0.25)",borderRadius:6,padding:"10px 14px"}}>
-                <PowerIcon size={20} style={{color:"#6fa8dc"}}/>
-                <div style={{fontSize:13,fontWeight:700,color:"#8cc0f0"}}>{summary.powerChange>0?"+":""}{fmt(summary.powerChange)} {t("powerLabel")}</div>
-              </div>
-            )}
-            {summary.auctionWins.length > 0 && (
-              <div style={{background:"rgba(180,80,80,0.08)",border:"1px solid rgba(180,80,80,0.25)",borderRadius:6,padding:"10px 14px"}}>
-                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:13,fontWeight:700,color:"#e07070",marginBottom:6}}><StatIcon src={AUCTION_ICON} size={16}/>{t("auctionsWon")}</div>
-                {summary.auctionWins.map((a,i) => (
-                  <div key={i} style={{fontSize:12,color:"var(--text)"}}>{a.reason}</div>
-                ))}
-              </div>
+                <div className="login-summary-spine">
+                  {summary.totalCoins !== 0 && (
+                    <div className="login-summary-row" style={{"--dot":"#e6b048",display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:12.5,fontWeight:700,color:"var(--text-bright)"}}>{t("coinsLabel").charAt(0).toUpperCase()+t("coinsLabel").slice(1)}</div>
+                        <div style={{fontSize:10.5,color:"var(--text-dim)",marginTop:1}}>
+                          {summary.coinsFromAttendance>0 && `${fmt(summary.coinsFromAttendance)} ${t("fromAttendance")}`}
+                          {summary.coinsFromAttendance>0 && summary.coinsFromBonuses!==0 && " · "}
+                          {summary.coinsFromBonuses!==0 && `${summary.coinsFromBonuses>0?"+":""}${fmt(summary.coinsFromBonuses)} ${t("fromBonuses")}`}
+                          {(summary.coinsFromAttendance>0 || summary.coinsFromBonuses!==0) && summary.coinsFromDecay!==0 && " · "}
+                          {summary.coinsFromDecay!==0 && `${fmt(summary.coinsFromDecay)} ${t("fromDecay")}`}
+                        </div>
+                      </div>
+                      <div style={{fontSize:13,fontWeight:800,color:"#e6b048",flexShrink:0,fontVariantNumeric:"tabular-nums",display:"inline-flex",alignItems:"center",gap:3}}><StatIcon src={COINS_ICON} size={16}/>{summary.totalCoins>0?"+":""}{fmt(summary.totalCoins)}</div>
+                    </div>
+                  )}
+                  {summary.decayEntries.length > 0 && (
+                    <div className="login-summary-row" style={{"--dot":"#e07070",display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:12.5,fontWeight:700,color:"var(--text-bright)"}}>{t("weeklyCoinDecay")}</div>
+                        <div style={{fontSize:10.5,color:"var(--text-dim)",marginTop:1}}>{summary.decayEntries.map(d=>d.date).join(" · ")}</div>
+                      </div>
+                      <div style={{fontSize:13,fontWeight:800,color:"#e07070",flexShrink:0,fontVariantNumeric:"tabular-nums",display:"inline-flex",alignItems:"center",gap:3}}><StatIcon src={COINS_ICON} size={16}/>{fmt(summary.coinsFromDecay)}</div>
+                    </div>
+                  )}
+                  {summary.bonusEntries.length > 0 && (
+                    <div className="login-summary-row" style={{"--dot":"#e6b048",display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:12.5,fontWeight:700,color:"var(--text-bright)"}}>{t("bonusesEarned")}</div>
+                        <div style={{fontSize:10.5,color:"var(--text-dim)",marginTop:1}}>{summary.bonusEntries.map(b=>b.logType).join(" · ")}</div>
+                      </div>
+                      <div style={{fontSize:13,fontWeight:800,color:"#e6b048",flexShrink:0,fontVariantNumeric:"tabular-nums",display:"inline-flex",alignItems:"center",gap:3}}><StatIcon src={COINS_ICON} size={16}/>+{fmt(summary.coinsFromBonuses)}</div>
+                    </div>
+                  )}
+                  {summary.powerChange !== 0 && (
+                    <div className="login-summary-row" style={{"--dot":"#8cc0f0",display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:12.5,fontWeight:700,color:"var(--text-bright)"}}>{t("powerLabel")}</div>
+                      </div>
+                      <div style={{fontSize:13,fontWeight:800,color:"#8cc0f0",flexShrink:0,fontVariantNumeric:"tabular-nums"}}>{summary.powerChange>0?"+":""}{fmt(summary.powerChange)}</div>
+                    </div>
+                  )}
+                  {summary.auctionWins.length > 0 && (
+                    <div className="login-summary-row" style={{"--dot":"#e6b048",display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:12.5,fontWeight:700,color:"var(--text-bright)"}}>{t("auctionsWon")}</div>
+                        <div style={{fontSize:10.5,color:"var(--text-dim)",marginTop:1}}>{summary.auctionWins.map(a=>a.reason).join(" · ")}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </div>
-          )}
-            </>
-          )}
-        </div>
+        )}
+
         <div className="modal-footer" style={{display:"flex",alignItems:"center",justifyContent:summary?"space-between":"flex-end",gap:12}}>
           {summary && (
             <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--text-dim)",cursor:"pointer"}}>
@@ -7171,14 +7571,116 @@ function performAttendancePayout(members, { ev, date, ts, present, qualifierMap 
 }
 
 // ─── ATTENDANCE ───────────────────────────────────────────────────────────────
-function Attendance({ ctx }) {
+// ─── RECORD ATTENDANCE (Admin-only page) ───────────────────────────────────
+// Extracted from Attendance's old "record" tab, which used to render as
+// the FIRST tab everyone landed on — even though non-admins just saw a
+// blank "Elder only" placeholder there (Attendance defaulted to
+// useState("record")). Reachable only via the Admin Tools sidebar section
+// now, so regular members land on the actually-useful History tab instead.
+function RecordAttendancePanel({ ctx }) {
   const { t } = useLang();
+  const { members, setMembers, addToast, currentUser, setAttendanceLogs } = ctx;
   const [memberSearch, setMemberSearch] = useState("");
-  const { members, setMembers, addToast, currentUser, attendanceLogs, setAttendanceLogs, setModal, decayRate } = ctx;
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectedMembers, setSelectedMembers] = useState({});
   const [qualifier, setQualifier] = useState({});
-  const [tab, setTab] = useState("record");
+
+  function toggleMember(id) {
+    setSelectedMembers(p=>({...p,[id]:!p[id]}));
+    if(!qualifier[id]) setQualifier(p=>({...p,[id]:"full"}));
+  }
+
+  function submitAttendance() {
+    if(!selectedEvent){addToast(t("selectEventError"),"red",t("errorLabel"));return;}
+    const ev=EVENTS.find(e=>e.id===selectedEvent);
+    const present=Object.entries(selectedMembers).filter(([,v])=>v).map(([id])=>parseInt(id));
+    if(present.length===0){addToast(t("noMembersSelected"),"red",t("errorLabel"));return;}
+    const today = new Date().toLocaleDateString();
+    const nowTs = Date.now();
+    const qualifierMap = {...qualifier};
+    const presentNames = present.map(id => {
+      const m = members.find(x=>x.id===id);
+      const q = qualifierMap[id]||"full";
+      const mult=q==="full"?1:q==="late"?0.5:0;
+      const rankMult=getRankMultiplier(members,id);
+      const earned=Math.floor(ev.coins*mult*rankMult);
+      return {name:m?.name, qualifier:q, earned};
+    });
+    setMembers(ms => {
+      const { updatedMembers, bonusToasts } = performAttendancePayout(ms, { ev, date: today, ts: nowTs, present, qualifierMap });
+      setTimeout(()=>{
+        bonusToasts.forEach(bonus=>addToast(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><TrophyIcon size={14}/>{bonus.name} {t("earnedBonusText")} +{bonus.coins} {t("coinsText")} — {bonus.bonus} {t("bonusText")}</span>,"gold",t("bonusAwarded")));
+      }, 200);
+      return updatedMembers;
+    });
+    const logEntry = {id:Date.now(),event:ev.name,date:today,ts:nowTs,members:present.length,recordedBy:currentUser.name,attendees:presentNames};
+    setAttendanceLogs(p=>[logEntry,...p]);
+    addToast(`${t("attendanceRecorded")} ${present.length} ${t("membersUpdated")}`,"blue",t("attendanceSaved"));
+    setSelectedMembers({});setQualifier({});setSelectedEvent(null);
+  }
+
+  return (
+    <div className="grid-2">
+      <div>
+        <div className="card" style={{marginBottom:20}}>
+          <SectionTitle>Select Event</SectionTitle>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {EVENTS.map(ev=>(
+              <div key={ev.id} className={`event-pill${selectedEvent===ev.id?" selected":""}`} onClick={()=>setSelectedEvent(ev.id)}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span>{ev.name}</span>
+                  <span style={{color:"var(--gold)",fontFamily:"'Inter',sans-serif",fontWeight:800}}>+{ev.coins}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {selectedEvent && (
+          <div className="card card-blue">
+            <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>{t("coinRules")}</div>
+            <div style={{fontSize:13,marginBottom:4,fontFamily:"'Inter',sans-serif"}}>{t("full")}: <strong style={{color:"var(--gold)"}}>{EVENTS.find(e=>e.id===selectedEvent)?.coins}</strong></div>
+            <div style={{fontSize:13,marginBottom:4,fontFamily:"'Inter',sans-serif"}}>{t("late")}: <strong style={{color:"var(--gold)"}}>{Math.floor(EVENTS.find(e=>e.id===selectedEvent)?.coins*0.5)}</strong></div>
+            <div style={{fontSize:13,fontFamily:"'Inter',sans-serif"}}>{t("afk")}: <strong style={{color:"var(--text-dim)"}}>0</strong></div>
+          </div>
+        )}
+      </div>
+      <div className="card">
+        <SectionTitle>{t("markMembers")}</SectionTitle>
+        <input
+          className="input"
+          type="text"
+          placeholder={t("searchMember")}
+          value={memberSearch}
+          onChange={e=>setMemberSearch(e.target.value)}
+          style={{marginBottom:10,width:"100%"}}
+        />
+        <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:340,overflowY:"auto"}}>
+          {members.filter(m=>m.name.toLowerCase().includes(memberSearch.toLowerCase())).map(m=>(
+            <div key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:2,background:selectedMembers[m.id]?"rgba(201,151,42,0.07)":"rgba(10,11,15,0.5)",border:`1px solid ${selectedMembers[m.id]?"var(--gold-dim)":"transparent"}`,cursor:"pointer"}} onClick={()=>toggleMember(m.id)}>
+              <input type="checkbox" checked={!!selectedMembers[m.id]} onChange={()=>toggleMember(m.id)} style={{accentColor:"var(--gold)"}} />
+              <ClassIcon cls={m.cls} size={32} />
+              <span style={{flex:1,fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:"var(--text-bright)"}}>{m.name}</span>
+              {selectedMembers[m.id] && (
+                <select className="select" style={{width:"auto",padding:"3px 8px",fontSize:11}} value={qualifier[m.id]||"full"} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();setQualifier(p=>({...p,[m.id]:e.target.value}));}}>
+                  <option value="full">{t("full")}</option><option value="late">{t("late")}</option><option value="afk">{t("afk")}</option>
+                </select>
+              )}
+            </div>
+          ))}
+        </div>
+        <div style={{marginTop:16,display:"flex",gap:10}}>
+          <button className="btn btn-gold" style={{flex:1}} onClick={submitAttendance}>{t("submitAttendance")}</button>
+          <button className="btn btn-outline" onClick={()=>{setSelectedMembers({});setQualifier({});}}>{t("clear")}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Attendance({ ctx }) {
+  const { t } = useLang();
+  const { members, addToast, currentUser, attendanceLogs, setAttendanceLogs, setModal, decayRate } = ctx;
+  const [tab, setTab] = useState("logs");
   const [bonusSearch, setBonusSearch] = useState("");
   const [historyFilter, setHistoryFilter] = useState("All");
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
@@ -7207,42 +7709,6 @@ function Attendance({ ctx }) {
     link.href = url; link.download = filename; link.click();
     URL.revokeObjectURL(url);
     addToast(`${filename} ${t("fileDownloaded")}`,"green",t("exportLabel"));
-  }
-
-  function toggleMember(id) {
-    setSelectedMembers(p=>({...p,[id]:!p[id]}));
-    if(!qualifier[id]) setQualifier(p=>({...p,[id]:"full"}));
-  }
-
-  function submitAttendance() {
-    if(!selectedEvent){addToast(t("selectEventError"),"red",t("errorLabel"));return;}
-    const ev=EVENTS.find(e=>e.id===selectedEvent);
-    const present=Object.entries(selectedMembers).filter(([,v])=>v).map(([id])=>parseInt(id));
-    if(present.length===0){addToast(t("noMembersSelected"),"red",t("errorLabel"));return;}
-    const today = new Date().toLocaleDateString();
-    const nowTs = Date.now();
-    const qualifierMap = {...qualifier};
-    const presentNames = present.map(id => {
-      const m = members.find(x=>x.id===id);
-      const q = qualifierMap[id]||"full";
-      const mult=q==="full"?1:q==="late"?0.5:0;
-      const rankMult=getRankMultiplier(members,id);
-      const earned=Math.floor(ev.coins*mult*rankMult);
-      return {name:m?.name, qualifier:q, earned};
-    });
-    setMembers(ms => {
-      const { updatedMembers, bonusToasts } = performAttendancePayout(ms, { ev, date: today, ts: nowTs, present, qualifierMap });
-      // Show bonus toasts after state update
-      setTimeout(()=>{
-        bonusToasts.forEach(bonus=>addToast(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><TrophyIcon size={14}/>{bonus.name} {t("earnedBonusText")} +{bonus.coins} {t("coinsText")} — {bonus.bonus} {t("bonusText")}</span>,"gold",t("bonusAwarded")));
-      }, 200);
-      return updatedMembers;
-    });
-    const logEntry = {id:Date.now(),event:ev.name,date:today,ts:nowTs,members:present.length,recordedBy:currentUser.name,attendees:presentNames};
-    setAttendanceLogs(p=>[logEntry,...p]);
-    addToast(`${t("attendanceRecorded")} ${present.length} ${t("membersUpdated")}`,"blue",t("attendanceSaved"));
-    setSelectedMembers({});setQualifier({});setSelectedEvent(null);
-    setLogPage(0);
   }
 
   // Bonus calculation — weekly window resets every Monday 00:00 (end of Sunday)
@@ -7300,77 +7766,58 @@ function Attendance({ ctx }) {
   const pagedLogs = attendanceLogs.slice(logPage*PAGE_SIZE, (logPage+1)*PAGE_SIZE);
   const totalPages = Math.ceil(attendanceLogs.length/PAGE_SIZE);
 
+  // ── Hero strip stats — clan-wide orientation numbers shown above the
+  // tabs, reusing logSortKey/getWeekStart rather than re-deriving sort/
+  // week-boundary logic that already exists for this exact data. ──
+  const heroWeekStart = getWeekStart().getTime();
+  const logsThisWeek = attendanceLogs.filter(l => logSortKey(l) >= heroWeekStart).length;
+  const latestLog = attendanceLogs.length > 0
+    ? [...attendanceLogs].sort((a,b)=>logSortKey(b)-logSortKey(a))[0]
+    : null;
+
   return (
     <div>
-      <div className="tabs">
-        <div className={`tab${tab==="record"?" active":""}`} onClick={()=>setTab("record")}>{t("tabRecordAttendance")}</div>
-        <div className={`tab${tab==="logs"?" active":""}`} onClick={()=>setTab("logs")}>{t("tabHistory")}</div>
-        <div className={`tab${tab==="bonuses"?" active":""}`} onClick={()=>setTab("bonuses")}>{t("tabBonuses")}</div>
-        <div className={`tab${tab==="mylog"?" active":""}`} onClick={()=>setTab("mylog")}>{t("tabMyLog")}</div>
-        <div className={`tab${tab==="globallog"?" active":""}`} onClick={()=>setTab("globallog")}>{t("tabGlobalLog")}</div>
-      </div>
-
-      {tab==="record" && (
-        <div>
-          {!isAdmin && <div className="card" style={{color:"var(--text-dim)",textAlign:"center",padding:32,fontFamily:"'Inter',sans-serif"}}>{t("elderOnlyAttendance")}</div>}
-          {isAdmin && (
-            <div className="grid-2">
-              <div>
-                <div className="card" style={{marginBottom:20}}>
-                  <SectionTitle>Select Event</SectionTitle>
-                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                    {EVENTS.map(ev=>(
-                      <div key={ev.id} className={`event-pill${selectedEvent===ev.id?" selected":""}`} onClick={()=>setSelectedEvent(ev.id)}>
-                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                          <span>{ev.name}</span>
-                          <span style={{color:"var(--gold)",fontFamily:"'Inter',sans-serif",fontWeight:800}}>+{ev.coins}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                {selectedEvent && (
-                  <div className="card card-blue">
-                    <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>{t("coinRules")}</div>
-                    <div style={{fontSize:13,marginBottom:4,fontFamily:"'Inter',sans-serif"}}>{t("full")}: <strong style={{color:"var(--gold)"}}>{EVENTS.find(e=>e.id===selectedEvent)?.coins}</strong></div>
-                    <div style={{fontSize:13,marginBottom:4,fontFamily:"'Inter',sans-serif"}}>{t("late")}: <strong style={{color:"var(--gold)"}}>{Math.floor(EVENTS.find(e=>e.id===selectedEvent)?.coins*0.5)}</strong></div>
-                    <div style={{fontSize:13,fontFamily:"'Inter',sans-serif"}}>{t("afk")}: <strong style={{color:"var(--text-dim)"}}>0</strong></div>
-                  </div>
-                )}
-              </div>
-              <div className="card">
-                <SectionTitle>{t("markMembers")}</SectionTitle>
-                <input
-                  className="input"
-                  type="text"
-                  placeholder={t("searchMember")}
-                  value={memberSearch}
-                  onChange={e=>setMemberSearch(e.target.value)}
-                  style={{marginBottom:10,width:"100%"}}
-                />
-                <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:340,overflowY:"auto"}}>
-                  {members.filter(m=>m.name.toLowerCase().includes(memberSearch.toLowerCase())).map(m=>(
-                    <div key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:2,background:selectedMembers[m.id]?"rgba(201,151,42,0.07)":"rgba(10,11,15,0.5)",border:`1px solid ${selectedMembers[m.id]?"var(--gold-dim)":"transparent"}`,cursor:"pointer"}} onClick={()=>toggleMember(m.id)}>
-                      <input type="checkbox" checked={!!selectedMembers[m.id]} onChange={()=>toggleMember(m.id)} style={{accentColor:"var(--gold)"}} />
-                      <ClassIcon cls={m.cls} size={32} />
-                      <span style={{flex:1,fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:"var(--text-bright)"}}>{m.name}</span>
-                      {selectedMembers[m.id] && (
-                        <select className="select" style={{width:"auto",padding:"3px 8px",fontSize:11}} value={qualifier[m.id]||"full"} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();setQualifier(p=>({...p,[m.id]:e.target.value}));}}>
-                          <option value="full">{t("full")}</option><option value="late">{t("late")}</option><option value="afk">{t("afk")}</option>
-                        </select>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <div style={{marginTop:16,display:"flex",gap:10}}>
-                  <button className="btn btn-gold" style={{flex:1}} onClick={submitAttendance}>{t("submitAttendance")}</button>
-                  <button className="btn btn-outline" onClick={()=>{setSelectedMembers({});setQualifier({});}}>{t("clear")}</button>
-                </div>
-              </div>
+      {/* ── WAR LEDGER STRIP — compact hero-adjacent orientation zone,
+          shorter than Clan HQ's full banner since this is a working data
+          page, not a showcase. Same corner-bracket/glow language. ── */}
+      <div style={{
+        position:"relative",overflow:"hidden",borderRadius:8,marginBottom:24,
+        background:"linear-gradient(135deg,#0e0b09 0%,#161110 50%,#0e0b09 100%)",
+        border:"1px solid rgba(200,146,42,0.18)",
+        boxShadow:"0 6px 32px rgba(0,0,0,0.7), inset 0 1px 0 rgba(200,146,42,0.1)",
+        padding:"18px 24px",
+      }}>
+        <CornerBrackets size={14} thickness={2} inset={10} opacity={0.4}/>
+        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 15% 0%,rgba(200,146,42,0.08) 0%,transparent 55%)",pointerEvents:"none"}}/>
+        <div style={{position:"relative",display:"flex",flexWrap:"wrap",gap:28,alignItems:"center"}}>
+          <div>
+            <div style={{fontFamily:"'Spectral',serif",fontSize:18,fontWeight:800,color:"var(--gold-light)",letterSpacing:1}}>{t("tabHistory")} &amp; {t("tabBonuses")}</div>
+            <div style={{fontSize:10,color:"#7c6d58",letterSpacing:2,textTransform:"uppercase",marginTop:2,fontFamily:"'Inter',sans-serif"}}>{CLAN_NAME}</div>
+          </div>
+          <div style={{width:1,height:32,background:"rgba(200,146,42,0.2)"}}/>
+          <div>
+            <div style={{fontSize:9,letterSpacing:2,textTransform:"uppercase",color:"rgba(200,146,42,0.7)",fontWeight:700,fontFamily:"'Inter',sans-serif"}}>{t("totalLogsLabel")}</div>
+            <div style={{fontFamily:"'Spectral',serif",fontSize:22,fontWeight:800,color:"var(--gold-bright)",textShadow:"0 0 16px rgba(200,146,42,0.3)"}}>{fmt(attendanceLogs.length)}</div>
+          </div>
+          <div>
+            <div style={{fontSize:9,letterSpacing:2,textTransform:"uppercase",color:"rgba(200,146,42,0.7)",fontWeight:700,fontFamily:"'Inter',sans-serif"}}>{t("thisWeekLabel")}</div>
+            <div style={{fontFamily:"'Spectral',serif",fontSize:22,fontWeight:800,color:"var(--gold-bright)",textShadow:"0 0 16px rgba(200,146,42,0.3)"}}>{fmt(logsThisWeek)}</div>
+          </div>
+          {latestLog && (
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:9,letterSpacing:2,textTransform:"uppercase",color:"rgba(200,146,42,0.7)",fontWeight:700,fontFamily:"'Inter',sans-serif"}}>{t("latestEventLabel")}</div>
+              <div style={{fontFamily:"'Inter',sans-serif",fontSize:14,fontWeight:700,color:"var(--text-bright)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:220}}>{latestLog.event}</div>
             </div>
           )}
         </div>
-      )}
+      </div>
+
+      <div className="dash-tabs">
+        <div className={`dash-tab${tab==="logs"?" active":""}`} onClick={()=>setTab("logs")}>{t("tabHistory")}</div>
+        <div className={`dash-tab${tab==="bonuses"?" active":""}`} onClick={()=>setTab("bonuses")}>{t("tabBonuses")}</div>
+        <div className={`dash-tab${tab==="mylog"?" active":""}`} onClick={()=>setTab("mylog")}>{t("tabMyLog")}</div>
+        <div className={`dash-tab${tab==="globallog"?" active":""}`} onClick={()=>setTab("globallog")}>{t("tabGlobalLog")}</div>
+      </div>
 
       {tab==="logs" && (
         <>
@@ -7379,7 +7826,12 @@ function Attendance({ ctx }) {
             <button className="btn btn-outline btn-sm" onClick={()=>setModal({type:"addMissingAttendance"})}>{t("addMissingRecord")}</button>
           </div>
         )}
-        <div className="card attendance-table-view" style={{padding:0}}>
+        <div className="dash-panel attendance-table-view" style={{
+          padding:0,position:"relative",overflow:"hidden",
+          background:"linear-gradient(135deg,#161110 0%,#1c1410 60%,#161110 100%)",
+          border:"1px solid rgba(200,146,42,0.2)",borderRadius:6,
+        }}>
+          <CornerBrackets size={13} thickness={1.5} inset={8} opacity={0.4}/>
           <div className="table-wrap">
             <table className="table-stack">
               <thead><tr><th>{t("colDateTime")}</th><th>{t("colEvent")}</th><th>{t("colMembers")}</th><th>{t("colRecBy")}</th><th>{t("attendeesLabel")}</th>{isMaster&&<th>{t("colActions")}</th>}</tr></thead>
@@ -7442,9 +7894,9 @@ function Attendance({ ctx }) {
 
         {/* Mobile card view — same data as the table above, shown only on narrow screens (see .attendance-card-view media query) */}
         <div className="attendance-card-view">
-          {attendanceLogs.length===0 && <div className="card" style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noAttendanceYet")}</div>}
+          {attendanceLogs.length===0 && <div className="dash-subcard" style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noAttendanceYet")}</div>}
           {pagedLogs.map(l=>(
-            <div key={`card-${l.id}`} className="card" style={{marginBottom:10,padding:"14px 16px"}}>
+            <div key={`card-${l.id}`} className="dash-subcard" style={{marginBottom:10,padding:"14px 16px"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:6}}>
                 <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:14,color:"var(--text-bright)",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{l.event}</span>
                 <span style={{fontSize:10,color:"var(--text-dim)",flexShrink:0,whiteSpace:"nowrap"}}>{formatLogDateTime(l)}</span>
@@ -7492,15 +7944,17 @@ function Attendance({ ctx }) {
       )}
 
       {tab==="bonuses" && (
-        <div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:24}}>
+          {/* Primary column — search + member bonus-progress grid */}
+          <div style={{flex:"2 1 500px",minWidth:0}}>
           <div style={{marginBottom:16}}>
             <input className="input" placeholder={t("searchWarrior")} value={bonusSearch} onChange={e=>setBonusSearch(e.target.value)} style={{maxWidth:300}} />
           </div>
-          <div className="grid-3" style={{marginBottom:24}}>
+          <div className="grid-3">
             {members.filter(m=>m.name.toLowerCase().includes(bonusSearch.toLowerCase())).map(m=>{
               const b = computeBonuses(m);
               return (
-                <div key={m.id} className="card" style={{padding:18}}>
+                <div key={m.id} className="dash-subcard" style={{padding:18}}>
                   <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
                     <ClassIcon cls={m.cls} size={36}/>
                     <div style={{flex:1,minWidth:0}}>
@@ -7548,27 +8002,48 @@ function Attendance({ ctx }) {
               <div style={{gridColumn:"1/-1",textAlign:"center",padding:32,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{t("noWarriorMatch")}</div>
             )}
           </div>
-          <div className="card card-gold" style={{marginBottom:16}}>
-            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:"var(--gold-light)",marginBottom:6}}>{t("bonusRules")}</div>
-            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          </div>
+
+          {/* Sidebar column — persistent reference rules, no longer
+              stacked below the grid competing for the same vertical space */}
+          <div style={{flex:"1 1 300px",minWidth:0}}>
+          <div className="dash-panel" style={{
+            marginBottom:24,position:"relative",overflow:"hidden",
+            background:"linear-gradient(135deg,#161110 0%,rgba(201,151,42,0.08) 60%,#161110 100%)",
+            border:"1px solid rgba(201,151,42,0.3)",borderRadius:6,padding:20,
+          }}>
+            <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.4}/>
+            <div style={{fontSize:10,letterSpacing:3,textTransform:"uppercase",color:"rgba(200,146,42,0.7)",fontWeight:700,marginBottom:4,fontFamily:"'Inter',sans-serif"}}>{t("bonusRules")}</div>
+            <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:10}}>
               <div style={{fontSize:12,color:"var(--text-dim)"}}>{t("bonusRuleMajor")} <strong style={{color:"var(--gold)"}}>{t("bonusCoins300")}</strong></div>
               <div style={{fontSize:12,color:"var(--text-dim)"}}>{t("bonusRuleSindri")} <strong style={{color:"var(--gold)"}}>{t("bonusCoins400")}</strong> {t("bonusOneTime")}</div>
               <div style={{fontSize:12,color:"var(--text-dim)"}}>{t("bonusRuleISB")} <strong style={{color:"var(--gold)"}}>{t("bonusCoins500")}</strong> {t("bonusOneTime")}</div>
             </div>
           </div>
-          <div className="card card-red">
-            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:"#e07070",marginBottom:6}}>{t("weeklyCoinDecay")}</div>
-            <div style={{fontSize:12,color:"var(--text-dim)",lineHeight:1.7}}>{t("decayWarningPrefix")} {Math.round(decayRate*1000)/10}% {t("decayWarningSuffix")}</div>
+          <div className="dash-panel" style={{
+            position:"relative",overflow:"hidden",
+            background:"linear-gradient(135deg,#1c1210 0%,rgba(168,50,40,0.1) 60%,#1c1210 100%)",
+            border:"1px solid rgba(168,50,40,0.35)",borderRadius:6,padding:20,
+          }}>
+            <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.35}/>
+            <div style={{fontSize:10,letterSpacing:3,textTransform:"uppercase",color:"rgba(224,112,112,0.8)",fontWeight:700,marginBottom:4,fontFamily:"'Inter',sans-serif"}}>{t("weeklyCoinDecay")}</div>
+            <div style={{fontSize:12,color:"var(--text-dim)",lineHeight:1.7,marginTop:10}}>{t("decayWarningPrefix")} {Math.round(decayRate*1000)/10}% {t("decayWarningSuffix")}</div>
             <span className="badge badge-red" style={{marginTop:8,display:"inline-block"}}>-{Math.round(decayRate*1000)/10}% / {t("decayBadgeSuffix")}</span>
+          </div>
           </div>
         </div>
       )}
 
       {tab==="mylog" && (
-        <div className="card" style={{padding:0}}>
-          <div style={{padding:"16px 20px",borderBottom:"1px solid var(--border)"}}>
-            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:15,color:"var(--gold-light)"}}>{t("myPointsHistoryTitle")}</div>
-            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3}}>{t("myPointsHistoryDesc")}</div>
+        <div className="dash-panel" style={{
+          padding:0,position:"relative",overflow:"hidden",
+          background:"linear-gradient(135deg,#161110 0%,#1c1410 60%,#161110 100%)",
+          border:"1px solid rgba(200,146,42,0.2)",borderRadius:6,
+        }}>
+          <CornerBrackets size={13} thickness={1.5} inset={8} opacity={0.4}/>
+          <div style={{padding:"18px 20px",borderBottom:"1px solid var(--border)"}}>
+            <div style={{fontFamily:"'Spectral',serif",fontSize:18,fontWeight:700,color:"var(--gold-light)"}}>{t("myPointsHistoryTitle")}</div>
+            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>{t("myPointsHistoryDesc")}</div>
           </div>
           {(()=>{
             // Attendance entries
@@ -7634,7 +8109,7 @@ function Attendance({ ctx }) {
                   </div>
                   <div className="attendance-card-view" style={{padding:"4px 16px 16px"}}>
                     {filteredEntries.map((e,i)=>(
-                      <div key={`card-${i}`} className="card" style={{marginBottom:8,padding:"12px 14px"}}>
+                      <div key={`card-${i}`} className="dash-subcard" style={{marginBottom:8,padding:"12px 14px"}}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:6}}>
                           <span className={`badge ${badgeClass(e)}`}>{typeLabel(e.type,t)}</span>
                           <span style={{fontSize:10,color:"var(--text-dim)",whiteSpace:"nowrap"}}>{formatLogDateTime(e)}</span>
@@ -7655,10 +8130,15 @@ function Attendance({ ctx }) {
       )}
 
       {tab==="globallog" && (
-        <div className="card" style={{padding:0}}>
-          <div style={{padding:"16px 20px",borderBottom:"1px solid var(--border)"}}>
-            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:15,color:"var(--gold-light)"}}>{t("globalPointsTitle")}</div>
-            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3}}>{t("globalPointsDesc")}</div>
+        <div className="dash-panel" style={{
+          padding:0,position:"relative",overflow:"hidden",
+          background:"linear-gradient(135deg,#161110 0%,#1c1410 60%,#161110 100%)",
+          border:"1px solid rgba(200,146,42,0.2)",borderRadius:6,
+        }}>
+          <CornerBrackets size={13} thickness={1.5} inset={8} opacity={0.4}/>
+          <div style={{padding:"18px 20px",borderBottom:"1px solid var(--border)"}}>
+            <div style={{fontFamily:"'Spectral',serif",fontSize:18,fontWeight:700,color:"var(--gold-light)"}}>{t("globalPointsTitle")}</div>
+            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>{t("globalPointsDesc")}</div>
           </div>
           {(()=>{
             // Show admin manual adds and all bonus entries
@@ -7692,7 +8172,7 @@ function Attendance({ ctx }) {
               </div>
               <div className="attendance-card-view" style={{padding:"4px 16px 16px"}}>
                 {allEntries.map((entry,i)=>(
-                  <div key={`card-${i}`} className="card" style={{marginBottom:8,padding:"12px 14px"}}>
+                  <div key={`card-${i}`} className="dash-subcard" style={{marginBottom:8,padding:"12px 14px"}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:6}}>
                       <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:13,color:"var(--text-bright)"}}>{entry.member}</span>
                       <span style={{fontSize:10,color:"var(--text-dim)",whiteSpace:"nowrap"}}>{formatLogDateTime(entry)}</span>
@@ -7782,17 +8262,351 @@ function BidMarquee({ feed, auctions }) {
 }
 
 // ─── AUCTIONS ─────────────────────────────────────────────────────────────────
+// ─── CREATE AUCTION (Admin-only page) ──────────────────────────────────────
+// Extracted from Auctions' old "create" tab (previously hidden behind
+// isAdmin inside the member-facing Auctions page). Reachable only via the
+// Admin Tools sidebar section now. Uses the module-level auctionImageUrl/
+// postAuctionToNews helpers below (shared with Auctions' Live tab) instead
+// of duplicating the Discord/news-posting logic.
+function CreateAuctionPanel({ ctx }) {
+  const { t } = useLang();
+  const { setAuctions, addToast, imageLibrary, addImage } = ctx;
+  const [newAuction, setNewAuction] = useState({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000),postToNews:false});
+
+  const RARITY_OPTS=[
+    {value:"epic",label:t("rarityEpic"),color:"#ff8080",bg:"rgba(122,26,26,0.25)",border:"rgba(192,57,43,0.55)"},
+    {value:"rare",label:t("rarityRare"),color:"#60aadd",bg:"rgba(26,90,138,0.2)",border:"rgba(46,134,193,0.5)"},
+    {value:"kari",label:t("rarityKari"),color:"#a0d8ff",bg:"rgba(0,80,160,0.35)",border:"rgba(100,200,255,0.6)"},
+    {value:"uncommon",label:t("rarityUncommon"),color:"#7ddc7d",bg:"rgba(46,138,46,0.2)",border:"rgba(80,180,80,0.55)"},
+    {value:"material",label:t("rarityMaterial"),color:"#b8b8b8",bg:"rgba(120,120,120,0.25)",border:"rgba(160,160,160,0.55)"},
+  ];
+
+  function createAuction() {
+    if(!newAuction.name){addToast(t("itemNameRequired"),"red",t("errorLabel"));return;}
+    const now = Date.now();
+    const minBid = parseInt(newAuction.startBid)||100;
+    const endsAt = gmt8StringToTimestamp(newAuction.endsAtInput);
+    if (!endsAt) {
+      addToast("Please pick a valid end date and time.","red",t("errorLabel"));
+      return;
+    }
+    if (endsAt <= now) {
+      addToast("The end time must be in the future.","red",t("errorLabel"));
+      return;
+    }
+    const a={
+      id: String(now),
+      name: newAuction.name,
+      image: newAuction.image,
+      emoji: "",
+      rarity: newAuction.rarity,
+      desc: newAuction.desc || "",
+      description: newAuction.desc || "",
+      startBid: minBid,
+      minBid: minBid,
+      currentBid: minBid,
+      topBidder: null,
+      startedAt: now,
+      endsAt: endsAt,
+      status: "active",
+      bids: [],
+    };
+    setAuctions(prev=>[...prev,a]);
+    addToast(`${t("auctionStarted")} ${a.name}`,"gold",t("auctionLive"));
+    if (newAuction.postToNews) postAuctionToNews(a, ctx);
+    {
+      const imgUrl = auctionImageUrl(a);
+      notifyDiscord({ embeds: [{
+        title: `🔨 New auction: ${a.name}`,
+        description: `Starting bid: ${fmt(minBid)} coins · Ends ${timeLeft(endsAt)}`,
+        color: 0xc8922a,
+        url: `${window.location.origin}/?page=auctions`,
+        ...(imgUrl ? { thumbnail: { url: imgUrl } } : {}),
+      }] }, "auctions");
+    }
+    setNewAuction({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000),postToNews:false});
+  }
+
+  return (
+    <div className="card" style={{maxWidth:560}}>
+      <SectionTitle>{t("createNewAuction")}</SectionTitle>
+      <div className="form-group">
+        <label className="form-label">{t("itemNameFieldLabel")}</label>
+        <input className="input" placeholder={t("itemNamePlaceholder2")} value={newAuction.name} onChange={e=>setNewAuction(p=>({...p,name:e.target.value}))} />
+      </div>
+      <div className="form-group">
+        <label className="form-label">{t("rarityLabel")}</label>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(80px,1fr))",gap:8}}>
+          {RARITY_OPTS.map(r=>(
+            <div key={r.value} onClick={()=>setNewAuction(p=>({...p,rarity:r.value}))}
+              style={{padding:"10px 8px",borderRadius:2,cursor:"pointer",textAlign:"center",
+                background:newAuction.rarity===r.value?r.bg:"rgba(10,11,15,0.6)",
+                border:`1px solid ${newAuction.rarity===r.value?r.border:"var(--border)"}`,
+                color:newAuction.rarity===r.value?r.color:"var(--text-dim)",
+                fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,
+                transition:"all 0.2s"}}>
+              {r.label}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="form-group">
+        <label className="form-label">{t("itemImageLabel")}</label>
+        <ItemImagePicker value={newAuction.image} onChange={img=>setNewAuction(p=>({...p,image:img}))} library={imageLibrary} addImage={addImage} />
+      </div>
+      <div className="form-group">
+        <label className="form-label">{t("descriptionLabel")}</label>
+        <input className="input" placeholder={t("itemDescPlaceholder")} value={newAuction.desc} onChange={e=>setNewAuction(p=>({...p,desc:e.target.value}))} />
+      </div>
+      <div className="grid-2">
+        <div className="form-group">
+          <label className="form-label">{t("startingBidLabel")}</label>
+          <input className="input" type="number" min={1} value={newAuction.startBid} onChange={e=>setNewAuction(p=>({...p,startBid:e.target.value}))} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Ends At (GMT+8)</label>
+          <input
+            className="input" type="datetime-local"
+            value={newAuction.endsAtInput}
+            min={timestampToGmt8String(Date.now())}
+            onChange={e=>setNewAuction(p=>({...p,endsAtInput:e.target.value}))}
+          />
+        </div>
+      </div>
+      {/* Preview */}
+      <div style={{marginBottom:20,padding:14,background:"rgba(10,11,15,0.7)",border:"1px solid var(--border)",borderRadius:2}}>
+        <div style={{fontSize:9,color:"var(--text-dim)",fontWeight:700,letterSpacing:2,marginBottom:10,textTransform:"uppercase"}}>{t("previewLabel")}</div>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:52,height:52,borderRadius:2,overflow:"hidden",background:newAuction.rarity==="epic"?"rgba(122,26,26,0.3)":"rgba(26,90,138,0.3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
+            {newAuction.image?<img src={newAuction.image.dataUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} />:<StatIcon src={AUCTION_ICON} size={30}/>}
+          </div>
+          <div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+              <span style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:"var(--text-bright)"}}>{newAuction.name||t("itemNameDefault")}</span>
+              <span className={`badge badge-${newAuction.rarity}`}>{rarityLabel(newAuction.rarity,t).toLowerCase()}</span>
+            </div>
+            <div style={{fontSize:12,color:"var(--text-dim)"}}>{newAuction.desc||t("descriptionDefault")}</div>
+            <div style={{fontSize:11,color:"var(--gold)",marginTop:4,fontWeight:600}}>
+              {newAuction.endsAtInput
+                ? `Ends ${new Date(gmt8StringToTimestamp(newAuction.endsAtInput)).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",timeZone:"Asia/Manila"})} (GMT+8)`
+                : "Pick an end date and time"}
+            </div>
+          </div>
+        </div>
+      </div>
+      <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,fontSize:13,color:"var(--text)",cursor:"pointer"}}>
+        <input type="checkbox" checked={newAuction.postToNews||false} onChange={e=>setNewAuction(p=>({...p,postToNews:e.target.checked}))} />
+        <BellIcon size={14} style={{color:"var(--gold)"}}/>
+        {t("postToNewsLabel")}
+      </label>
+      <button className="btn btn-gold" onClick={createAuction} style={{width:"100%",justifyContent:"center"}}><span style={{display:"inline-flex",alignItems:"center",gap:6}}><StatIcon src={AUCTION_ICON} size={28}/>{t("startAuction")}</span></button>
+    </div>
+  );
+}
+
+// Pure helper — hoisted to module scope (no component state involved) so
+// both Auctions (Live tab's "Put in News"/broadcast buttons) and
+// CreateAuctionPanel can build a Discord embed without duplicating the logic.
+function auctionImageUrl(auction) {
+  const dataUrl = auction?.image?.dataUrl;
+  if (dataUrl && dataUrl.startsWith("http")) return dataUrl;
+  return null;
+}
+function auctionToEmbed(a) {
+  const imgUrl = auctionImageUrl(a);
+  const bidder = a.topBidder || "No bids yet";
+  return {
+    title: a.name,
+    description: `${fmt(a.currentBid)} coins · ${bidder} · ${timeLeft(a.endsAt)} left`,
+    color: 0xc8922a,
+    url: `${window.location.origin}/?page=auctions`,
+    ...(imgUrl ? { thumbnail: { url: imgUrl } } : {}),
+  };
+}
+// Posts an auction item into a single shared "auctions" announcement
+// (app_state key "login_announcements") — every "Put in News" click adds
+// to the SAME card's item list rather than creating a separate
+// announcement each time, so multiple highlighted items show together
+// in one rich preview (image, current bid, time left) instead of
+// several plain-text lines. Coexists independently with any
+// manually-written text announcement from Settings. Hoisted to module
+// scope (taking ctx explicitly) so both Auctions and CreateAuctionPanel
+// share one implementation instead of duplicating the news-merging logic.
+async function postAuctionToNews(auction, ctx) {
+  const { loginAnnouncements, setLoginAnnouncements, addToast } = ctx;
+  const snapshot = { auctionId: auction.id, name: auction.name, image: auction.image, rarity: auction.rarity, currentBid: auction.currentBid, topBidder: auction.topBidder, endsAt: auction.endsAt };
+  const list = loginAnnouncements || [];
+  const existingIdx = list.findIndex(a => a.type === "auctions");
+  let next;
+  if (existingIdx >= 0) {
+    // Already an auction-news card — replace this item if it's already
+    // in there (re-clicking "Put in News" refreshes the bid/time shown
+    // instead of creating a duplicate row), otherwise append it.
+    const existing = list[existingIdx];
+    const itemIdx = existing.items.findIndex(i => i.auctionId === auction.id);
+    const items = itemIdx >= 0
+      ? existing.items.map((it,i) => i===itemIdx ? snapshot : it)
+      : [...existing.items, snapshot];
+    next = list.map((a,i) => i===existingIdx ? {...a, items, postedAt: Date.now()} : a);
+  } else {
+    next = [...list, { id: Date.now(), type: "auctions", items: [snapshot], postedAt: Date.now() }];
+  }
+  const ok = await dbUpsertReliable("app_state", { key: "login_announcements", value: JSON.stringify(next), updated_at: Date.now() });
+  if (ok) {
+    setLoginAnnouncements(next);
+    addToast(`Posted "${auction.name}" to the login news — everyone will see it next time they open the app.`, "gold", "Posted to News");
+    {
+      const imgUrl = auctionImageUrl(auction);
+      notifyDiscord({ embeds: [{
+        title: `📌 Featured: ${auction.name}`,
+        description: `${fmt(auction.currentBid)} coins · ${auction.topBidder || "No bids yet"}`,
+        color: 0xc8922a,
+        url: `${window.location.origin}/?page=auctions`,
+        ...(imgUrl ? { thumbnail: { url: imgUrl } } : {}),
+      }] }, "auctions");
+    }
+  } else {
+    addToast(
+      <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't post — please try again.</span>,
+      "red", "Post Failed"
+    );
+  }
+}
+
+// ─── Live Auctions grid card — its own component (not inlined in a .map())
+// specifically so it can hold real local hover state via useState. An
+// earlier version tried to drive the image hover-reveal through
+// framer-motion's string-variant propagation from a middle-layer element
+// that had no variants object of its own — that left the reveal's opacity
+// undefined/inconsistent, which showed up as the art rendering permanently
+// blurred (backdrop-filter still sampling) on any card with bid history,
+// even at rest. onHoverStart/onHoverEnd + a plain boolean + explicit
+// animate={...} is the reliable version of the same interaction. ───
+function AuctionGridCard({ a, isWinning, minBid, rc2, t, bidAmounts, setBidAmounts, bidSubmitting, placeBid, isAdmin, isMaster, isAuctionInNews, removeAuctionFromNews, postAuctionToNews, ctx, removeAuction, isHoverCapable }) {
+  const [imgHovered, setImgHovered] = useState(false);
+  const recentBids = [...(a.bids||[])].reverse().slice(0,2);
+  const hasRevealContent = !!a.desc || recentBids.length>0 || !!a.topBidder;
+  return (
+    <motion.div className={`auction-card rarity-${a.rarity||"epic"}`}
+      initial={{scale:1,y:0}} whileHover={{scale:1.035,y:-4}}
+      transition={{type:"spring",stiffness:300,damping:22}}>
+      {/* Own hover trigger, scoped to the art only — the outer card's
+          hover (above) covers the whole card including the bid input/
+          button in the body, so a bidder's mouse sitting on "Bid" would
+          otherwise also trigger this reveal over the image it has
+          nothing to do with. */}
+      <motion.div className={`auction-img rarity-${a.rarity||"epic"}`} style={a.rarity==="kari"?{backgroundImage:`url(${KARI_BG})`}:{}}
+        onHoverStart={()=>setImgHovered(true)} onHoverEnd={()=>setImgHovered(false)}>
+        {a.image?<AuctionImage auction={a} alt={a.name} style={{width:"80%",height:"80%",objectFit:"contain",position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",filter:"drop-shadow(0 4px 16px rgba(0,0,0,0.7))"}} fallback={<StatIcon src={AUCTION_ICON} size={56}/>}/>:<StatIcon src={AUCTION_ICON} size={56}/>}
+        <div className="auction-timer pulse">{timeLeft(a.endsAt)}</div>
+        {(()=>{const r=rc2;return(<div style={{position:"absolute",top:8,left:8,zIndex:10,background:r.bg,fontFamily:"'Inter',sans-serif",fontSize:10,fontWeight:700,padding:"3px 8px",border:`1px solid ${r.border}`,letterSpacing:1,color:r.color}}>{rarityLabel(a.rarity||"epic",t)}</div>);})()}
+        {isWinning&&<div style={{position:"absolute",bottom:8,right:8,background:"rgba(39,174,96,0.85)",color:"#fff",fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:9,padding:"3px 8px",letterSpacing:1.5,textTransform:"uppercase"}}>{t("winningBadge")}</div>}
+        {/* ── Hover-reveal: description + recent bids, over the art.
+            Desktop-pointer-only — see isHoverCapable. On touch, this
+            content stays in the always-visible body below instead (no
+            hover event to trigger it there). ── */}
+        {isHoverCapable && hasRevealContent && (
+          <>
+            <motion.div animate={{opacity: imgHovered?1:0}} transition={{duration:0.32}}
+              style={{position:"absolute",inset:0,zIndex:2,
+                background:"linear-gradient(180deg, rgba(8,6,5,0) 0%, rgba(8,6,5,0.55) 55%, rgba(8,6,5,0.94) 100%)",
+                backdropFilter:"blur(3px)", WebkitBackdropFilter:"blur(3px)"}} />
+            <motion.div animate={imgHovered?{opacity:1,y:0}:{opacity:0,y:14}} transition={{type:"spring",stiffness:300,damping:24}}
+              style={{position:"absolute",left:0,right:0,bottom:0,zIndex:3,padding:"12px 14px 11px"}}>
+              {a.desc && <div style={{fontSize:11.5,color:"#d8c6a8",lineHeight:1.55,marginBottom:8,fontFamily:"'Inter',sans-serif"}}>{a.desc}</div>}
+              {(recentBids.length>0 || a.topBidder) && (
+                <div style={{borderTop:"1px solid rgba(200,146,42,0.18)",paddingTop:7}}>
+                  {recentBids.length>0
+                    ? recentBids.map((b,i)=>(
+                        <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:10.5,color:"#b8a082",fontFamily:"'Inter',sans-serif",padding:"1.5px 0"}}>
+                          <span>{b.bidder}</span><span style={{color:"var(--gold-light)",fontWeight:700}}>{fmt(b.amount)}</span>
+                        </div>
+                      ))
+                    : a.topBidder && (
+                        <div style={{display:"flex",justifyContent:"space-between",fontSize:10.5,color:"#b8a082",fontFamily:"'Inter',sans-serif",padding:"1.5px 0"}}>
+                          <span>{a.topBidder}</span><span style={{color:"var(--gold-light)",fontWeight:700}}>{fmt(a.currentBid)}</span>
+                        </div>
+                      )
+                  }
+                </div>
+              )}
+            </motion.div>
+          </>
+        )}
+      </motion.div>
+      <div className="auction-body">
+        <div className="auction-name">{a.name}</div>
+        {!isHoverCapable && <div className="auction-desc">{a.desc}</div>}
+        <div className="auction-bid-row">
+          <div style={{textAlign:"left"}}>
+            <div className="bid-label">{t("currentBidLabel")}</div>
+            <div className="current-bid"><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={28}/>{fmt(a.currentBid)}</span></div>
+            {a.topBidder ? (
+              <div style={{display:"inline-flex",alignItems:"center",gap:5,marginTop:5,background:"rgba(39,174,96,0.15)",border:"1px solid rgba(39,174,96,0.45)",padding:"3px 8px",borderRadius:2}}>
+                <TrophyIcon size={12} style={{color:"rgba(39,174,96,0.85)"}}/>
+                <span style={{fontSize:12,color:"#6ee89a",fontWeight:800,fontFamily:"'Inter',sans-serif",letterSpacing:0.5}}>{a.topBidder}</span>
+              </div>
+            ) : (
+              <div style={{marginTop:5,fontSize:11,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Inter',sans-serif"}}>{t("noBidsYet")}</div>
+            )}
+          </div>
+          <div style={{textAlign:"right"}}>
+            <div className="bid-label">{t("bidsLabel")}</div>
+            <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:20,color:"#a8b8c8"}}>{(a.bids||[]).length || (a.topBidder ? 1 : 0)}</div>
+          </div>
+        </div>
+        <div style={{marginTop:12,display:"flex",gap:8}}>
+          <input className="input" type="number" min={minBid} placeholder={`${t("minBidPlaceholder")} ${fmt(minBid)}`} value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p,[a.id]:e.target.value}))} style={{flex:1}} />
+          <button className="btn btn-gold" onClick={(e)=>placeBid(a.id,e)} disabled={!!bidSubmitting[a.id]}>{bidSubmitting[a.id]?"…":t("bidButton")}</button>
+        </div>
+
+        {isAdmin&&<button className={isAuctionInNews(a.id)?"btn btn-gold btn-sm":"btn btn-outline btn-sm"} style={{width:"100%",marginTop:6,display:"flex",alignItems:"center",justifyContent:"center",gap:6}} onClick={()=>isAuctionInNews(a.id)?removeAuctionFromNews(a.id):postAuctionToNews(a, ctx)}><BellIcon size={13}/>{isAuctionInNews(a.id)?t("removeFromNewsBtn"):t("putInNewsBtn")}</button>}
+        {isMaster&&<button className="btn btn-red btn-sm" style={{width:"100%",marginTop:6}} onClick={()=>removeAuction(a.id)}>{t("removeAuctionBtn")}</button>}
+        {!isHoverCapable && ((a.bids||[]).length>0 || a.topBidder)&&(
+          <div style={{marginTop:10,fontSize:11,color:"var(--text-dim)",borderTop:"1px solid var(--border-dim)",paddingTop:8}}>
+            {recentBids.length>0
+              ? recentBids.map((b,i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",fontFamily:"'Inter',sans-serif"}}>
+                    <span>{b.bidder}</span><span style={{color:"var(--gold)",fontWeight:700}}>{fmt(b.amount)}</span>
+                  </div>
+                ))
+              : a.topBidder && (
+                  <div style={{display:"flex",justifyContent:"space-between",fontFamily:"'Inter',sans-serif"}}>
+                    <span>{a.topBidder}</span><span style={{color:"var(--gold)",fontWeight:700}}>{fmt(a.currentBid)}</span>
+                  </div>
+                )
+            }
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
 function Auctions({ ctx }) {
-  const { auctions, setAuctions, members, setMembers, currentUser, addToast, fireCoinBurst, fireBalancePopup, tick, imageLibrary, addImage, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, loginAnnouncements, setLoginAnnouncements } = ctx;
+  const { auctions, setAuctions, members, setMembers, currentUser, addToast, fireCoinBurst, fireBalancePopup, tick, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, loginAnnouncements, setLoginAnnouncements } = ctx;
   const { t } = useLang();
   const [tab, setTab] = useState("active");
   const [bidAmounts, setBidAmounts] = useState({});
   const [bidSubmitting, setBidSubmitting] = useState({});
-  const [newAuction, setNewAuction] = useState({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000),postToNews:false});
   const [sortBy, setSortBy] = useState("default");
   const [viewMode, setViewMode] = useState("grid");
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
   const isMaster = currentUser.role==="Master";
+  // Real mouse/trackpad hover only — excludes touchscreens. The auction
+  // card's hover-reveal (description + recent bids sliding up over the
+  // art on hover) is a desktop-only enhancement; touch devices have no
+  // hover event at all, so they keep showing that info inline in the
+  // card body instead, exactly as before this feature existed.
+  // Deliberately checking (hover: hover) ALONE, not also "and (pointer:
+  // fine)" — the combined query is stricter than this feature actually
+  // needs and adds a second real-world condition that can silently make
+  // the whole feature a no-op (falls back to the pre-existing layout,
+  // indistinguishable from "nothing changed") on any device/browser
+  // combination that doesn't satisfy both.
+  const [isHoverCapable] = useState(() =>
+    typeof window!=="undefined" && !!window.matchMedia?.("(hover: hover)")?.matches
+  );
 
 
   const RARITY_ORDER = { kari: 0, epic: 1, rare: 2, uncommon: 3, material: 4 };
@@ -7936,133 +8750,6 @@ function Auctions({ ctx }) {
   }
 
 
-  function createAuction() {
-    if(!newAuction.name){addToast(t("itemNameRequired"),"red",t("errorLabel"));return;}
-    const now = Date.now();
-    const minBid = parseInt(newAuction.startBid)||100;
-    const endsAt = gmt8StringToTimestamp(newAuction.endsAtInput);
-    if (!endsAt) {
-      addToast("Please pick a valid end date and time.","red",t("errorLabel"));
-      return;
-    }
-    if (endsAt <= now) {
-      addToast("The end time must be in the future.","red",t("errorLabel"));
-      return;
-    }
-    const a={
-      id: String(now),
-      name: newAuction.name,
-      image: newAuction.image,
-      emoji: "",
-      rarity: newAuction.rarity,
-      desc: newAuction.desc || "",
-      description: newAuction.desc || "",
-      startBid: minBid,
-      minBid: minBid,
-      currentBid: minBid,
-      topBidder: null,
-      startedAt: now,
-      endsAt: endsAt,
-      status: "active",
-      bids: [],
-    };
-    setAuctions(prev=>[...prev,a]);
-    addToast(`${t("auctionStarted")} ${a.name}`,"gold",t("auctionLive"));
-    if (newAuction.postToNews) postAuctionToNews(a);
-    {
-      const imgUrl = auctionImageUrl(a);
-      notifyDiscord({ embeds: [{
-        title: `🔨 New auction: ${a.name}`,
-        description: `Starting bid: ${fmt(minBid)} coins · Ends ${timeLeft(endsAt)}`,
-        color: 0xc8922a,
-        url: `${window.location.origin}/?page=auctions`,
-        ...(imgUrl ? { thumbnail: { url: imgUrl } } : {}),
-      }] }, "auctions");
-    }
-    setNewAuction({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000),postToNews:false});
-  }
-
-  // Posts an auction item into a single shared "auctions" announcement
-  // (app_state key "login_announcements") — every "Put in News" click adds
-  // to the SAME card's item list rather than creating a separate
-  // announcement each time, so multiple highlighted items show together
-  // in one rich preview (image, current bid, time left) instead of
-  // several plain-text lines. Coexists independently with any
-  // manually-written text announcement from Settings.
-  async function postAuctionToNews(auction) {
-    const snapshot = { auctionId: auction.id, name: auction.name, image: auction.image, rarity: auction.rarity, currentBid: auction.currentBid, topBidder: auction.topBidder, endsAt: auction.endsAt };
-    const list = loginAnnouncements || [];
-    const existingIdx = list.findIndex(a => a.type === "auctions");
-    let next;
-    if (existingIdx >= 0) {
-      // Already an auction-news card — replace this item if it's already
-      // in there (re-clicking "Put in News" refreshes the bid/time shown
-      // instead of creating a duplicate row), otherwise append it.
-      const existing = list[existingIdx];
-      const itemIdx = existing.items.findIndex(i => i.auctionId === auction.id);
-      const items = itemIdx >= 0
-        ? existing.items.map((it,i) => i===itemIdx ? snapshot : it)
-        : [...existing.items, snapshot];
-      next = list.map((a,i) => i===existingIdx ? {...a, items, postedAt: Date.now()} : a);
-    } else {
-      next = [...list, { id: Date.now(), type: "auctions", items: [snapshot], postedAt: Date.now() }];
-    }
-    const ok = await dbUpsertReliable("app_state", { key: "login_announcements", value: JSON.stringify(next), updated_at: Date.now() });
-    if (ok) {
-      setLoginAnnouncements(next);
-      addToast(`Posted "${auction.name}" to the login news — everyone will see it next time they open the app.`, "gold", "Posted to News");
-      {
-        const imgUrl = auctionImageUrl(auction);
-        notifyDiscord({ embeds: [{
-          title: `📌 Featured: ${auction.name}`,
-          description: `${fmt(auction.currentBid)} coins · ${auction.topBidder || "No bids yet"}`,
-          color: 0xc8922a,
-          url: `${window.location.origin}/?page=auctions`,
-          ...(imgUrl ? { thumbnail: { url: imgUrl } } : {}),
-        }] }, "auctions");
-      }
-    } else {
-      addToast(
-        <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't post — please try again.</span>,
-        "red", "Post Failed"
-      );
-    }
-  }
-  // Builds a real, fetchable image URL for an auction from its stored
-  // filename — Discord's embed thumbnail needs an actual HTTP(S) URL it
-  // can fetch independently; it can't render inline base64 image data
-  // the way an <img> tag in the browser can. This points at the same
-  // public Supabase Storage bucket the app itself already loads auction
-  // images from (see AuctionImage component), just without going through
-  // the base64 data-URL step that component uses for in-app display.
-  // ROOT CAUSE of "some items have no image": this used to reconstruct a
-  // Storage URL from auction.image.NAME (the original filename, e.g.
-  // "storm_shoes.png") — but the actual file in Storage is saved under a
-  // randomly-generated path (see uploadAuctionImage), never the original
-  // filename. The real, correct URL is already sitting in
-  // auction.image.dataUrl whenever the upload succeeded — uploadAuctionImage
-  // returns the full real URL directly and that's what gets stored there.
-  // The only case with genuinely no usable image is when the original
-  // upload failed and the app fell back to embedding raw base64 data
-  // instead (see ItemImagePicker) — that's not a fetchable URL, so
-  // Discord can't display it either; there's no way to recover a real
-  // image URL after the fact for those specific items.
-  function auctionImageUrl(auction) {
-    const dataUrl = auction?.image?.dataUrl;
-    if (dataUrl && dataUrl.startsWith("http")) return dataUrl;
-    return null;
-  }
-  function auctionToEmbed(a) {
-    const imgUrl = auctionImageUrl(a);
-    const bidder = a.topBidder || "No bids yet";
-    return {
-      title: a.name,
-      description: `${fmt(a.currentBid)} coins · ${bidder} · ${timeLeft(a.endsAt)} left`,
-      color: 0xc8922a,
-      url: `${window.location.origin}/?page=auctions`,
-      ...(imgUrl ? { thumbnail: { url: imgUrl } } : {}),
-    };
-  }
   // Posts every currently active auction to the auctions Discord channel
   // as its own message (with image, current bid, top bidder, time left)
   // — separate from "Put in News" (which features specific items in the
@@ -8117,14 +8804,6 @@ function Auctions({ ctx }) {
       addToast("Removed from the login news.", "gold", "Updated");
     }
   }
-
-  const RARITY_OPTS=[
-    {value:"epic",label:t("rarityEpic"),color:"#ff8080",bg:"rgba(122,26,26,0.25)",border:"rgba(192,57,43,0.55)"},
-    {value:"rare",label:t("rarityRare"),color:"#60aadd",bg:"rgba(26,90,138,0.2)",border:"rgba(46,134,193,0.5)"},
-    {value:"kari",label:t("rarityKari"),color:"#a0d8ff",bg:"rgba(0,80,160,0.35)",border:"rgba(100,200,255,0.6)"},
-    {value:"uncommon",label:t("rarityUncommon"),color:"#7ddc7d",bg:"rgba(46,138,46,0.2)",border:"rgba(80,180,80,0.55)"},
-    {value:"material",label:t("rarityMaterial"),color:"#b8b8b8",bg:"rgba(120,120,120,0.25)",border:"rgba(160,160,160,0.55)"},
-  ];
 
   // Loot Roulette state (lifted into Auctions)
   const [lrMemberSearch, setLrMemberSearch] = React.useState("");
@@ -8229,19 +8908,63 @@ function Auctions({ ctx }) {
   function lrReset(){setLrDist(null);setLrRevealed(false);setLrAngle(0);}
   React.useEffect(()=>{return()=>{if(lrRef.current)cancelAnimationFrame(lrRef.current);};},[]);
 
+  // ── Hero strip stats — same recipe as Attendance's War Ledger strip:
+  // cheap, inline-computed orientation numbers from data already in scope. ──
+  const liveBidValue = active.reduce((s,a)=>s+(a.currentBid||0),0);
+  const endingSoonest = active.length > 0
+    ? [...active].sort((a,b)=>(a.endsAt||Infinity)-(b.endsAt||Infinity))[0]
+    : null;
+
   return (
     <div>
-      <div className="tabs">
-        <div className={`tab${tab==="active"?" active":""}`} onClick={()=>setTab("active")}>{t("tabLiveAuctions")} ({active.length})</div>
-        <div className={`tab${tab==="ended"?" active":""}`} onClick={()=>setTab("ended")}>{t("tabAuctionHistory")}</div>
-        <div className={`tab${tab==="roulette"?" active":""}`} onClick={()=>setTab("roulette")}>{t("tabLootRoulette")}</div>
-        {isAdmin&&<div className={`tab${tab==="create"?" active":""}`} onClick={()=>setTab("create")}>{t("tabCreateAuction")}</div>}
+      {/* ── AUCTION HOUSE STRIP — same compact hero language as Attendance's
+          War Ledger: orientation numbers above the tabs, not a full banner. ── */}
+      <div style={{
+        position:"relative",overflow:"hidden",borderRadius:8,marginBottom:24,
+        background:"linear-gradient(135deg,#0e0b09 0%,#161110 50%,#0e0b09 100%)",
+        border:"1px solid rgba(200,146,42,0.18)",
+        boxShadow:"0 6px 32px rgba(0,0,0,0.7), inset 0 1px 0 rgba(200,146,42,0.1)",
+        padding:"18px 24px",
+      }}>
+        <CornerBrackets size={14} thickness={2} inset={10} opacity={0.4}/>
+        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 15% 0%,rgba(200,146,42,0.08) 0%,transparent 55%)",pointerEvents:"none"}}/>
+        <div style={{position:"relative",display:"flex",flexWrap:"wrap",gap:28,alignItems:"center"}}>
+          <div>
+            <div style={{fontFamily:"'Spectral',serif",fontSize:18,fontWeight:800,color:"var(--gold-light)",letterSpacing:1}}>{t("tabLiveAuctions")}</div>
+            <div style={{fontSize:10,color:"#7c6d58",letterSpacing:2,textTransform:"uppercase",marginTop:2,fontFamily:"'Inter',sans-serif"}}>{CLAN_NAME}</div>
+          </div>
+          <div style={{width:1,height:32,background:"rgba(200,146,42,0.2)"}}/>
+          <div>
+            <div style={{fontSize:9,letterSpacing:2,textTransform:"uppercase",color:"rgba(200,146,42,0.7)",fontWeight:700,fontFamily:"'Inter',sans-serif"}}>{t("liveAuctions")}</div>
+            <div style={{fontFamily:"'Spectral',serif",fontSize:22,fontWeight:800,color:"var(--gold-bright)",textShadow:"0 0 16px rgba(200,146,42,0.3)"}}>{fmt(active.length)}</div>
+          </div>
+          <div>
+            <div style={{fontSize:9,letterSpacing:2,textTransform:"uppercase",color:"rgba(200,146,42,0.7)",fontWeight:700,fontFamily:"'Inter',sans-serif"}}>{t("liveBidValueLabel")}</div>
+            <div style={{fontFamily:"'Spectral',serif",fontSize:22,fontWeight:800,color:"var(--gold-bright)",textShadow:"0 0 16px rgba(200,146,42,0.3)",display:"inline-flex",alignItems:"center",gap:5}}><StatIcon src={COINS_ICON} size={24}/>{fmt(liveBidValue)}</div>
+          </div>
+          {endingSoonest && (
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:9,letterSpacing:2,textTransform:"uppercase",color:"rgba(200,146,42,0.7)",fontWeight:700,fontFamily:"'Inter',sans-serif"}}>{t("endingSoonestLabel")}</div>
+              <div style={{fontFamily:"'Inter',sans-serif",fontSize:14,fontWeight:700,color:"var(--text-bright)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:200}}>{endingSoonest.name} <span style={{color:"#f0a0a0",fontWeight:800}}>· {timeLeft(endingSoonest.endsAt)}</span></div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="dash-tabs">
+        <div className={`dash-tab${tab==="active"?" active":""}`} onClick={()=>setTab("active")}>{t("tabLiveAuctions")} ({active.length})</div>
+        <div className={`dash-tab${tab==="ended"?" active":""}`} onClick={()=>setTab("ended")}>{t("tabAuctionHistory")}</div>
+        <div className={`dash-tab${tab==="roulette"?" active":""}`} onClick={()=>setTab("roulette")}>{t("tabLootRoulette")}</div>
       </div>
 
       <BidMarquee feed={bidFeed} auctions={auctions} />
 
       {(tab==="active"||tab==="ended") && (
-        <div style={{display:"flex",alignItems:"center",gap:10,margin:"14px 0 4px",flexWrap:"wrap",justifyContent:"flex-end"}}>
+        <div className="dash-panel" style={{
+          display:"flex",alignItems:"center",gap:10,margin:"14px 0 4px",padding:"10px 16px",flexWrap:"wrap",justifyContent:"flex-end",
+          background:"linear-gradient(135deg,#161110 0%,#1c1410 60%,#161110 100%)",
+          border:"1px solid rgba(200,146,42,0.15)",borderRadius:6,
+        }}>
           {tab==="active" && isAdmin && (
             <button className="btn btn-outline btn-sm" onClick={postAllActiveAuctionsToDiscord} style={{display:"flex",alignItems:"center",gap:6}}>
               <BellIcon size={13}/>{t("postAllToDiscordBtn")}
@@ -8320,65 +9043,17 @@ function Auctions({ ctx }) {
                     {bidSubmitting[a.id]?"…":t("bidButton")}
                   </button>
 
-                  {isAdmin&&<button className={isAuctionInNews(a.id)?"btn btn-gold btn-sm":"btn btn-outline btn-sm"} onClick={()=>isAuctionInNews(a.id)?removeAuctionFromNews(a.id):postAuctionToNews(a)} title={isAuctionInNews(a.id)?t("removeFromNewsTitle"):t("putInNewsTitle")} style={{flexShrink:0,padding:"5px 10px"}}><BellIcon size={12}/></button>}
+                  {isAdmin&&<button className={isAuctionInNews(a.id)?"btn btn-gold btn-sm":"btn btn-outline btn-sm"} onClick={()=>isAuctionInNews(a.id)?removeAuctionFromNews(a.id):postAuctionToNews(a, ctx)} title={isAuctionInNews(a.id)?t("removeFromNewsTitle"):t("putInNewsTitle")} style={{flexShrink:0,padding:"5px 10px"}}><BellIcon size={12}/></button>}
                   {isMaster&&<button className="btn btn-red btn-sm" onClick={()=>removeAuction(a.id)} title={t("removeTitle")} style={{flexShrink:0,padding:"5px 10px"}}>✕</button>}
                 </div>
               </div>
             );
             return (
-              <div key={a.id} className={`auction-card rarity-${a.rarity||"epic"}`}>
-                <div className={`auction-img rarity-${a.rarity||"epic"}`} style={a.rarity==="kari"?{backgroundImage:`url(${KARI_BG})`}:{}}>
-                  {a.image?<AuctionImage auction={a} alt={a.name} style={{width:"80%",height:"80%",objectFit:"contain",position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",filter:"drop-shadow(0 4px 16px rgba(0,0,0,0.7))"}} fallback={<StatIcon src={AUCTION_ICON} size={56}/>}/>:<StatIcon src={AUCTION_ICON} size={56}/>}
-                  <div className="auction-timer pulse">{timeLeft(a.endsAt)}</div>
-                  {(()=>{const r=rc2;return(<div style={{position:"absolute",top:8,left:8,zIndex:10,background:r.bg,fontFamily:"'Inter',sans-serif",fontSize:10,fontWeight:700,padding:"3px 8px",border:`1px solid ${r.border}`,letterSpacing:1,color:r.color}}>{rarityLabel(a.rarity||"epic",t)}</div>);})()}
-                  {isWinning&&<div style={{position:"absolute",bottom:8,right:8,background:"rgba(39,174,96,0.85)",color:"#fff",fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:9,padding:"3px 8px",letterSpacing:1.5,textTransform:"uppercase"}}>{t("winningBadge")}</div>}
-                </div>
-                <div className="auction-body">
-                  <div className="auction-name">{a.name}</div>
-                  <div className="auction-desc">{a.desc}</div>
-                  <div className="auction-bid-row">
-                    <div style={{textAlign:"left"}}>
-                      <div className="bid-label">{t("currentBidLabel")}</div>
-                      <div className="current-bid"><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={28}/>{fmt(a.currentBid)}</span></div>
-                      {a.topBidder ? (
-                        <div style={{display:"inline-flex",alignItems:"center",gap:5,marginTop:5,background:"rgba(39,174,96,0.15)",border:"1px solid rgba(39,174,96,0.45)",padding:"3px 8px",borderRadius:2}}>
-                          <TrophyIcon size={12} style={{color:"rgba(39,174,96,0.85)"}}/>
-                          <span style={{fontSize:12,color:"#6ee89a",fontWeight:800,fontFamily:"'Inter',sans-serif",letterSpacing:0.5}}>{a.topBidder}</span>
-                        </div>
-                      ) : (
-                        <div style={{marginTop:5,fontSize:11,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Inter',sans-serif"}}>{t("noBidsYet")}</div>
-                      )}
-                    </div>
-                    <div style={{textAlign:"right"}}>
-                      <div className="bid-label">{t("bidsLabel")}</div>
-                      <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:20,color:"#a8b8c8"}}>{(a.bids||[]).length || (a.topBidder ? 1 : 0)}</div>
-                    </div>
-                  </div>
-                  <div style={{marginTop:12,display:"flex",gap:8}}>
-                    <input className="input" type="number" min={minBid} placeholder={`${t("minBidPlaceholder")} ${fmt(minBid)}`} value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p,[a.id]:e.target.value}))} style={{flex:1}} />
-                    <button className="btn btn-gold" onClick={(e)=>placeBid(a.id,e)} disabled={!!bidSubmitting[a.id]}>{bidSubmitting[a.id]?"…":t("bidButton")}</button>
-                  </div>
-
-                  {isAdmin&&<button className={isAuctionInNews(a.id)?"btn btn-gold btn-sm":"btn btn-outline btn-sm"} style={{width:"100%",marginTop:6,display:"flex",alignItems:"center",justifyContent:"center",gap:6}} onClick={()=>isAuctionInNews(a.id)?removeAuctionFromNews(a.id):postAuctionToNews(a)}><BellIcon size={13}/>{isAuctionInNews(a.id)?t("removeFromNewsBtn"):t("putInNewsBtn")}</button>}
-                  {isMaster&&<button className="btn btn-red btn-sm" style={{width:"100%",marginTop:6}} onClick={()=>removeAuction(a.id)}>{t("removeAuctionBtn")}</button>}
-                  {((a.bids||[]).length>0 || a.topBidder)&&(
-                    <div style={{marginTop:10,fontSize:11,color:"var(--text-dim)",borderTop:"1px solid var(--border-dim)",paddingTop:8}}>
-                      {(a.bids||[]).length>0
-                        ? [...(a.bids||[])].reverse().slice(0,2).map((b,i)=>(
-                            <div key={i} style={{display:"flex",justifyContent:"space-between",fontFamily:"'Inter',sans-serif"}}>
-                              <span>{b.bidder}</span><span style={{color:"var(--gold)",fontWeight:700}}>{fmt(b.amount)}</span>
-                            </div>
-                          ))
-                        : a.topBidder && (
-                            <div style={{display:"flex",justifyContent:"space-between",fontFamily:"'Inter',sans-serif"}}>
-                              <span>{a.topBidder}</span><span style={{color:"var(--gold)",fontWeight:700}}>{fmt(a.currentBid)}</span>
-                            </div>
-                          )
-                      }
-                    </div>
-                  )}
-                </div>
-              </div>
+              <AuctionGridCard key={a.id} a={a} isWinning={isWinning} minBid={minBid} rc2={rc2} t={t}
+                bidAmounts={bidAmounts} setBidAmounts={setBidAmounts} bidSubmitting={bidSubmitting} placeBid={placeBid}
+                isAdmin={isAdmin} isMaster={isMaster} isAuctionInNews={isAuctionInNews}
+                removeAuctionFromNews={removeAuctionFromNews} postAuctionToNews={postAuctionToNews} ctx={ctx}
+                removeAuction={removeAuction} isHoverCapable={isHoverCapable} />
             );
           })}
         </div>
@@ -8386,7 +9061,12 @@ function Auctions({ ctx }) {
 
       {tab==="ended" && (
         <>
-        <div className="card attendance-table-view" style={{padding:0}}>
+        <div className="dash-panel attendance-table-view" style={{
+          padding:0,position:"relative",overflow:"hidden",
+          background:"linear-gradient(135deg,#161110 0%,#1c1410 60%,#161110 100%)",
+          border:"1px solid rgba(200,146,42,0.2)",borderRadius:6,
+        }}>
+          <CornerBrackets size={13} thickness={1.5} inset={8} opacity={0.4}/>
           <div className="table-wrap">
             <table className="table-stack">
               <thead><tr><th>{t("colDateTime")}</th><th>{t("colItem")}</th><th>{t("colRarity")}</th><th>{t("colWinner")}</th><th>{t("colFinalBid")}</th></tr></thead>
@@ -8415,9 +9095,9 @@ function Auctions({ ctx }) {
 
         {/* Mobile card view */}
         <div className="attendance-card-view">
-          {ended.length===0 && <div className="card" style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noEndedAuctions")}</div>}
+          {ended.length===0 && <div className="dash-subcard" style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noEndedAuctions")}</div>}
           {ended.map(a=>(
-            <div key={`card-${a.id}`} className="card" style={{marginBottom:10,padding:"14px 16px"}}>
+            <div key={`card-${a.id}`} className="dash-subcard" style={{marginBottom:10,padding:"14px 16px"}}>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
                 <div style={{width:36,height:36,borderRadius:3,overflow:"hidden",background:a.rarity==="epic"?"rgba(122,26,26,0.2)":"rgba(26,90,138,0.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
                   {a.image?<AuctionImage auction={a} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={<StatIcon src={AUCTION_ICON} size={18}/>}/>:<StatIcon src={AUCTION_ICON} size={18}/>}
@@ -8447,7 +9127,12 @@ function Auctions({ ctx }) {
       {tab==="roulette"&&(
         <div>
           {/* ── Header ── */}
-          <div className="card card-red" style={{marginBottom:20,padding:"18px 22px"}}>
+          <div className="dash-panel" style={{
+            marginBottom:20,padding:"18px 22px",position:"relative",overflow:"hidden",
+            background:"linear-gradient(135deg,#1c1210 0%,rgba(168,50,40,0.1) 60%,#1c1210 100%)",
+            border:"1px solid rgba(168,50,40,0.35)",borderRadius:6,
+          }}>
+            <CornerBrackets size={12} thickness={1.5} inset={8} opacity={0.4}/>
             <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
               <div style={{width:46,height:46,borderRadius:6,background:"linear-gradient(135deg,#3d0000,var(--blood-light))",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:"0 0 20px rgba(168,50,40,0.5)"}}><SwordsIcon size={24} style={{color:"#fff"}}/></div>
               <div style={{flex:1}}>
@@ -8547,7 +9232,7 @@ function Auctions({ ctx }) {
                       {filtered.length} {t("sessionsLabel")}{filtered.length!==1?t("sessionsPluralSuffix"):""} · {t("historyAutoClears")}
                     </div>
                     {filtered.length===0&&(
-                      <div className="card" style={{textAlign:"center",padding:32,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
+                      <div className="dash-subcard" style={{textAlign:"center",padding:32,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
                         {t("noSessionsMatch")}
                       </div>
                     )}
@@ -8562,7 +9247,7 @@ function Auctions({ ctx }) {
                       };
                       const evColor=EVENT_COLOR_MAP[entry.eventLabel]||"#c8922a";
                       return(
-                        <div key={entry.id} className="card" style={{marginBottom:14,position:"relative",overflow:"hidden"}}>
+                        <div key={entry.id} className="dash-subcard" style={{marginBottom:14,position:"relative",overflow:"hidden"}}>
                           <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${evColor}88,transparent)`}} />
                           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
                             <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -8606,7 +9291,7 @@ function Auctions({ ctx }) {
                 );
               })()}
               {lrHistory.length===0&&(
-                <div className="card" style={{textAlign:"center",padding:48,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
+                <div className="dash-subcard" style={{textAlign:"center",padding:48,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
                   <div style={{fontSize:36,marginBottom:10}}>📜</div>
                   <div>{t("noRouletteHistory")}</div>
                   <div style={{fontSize:11,marginTop:6}}>{t("historyAutoClearsTidy")}</div>
@@ -8621,8 +9306,12 @@ function Auctions({ ctx }) {
               {/* Left: event info + member selection */}
               <div>
                 {/* ── Event & Date Panel ── */}
-                <div className="card" style={{marginBottom:16,position:"relative",overflow:"hidden"}}>
-                  <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,rgba(200,146,42,0.6),transparent)"}} />
+                <div className="dash-panel" style={{
+                  marginBottom:16,position:"relative",overflow:"hidden",
+                  background:"linear-gradient(135deg,#161110 0%,#1c1410 60%,#161110 100%)",
+                  border:"1px solid rgba(200,146,42,0.2)",borderRadius:6,padding:20,
+                }}>
+                  <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.35}/>
                   <SectionTitle><span style={{display:"inline-flex",alignItems:"center",gap:6}}><SwordsIcon size={13}/>{t("sessionInfo")}</span></SectionTitle>
 
                   {/* Auto-import from attendance log */}
@@ -8683,7 +9372,12 @@ function Auctions({ ctx }) {
                 </div>
 
                 {/* ── Participant Selection ── */}
-                <div className="card">
+                <div className="dash-panel" style={{
+                  position:"relative",overflow:"hidden",
+                  background:"linear-gradient(135deg,#161110 0%,#1c1410 60%,#161110 100%)",
+                  border:"1px solid rgba(200,146,42,0.2)",borderRadius:6,padding:20,
+                }}>
+                  <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.35}/>
                   <SectionTitle>{t("selectParticipants")}</SectionTitle>
                   <div style={{display:"flex",gap:6,marginBottom:8,alignItems:"center",flexWrap:"wrap"}}>
                     <input className="input" placeholder={t("searchWarrior")} value={lrMemberSearch||""} onChange={e=>setLrMemberSearch(e.target.value)} style={{flex:1,minWidth:0}} />
@@ -8716,7 +9410,12 @@ function Auctions({ ctx }) {
               </div>
               {/* Right: loot list + spin */}
               <div>
-                <div className="card" style={{marginBottom:16}}>
+                <div className="dash-panel" style={{
+                  marginBottom:16,position:"relative",overflow:"hidden",
+                  background:"linear-gradient(135deg,#161110 0%,#1c1410 60%,#161110 100%)",
+                  border:"1px solid rgba(200,146,42,0.2)",borderRadius:6,padding:20,
+                }}>
+                  <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.35}/>
                   <SectionTitle>{t("lootItemsTitle")}</SectionTitle>
                   <div style={{display:"flex",gap:8,marginBottom:12}}>
                     <input className="input" placeholder={t("itemNamePlaceholder")} value={lrNewItem} onChange={e=>setLrNewItem(e.target.value)} onKeyDown={e=>e.key==="Enter"&&lrAddItem()} style={{flex:1}}/>
@@ -8733,7 +9432,12 @@ function Auctions({ ctx }) {
                   ))}
                   {lrItems.length>0&&<div style={{marginTop:8,fontSize:11,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{lrTotalQty} {t("totalItemsLabel")} · {lrPresentList.length} {t("membersLabel2")}</div>}
                 </div>
-                <div className="card card-red">
+                <div className="dash-panel" style={{
+                  position:"relative",overflow:"hidden",
+                  background:"linear-gradient(135deg,#1c1210 0%,rgba(168,50,40,0.1) 60%,#1c1210 100%)",
+                  border:"1px solid rgba(168,50,40,0.35)",borderRadius:6,padding:20,
+                }}>
+                  <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.35}/>
                   <button className="btn btn-red" style={{width:"100%",fontSize:15,padding:"14px 0",letterSpacing:2,justifyContent:"center",display:"flex",alignItems:"center",gap:8}} onClick={()=>{lrDistribute();}} disabled={lrSpinning}>
                     {lrSpinning?t("rolling"):<span style={{display:"inline-flex",alignItems:"center",gap:7}}><SwordsIcon size={13}/>{t("rollTheLoot")}</span>}
                   </button>
@@ -8745,81 +9449,6 @@ function Auctions({ ctx }) {
         </div>
       )}
 
-      {tab==="create"&&isAdmin&&(
-        <div className="card" style={{maxWidth:560}}>
-          <SectionTitle>{t("createNewAuction")}</SectionTitle>
-          <div className="form-group">
-            <label className="form-label">{t("itemNameFieldLabel")}</label>
-            <input className="input" placeholder={t("itemNamePlaceholder2")} value={newAuction.name} onChange={e=>setNewAuction(p=>({...p,name:e.target.value}))} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">{t("rarityLabel")}</label>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(80px,1fr))",gap:8}}>
-              {RARITY_OPTS.map(r=>(
-                <div key={r.value} onClick={()=>setNewAuction(p=>({...p,rarity:r.value}))}
-                  style={{padding:"10px 8px",borderRadius:2,cursor:"pointer",textAlign:"center",
-                    background:newAuction.rarity===r.value?r.bg:"rgba(10,11,15,0.6)",
-                    border:`1px solid ${newAuction.rarity===r.value?r.border:"var(--border)"}`,
-                    color:newAuction.rarity===r.value?r.color:"var(--text-dim)",
-                    fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,
-                    transition:"all 0.2s"}}>
-                  {r.label}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">{t("itemImageLabel")}</label>
-            <ItemImagePicker value={newAuction.image} onChange={img=>setNewAuction(p=>({...p,image:img}))} library={imageLibrary} addImage={addImage} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">{t("descriptionLabel")}</label>
-            <input className="input" placeholder={t("itemDescPlaceholder")} value={newAuction.desc} onChange={e=>setNewAuction(p=>({...p,desc:e.target.value}))} />
-          </div>
-          <div className="grid-2">
-            <div className="form-group">
-              <label className="form-label">{t("startingBidLabel")}</label>
-              <input className="input" type="number" min={1} value={newAuction.startBid} onChange={e=>setNewAuction(p=>({...p,startBid:e.target.value}))} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Ends At (GMT+8)</label>
-              <input
-                className="input" type="datetime-local"
-                value={newAuction.endsAtInput}
-                min={timestampToGmt8String(Date.now())}
-                onChange={e=>setNewAuction(p=>({...p,endsAtInput:e.target.value}))}
-              />
-            </div>
-          </div>
-          {/* Preview */}
-          <div style={{marginBottom:20,padding:14,background:"rgba(10,11,15,0.7)",border:"1px solid var(--border)",borderRadius:2}}>
-            <div style={{fontSize:9,color:"var(--text-dim)",fontWeight:700,letterSpacing:2,marginBottom:10,textTransform:"uppercase"}}>{t("previewLabel")}</div>
-            <div style={{display:"flex",alignItems:"center",gap:12}}>
-              <div style={{width:52,height:52,borderRadius:2,overflow:"hidden",background:newAuction.rarity==="epic"?"rgba(122,26,26,0.3)":"rgba(26,90,138,0.3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
-                {newAuction.image?<img src={newAuction.image.dataUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} />:<StatIcon src={AUCTION_ICON} size={30}/>}
-              </div>
-              <div>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                  <span style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:"var(--text-bright)"}}>{newAuction.name||t("itemNameDefault")}</span>
-                  <span className={`badge badge-${newAuction.rarity}`}>{rarityLabel(newAuction.rarity,t).toLowerCase()}</span>
-                </div>
-                <div style={{fontSize:12,color:"var(--text-dim)"}}>{newAuction.desc||t("descriptionDefault")}</div>
-                <div style={{fontSize:11,color:"var(--gold)",marginTop:4,fontWeight:600}}>
-                  {newAuction.endsAtInput
-                    ? `Ends ${new Date(gmt8StringToTimestamp(newAuction.endsAtInput)).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",timeZone:"Asia/Manila"})} (GMT+8)`
-                    : "Pick an end date and time"}
-                </div>
-              </div>
-            </div>
-          </div>
-          <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,fontSize:13,color:"var(--text)",cursor:"pointer"}}>
-            <input type="checkbox" checked={newAuction.postToNews||false} onChange={e=>setNewAuction(p=>({...p,postToNews:e.target.checked}))} />
-            <BellIcon size={14} style={{color:"var(--gold)"}}/>
-            {t("postToNewsLabel")}
-          </label>
-          <button className="btn btn-gold" onClick={createAuction} style={{width:"100%",justifyContent:"center"}}><span style={{display:"inline-flex",alignItems:"center",gap:6}}><StatIcon src={AUCTION_ICON} size={28}/>{t("startAuction")}</span></button>
-        </div>
-      )}
     </div>
   );
 }
@@ -8827,7 +9456,7 @@ function Auctions({ ctx }) {
 // ─── LEADERBOARD ──────────────────────────────────────────────────────────────
 const LB_PAGE = 10;
 
-function LBList({ data, valueKey, label, format, color, currentUser, showMultiplier, rankOffset=0 }) {
+function LBList({ data, valueKey, label, format, color, currentUser, showMultiplier, rankOffset=0, onViewProfile }) {
   const { t } = useLang();
   const [page, setPage] = React.useState(0);
   const max=data[0]?.[valueKey]||1;
@@ -8838,7 +9467,12 @@ function LBList({ data, valueKey, label, format, color, currentUser, showMultipl
   const onCurrentPage = myRank>=page*LB_PAGE && myRank<(page+1)*LB_PAGE;
 
     return (
-      <div className="card" style={{minWidth:0,overflow:"hidden"}}>
+      <div className="dash-panel" style={{
+        minWidth:0,position:"relative",overflow:"hidden",
+        background:"linear-gradient(135deg,#161110 0%,#1c1410 60%,#161110 100%)",
+        border:"1px solid rgba(200,146,42,0.2)",borderRadius:6,padding:20,
+      }}>
+        <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.35}/>
         <SectionTitle>{label}</SectionTitle>
 
         {/* Personal rank banner */}
@@ -8876,7 +9510,12 @@ function LBList({ data, valueKey, label, format, color, currentUser, showMultipl
               <div className="lb-rank" style={{color:globalRank===0?"#f2d98a":globalRank===1?"#a8b8c8":globalRank===2?"#c87533":"var(--text-dim)"}}>{rankIcon(globalRank)}</div>
               <div style={{flexShrink:0}}><ClassIcon cls={m.cls} size={28}/></div>
               <div style={{flex:1,minWidth:0}}>
-                <div className="lb-name" style={{color:isMe?"var(--gold-light)":"var(--text-bright)",textAlign:"left"}}>{m.name}{isMe&&<span style={{fontSize:9,color:"var(--gold)",marginLeft:5,fontWeight:700}}>{t("youSuffix")}</span>}</div>
+                <div className="lb-name" onClick={onViewProfile?()=>onViewProfile(m.id):undefined}
+                  style={{color:isMe?"var(--gold-light)":"var(--text-bright)",textAlign:"left",cursor:onViewProfile?"pointer":"default"}}
+                  onMouseEnter={onViewProfile?e=>e.currentTarget.style.textDecoration="underline":undefined}
+                  onMouseLeave={onViewProfile?e=>e.currentTarget.style.textDecoration="none":undefined}>
+                  {m.name}{isMe&&<span style={{fontSize:9,color:"var(--gold)",marginLeft:5,fontWeight:700}}>{t("youSuffix")}</span>}
+                </div>
                 <div style={{fontSize:9,color:"var(--text-dim)",fontWeight:600,letterSpacing:1,textTransform:"uppercase",textAlign:"left"}}>{m.role||m.cls}</div>
                 <div className="lb-bar-bg">
                   <div className="lb-bar" style={{width:`${(m[valueKey]/max)*100}%`,background:color||"linear-gradient(90deg,var(--gold-dim),var(--gold-light))"}}/>
@@ -8989,9 +9628,9 @@ function Leaderboard({ ctx }) {
       {powerTopThree.length > 0 && <LeaderboardPodium topThree={powerTopThree} honorableMentions={powerFourToTen} onViewProfile={setGlobalViewingProfile} />}
 
       <div className="lb-grid">
-        <LBList data={powerRest} valueKey="power" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={POWER_ICON} size={22} />{t("mostPowerful")}</span>} format={v=>fmt(v)} color="linear-gradient(90deg,#071824,#2e86c1)" currentUser={currentUser} showMultiplier rankOffset={10} />
-        <LBList data={byCoins} valueKey="coins" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={RICHEST_ICON} size={22} />{t("richestWarriors")}</span>} format={v=>`${fmt(v)}`} currentUser={currentUser} />
-        <LBList data={byAttend} valueKey="attendance" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={MOSTACTIVE_ICON} size={22} />{t("mostActive")}</span>} format={v=>`${v} ${t("attSuffix")}`} color="linear-gradient(90deg,#071a0f,#27ae60)" currentUser={currentUser} />
+        <LBList data={powerRest} valueKey="power" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={POWER_ICON} size={22} />{t("mostPowerful")}</span>} format={v=>fmt(v)} color="linear-gradient(90deg,#071824,#2e86c1)" currentUser={currentUser} showMultiplier rankOffset={10} onViewProfile={setGlobalViewingProfile} />
+        <LBList data={byCoins} valueKey="coins" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={RICHEST_ICON} size={22} />{t("richestWarriors")}</span>} format={v=>`${fmt(v)}`} currentUser={currentUser} onViewProfile={setGlobalViewingProfile} />
+        <LBList data={byAttend} valueKey="attendance" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={MOSTACTIVE_ICON} size={22} />{t("mostActive")}</span>} format={v=>`${v} ${t("attSuffix")}`} color="linear-gradient(90deg,#071a0f,#27ae60)" currentUser={currentUser} onViewProfile={setGlobalViewingProfile} />
       </div>
     </div>
   );
@@ -9089,7 +9728,10 @@ function ProfileCard({ member, onClick, prestigeRank }) {
   const [loaded, setLoaded] = useState(false);
 
   return (
-    <div
+    <motion.div
+      layout
+      layoutId={`profile-card-${member.id}`}
+      transition={{duration:0.35, ease:[0.16,1,0.3,1]}}
       onClick={onClick}
       style={{
         position:"relative",width:"100%",aspectRatio:"1142/1875",borderRadius:"14px 14px 0 0",overflow:"hidden",containerType:"inline-size",
@@ -9148,7 +9790,7 @@ function ProfileCard({ member, onClick, prestigeRank }) {
           }}>{awakeningLevel}</span>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -9229,6 +9871,150 @@ function RankOneMobileVideo({ assets }) {
   );
 }
 
+// "Notable roster" banner — used on the Player Info page for ranks 1-10
+// across Power, Richest, and Active. Originally built just for Power's
+// ranks 4-10 (steel-toned, distinct from that metric's own gold/purple/
+// coral top-3 pill); extracted into its own component when the same
+// treatment was extended to cover Richest and Active's entire top 10
+// too, so the three call sites can't silently drift out of sync with
+// each other. `tier` is whichever PRESTIGE_TIERS/RICHEST_TIERS/
+// ACTIVE_TIERS (or their shared quieter fallback) entry already resolved
+// for that rank — it already varies correctly per rank 1-10 on its own,
+// so this component doesn't need its own rank-based color branching.
+function RankTierBanner({ tier, rank, member, valueLabel, valueText }) {
+  return (
+    <div style={{
+      position:"relative",overflow:"hidden",borderRadius:8,padding:"18px 22px",margin:"4px 0 16px",
+      display:"flex",alignItems:"center",gap:18,
+      background:`linear-gradient(90deg, rgba(10,8,6,0.35) 0%, rgba(10,8,6,0.88) 60%, rgba(10,8,6,0.96) 100%), url(${PROFILE_CLASS_BG[member.cls]})`,
+      backgroundSize:"cover",backgroundPosition:"center",
+      border:`1px solid ${tier.color}48`,
+      boxShadow:`0 0 22px ${tier.glow}`,
+    }}>
+      <CornerBrackets size={14} thickness={1.5} inset={7} opacity={0.4}/>
+      <div style={{
+        width:56,height:56,borderRadius:"50%",flexShrink:0,
+        background:`radial-gradient(circle, ${tier.color}40, rgba(20,18,16,0.9) 70%)`,
+        border:`1px solid ${tier.color}66`,boxShadow:`0 0 14px ${tier.glow}`,
+        display:"flex",alignItems:"center",justifyContent:"center",
+      }}>
+        <ClassIcon cls={member.cls} size={32} noShadow/>
+      </div>
+      <div style={{position:"relative",zIndex:1,flex:1,minWidth:0}}>
+        <div style={{fontSize:9.5,letterSpacing:2.5,textTransform:"uppercase",color:`${tier.color}cc`,fontWeight:700,marginBottom:4}}>
+          {CLAN_SEASON_LABEL} &middot; {tier.label || tier.title}
+        </div>
+        <div style={{fontFamily:"'Spectral',serif",fontSize:18,fontWeight:800,color:"var(--text-bright)",textShadow:`0 0 16px ${tier.glow}`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+          {member.name}
+        </div>
+        <div style={{fontSize:11.5,color:"#a8a4a0",marginTop:3}}>{member.cls} &middot; {valueText}</div>
+      </div>
+      <div style={{flexShrink:0,textAlign:"center",paddingLeft:16,borderLeft:`1px solid ${tier.color}33`}}>
+        <div style={{fontFamily:"'Spectral',serif",fontSize:24,fontWeight:800,color:"var(--text-bright)",lineHeight:1}}>#{rank}</div>
+        <div style={{fontSize:8.5,letterSpacing:1.5,textTransform:"uppercase",color:"#8a8682",marginTop:3}}>{valueLabel}</div>
+      </div>
+    </div>
+  );
+}
+
+// Richest tier (ranks 1-10) — a genuinely different silhouette from
+// RankTierBanner, not a recolor of it: a hexagonal coin-seal medallion
+// instead of a circle, and a warm ledger/sparkle backdrop (dot-grid +
+// amber gradient) instead of the character-photo backdrop Power uses —
+// this tier is about the hoard, not the warrior, so it doesn't reuse
+// PROFILE_CLASS_BG at all.
+function TreasuryBanner({ tier, rank, member, valueLabel, valueText }) {
+  return (
+    <div style={{
+      position:"relative",overflow:"hidden",borderRadius:8,padding:"18px 22px",margin:"4px 0 16px",
+      display:"flex",alignItems:"center",gap:20,
+      background:`radial-gradient(circle at 8px 8px, ${tier.color}1f 1px, transparent 1.4px) 0 0/16px 16px, linear-gradient(115deg, #2b2007 0%, #3d2f10 45%, #2b2007 100%)`,
+      border:`1px solid ${tier.accent}66`,
+      boxShadow:`0 0 20px ${tier.glow}, inset 0 0 30px rgba(0,0,0,0.4)`,
+    }}>
+      <div style={{
+        width:58,height:58,flexShrink:0,position:"relative",
+        clipPath:"polygon(50% 0%,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%)",
+        background:`linear-gradient(135deg,${tier.color},${tier.accent} 40%,#7a5f2e 100%)`,
+        boxShadow:`0 0 16px ${tier.glow}`,
+        display:"flex",alignItems:"center",justifyContent:"center",
+      }}>
+        <div style={{
+          position:"absolute",inset:4,
+          clipPath:"polygon(50% 0%,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%)",
+          background:"linear-gradient(135deg,#4a3814,#2b2007)",
+        }}/>
+        <span style={{position:"relative",zIndex:1}}><StatIcon src={COINS_ICON} size={26}/></span>
+      </div>
+      <div style={{position:"relative",zIndex:1,flex:1,minWidth:0}}>
+        <div style={{fontSize:9.5,letterSpacing:2.5,textTransform:"uppercase",color:tier.color,fontWeight:700,marginBottom:4}}>
+          {CLAN_SEASON_LABEL} &middot; {tier.title}
+        </div>
+        <div style={{fontFamily:"'Spectral',serif",fontSize:18,fontWeight:800,color:tier.color,textShadow:`0 0 14px ${tier.glow}`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+          {member.name}
+        </div>
+        <div style={{fontSize:11.5,color:tier.accent,marginTop:3,fontVariantNumeric:"tabular-nums"}}>{member.cls} &middot; {valueText}</div>
+      </div>
+      <div style={{flexShrink:0,textAlign:"center",paddingLeft:16,borderLeft:`1px solid ${tier.accent}55`}}>
+        <div style={{fontFamily:"'Spectral',serif",fontSize:24,fontWeight:800,color:tier.color,lineHeight:1}}>#{rank}</div>
+        <div style={{fontSize:8.5,letterSpacing:1.5,textTransform:"uppercase",color:tier.accent,marginTop:3}}>{valueLabel}</div>
+      </div>
+    </div>
+  );
+}
+
+// Active tier (ranks 1-10) — shield medallion (angular, not circular),
+// ember-green backdrop, plus a pulse row that's real data (this member's
+// actual last 7 GMT+8 calendar days from attendLog via
+// getLast7DaysPulseGmt8) rather than a decorative streak icon.
+function BattleStreakBanner({ tier, rank, member, valueLabel, valueText }) {
+  const pulse = getLast7DaysPulseGmt8(member.attendLog);
+  return (
+    <div style={{
+      position:"relative",overflow:"hidden",borderRadius:8,padding:"16px 22px",margin:"4px 0 16px",
+      background:`linear-gradient(135deg, #04140c 0%, #0a2417 55%, #04140c 100%)`,
+      border:`1px solid ${tier.color}66`,
+      boxShadow:`0 0 20px ${tier.glow}`,
+    }}>
+      <div style={{display:"flex",alignItems:"center",gap:18,marginBottom:12}}>
+        <div style={{
+          width:52,height:58,flexShrink:0,
+          clipPath:"polygon(50% 0%,100% 18%,100% 60%,50% 100%,0% 60%,0% 18%)",
+          background:`linear-gradient(160deg,${tier.color},${tier.accent} 55%,#0d2418 100%)`,
+          boxShadow:`0 0 16px ${tier.glow}`,
+          display:"flex",alignItems:"center",justifyContent:"center",
+        }}>
+          <ShieldIcon size={22} style={{color:"#0d2418"}}/>
+        </div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:9.5,letterSpacing:2.5,textTransform:"uppercase",color:tier.color,fontWeight:700,marginBottom:4}}>
+            {CLAN_SEASON_LABEL} &middot; {tier.title}
+          </div>
+          <div style={{fontFamily:"'Spectral',serif",fontSize:18,fontWeight:800,color:tier.color,textShadow:`0 0 14px ${tier.glow}`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+            {member.name}
+          </div>
+          <div style={{fontSize:11.5,color:tier.accent,marginTop:3}}>{member.cls} &middot; {valueText}</div>
+        </div>
+        <div style={{flexShrink:0,textAlign:"center",paddingLeft:16,borderLeft:`1px solid ${tier.color}4d`}}>
+          <div style={{fontFamily:"'Spectral',serif",fontSize:24,fontWeight:800,color:tier.color,lineHeight:1}}>#{rank}</div>
+          <div style={{fontSize:8.5,letterSpacing:1.5,textTransform:"uppercase",color:tier.accent,marginTop:3}}>{valueLabel}</div>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:5,alignItems:"center",paddingTop:12,borderTop:`1px solid ${tier.color}26`}}>
+        <span style={{fontSize:8.5,letterSpacing:1.5,textTransform:"uppercase",color:tier.accent,marginRight:8,flexShrink:0}}>Last 7 Days</span>
+        {pulse.map((active,i) => (
+          <div key={i} style={{
+            width:16,height:16,borderRadius:3,flexShrink:0,
+            background:active ? `linear-gradient(135deg,${tier.color},${tier.accent})` : "rgba(255,255,255,0.05)",
+            border:active ? "none" : `1px solid ${tier.color}26`,
+            boxShadow:active ? `0 0 6px ${tier.glow}` : "none",
+          }}/>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── PLAYER INFO PAGE ───────────────────────────────────────────────────────────
 function PlayerInfo({ member, members, onBack }) {
   const now = Date.now();
@@ -9249,15 +10035,21 @@ function PlayerInfo({ member, members, onBack }) {
   const powerRank = byPower.findIndex(m=>m.id===member.id)+1;
   const coinsRank = byCoins.findIndex(m=>m.id===member.id)+1;
   const attendRank = byAttend.findIndex(m=>m.id===member.id)+1;
-  // The clan's #1 AND #2 by Power get the video backdrop (variable name
-  // kept as "rank1VideoAssets" even though it now also covers rank 2,
-  // since it's referenced throughout this component and renaming
-  // everywhere risked introducing a mistake for no functional benefit) —
-  // only if their class has video assets uploaded (currently just
-  // Archer for #1; add additional classes to PROFILE_RANK1_VIDEO as
-  // their assets come in). Every other rank/class renders this page
-  // exactly as before.
-  const rank1VideoAssets = (powerRank === 1 || powerRank === 2) ? PROFILE_RANK1_VIDEO[member.cls] : null;
+  // Top 10 by Power get their class's scene image as the background of
+  // the profile card itself (not the whole page) — used below where that
+  // card is rendered.
+  const isTop10Power = powerRank >= 1 && powerRank <= 10 && !!PROFILE_CLASS_BG[member.cls];
+  // The clan's top 3 by Power get the video backdrop (variable name kept
+  // as "rank1VideoAssets" even though it now covers ranks 1-3, since it's
+  // referenced throughout this component and renaming everywhere risked
+  // introducing a mistake for no functional benefit) — only if their
+  // class has video assets uploaded (currently just Archer; add
+  // additional classes to PROFILE_RANK1_VIDEO as their assets come in —
+  // backgrounds are already uploaded for all 6, but intro/looping videos
+  // aren't yet). Every other rank/class renders this page exactly as
+  // before. Rank 3 used to be excluded here entirely (only 1/2 checked),
+  // which is why #3 never got this treatment even for Archer.
+  const rank1VideoAssets = (powerRank === 1 || powerRank === 2 || powerRank === 3) ? PROFILE_RANK1_VIDEO[member.cls] : null;
   // Resolved per-rank (not just per-class) so two same-class players at
   // rank 1 and rank 2 get their own distinct text instead of identical
   // copy just because they share a class/video.
@@ -9284,6 +10076,22 @@ function PlayerInfo({ member, members, onBack }) {
   // instead of no prestige styling at all.
   const silverTier = { name: "silver", color: "#dcdee1", glow: "rgba(220,222,225,0.25)", gradient: ["#dcdee1", "#6e7073", "#1c1c1c"], label: "Among the Mightiest in the Clan" };
   const prestige = PRESTIGE_TIERS[powerRank] || (powerRank >= 4 && powerRank <= 10 ? silverTier : null);
+  // Per-rank tagline colors for the video-hero caption (used below). This
+  // used to be a plain rank===2-vs-everything-else binary, which was fine
+  // when only ranks 1-2 ever reached this code path — now that rank 3 also
+  // gets the video treatment, it needs its own distinct color instead of
+  // silently falling into whichever branch used to catch "not rank 2".
+  // Rank 1 deliberately stays flat gold rather than its purple prestige
+  // color — that was an already-approved, already-shipped choice (see the
+  // comment further below where this is used), not something to revisit
+  // here. Rank 2's exact values are also unchanged. Rank 3 is the only
+  // genuinely new entry, given its own coral identity matching its
+  // PRESTIGE_TIERS color instead of inheriting rank 1's look.
+  const rank1CaptionColors = {
+    1: { eyebrow: "rgba(200,146,42,0.7)",   title: "#f2cc60", glow: "0 0 20px rgba(242,204,96,0.35)" },
+    2: { eyebrow: "rgba(255,200,80,0.85)",  title: "#ffd454", glow: "0 0 24px rgba(255,200,80,0.55), 0 0 8px rgba(255,220,140,0.4)" },
+    3: { eyebrow: "rgba(254,126,115,0.8)",  title: "#fe9a8f", glow: "0 0 24px rgba(254,126,115,0.5), 0 0 8px rgba(252,166,153,0.4)" },
+  }[powerRank] || { eyebrow: "rgba(200,146,42,0.7)", title: "#f2cc60", glow: "0 0 20px rgba(242,204,96,0.35)" };
 
   // Richest and Most Active prestige tiers — same rank cutoffs as Power
   // (1-3 each get a unique look, 4-10 share one quieter tier), but with
@@ -9367,10 +10175,31 @@ function PlayerInfo({ member, members, onBack }) {
           (rendered further below, layered on top of the video) so they
           read as part of the same scene instead of floating over plain
           page background above it — matching the reference layout. */}
-      {!rank1VideoAssets && (prestige || richestTier || activeTier) && (
+      {/* Ranks 4-10 by Power get the "notable roster" banner instead of
+          the plain pill below — a steel-toned strip using that class's
+          real uploaded background still (PROFILE_CLASS_BG, all 6 classes
+          already have one), corner brackets matching the app's established
+          ornament language, and a rank badge. Deliberately not gold/purple/
+          coral (those stay exclusive to ranks 1-3) and deliberately not the
+          video hero (static image, no autoplay, no card reflow) — a real
+          middle tier, not a smaller copy of either neighbor.
+          Richest and Active use the same banner across their ENTIRE top
+          10 (not just 4-10 like Power) — they have no video-hero concept
+          to keep separate for ranks 1-3, so there's no reason to hold
+          those ranks back to the old plain pill the way Power's 1-3 still
+          are (that pill is unchanged, still shown further below). */}
+      {!rank1VideoAssets && prestige && powerRank>=4 && powerRank<=10 && (
+        <RankTierBanner tier={prestige} rank={powerRank} member={member} valueLabel="Power" valueText={`${fmt(member.power)} Power`} />
+      )}
+      {!rank1VideoAssets && richestTier && (
+        <TreasuryBanner tier={richestTier} rank={coinsRank} member={member} valueLabel="Coins" valueText={`${fmt(member.coins)} Coins`} />
+      )}
+      {!rank1VideoAssets && activeTier && (
+        <BattleStreakBanner tier={activeTier} rank={attendRank} member={member} valueLabel="Events" valueText={`${member.attendance} Events`} />
+      )}
+      {!rank1VideoAssets && prestige && !(powerRank>=4 && powerRank<=10) && (
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8,margin:"4px 0 16px"}}>
-          {prestige && (
-            <span style={{
+          <span style={{
               display:"inline-flex",alignItems:"center",gap:8,
               background:`${prestige.color}1a`,border:`1px solid ${prestige.color}66`,
               borderRadius:20,padding:"6px 16px",
@@ -9380,38 +10209,18 @@ function PlayerInfo({ member, members, onBack }) {
                 RANK {powerRank} &middot; {prestige.label.toUpperCase()}
               </span>
             </span>
-          )}
-          {richestTier && (
-            <span style={{
-              display:"inline-flex",alignItems:"center",gap:8,
-              background:`${richestTier.color}1a`,border:`1px solid ${richestTier.color}66`,
-              borderRadius:20,padding:"6px 16px",
-            }}>
-              <CrownIcon size={14} style={{color:richestTier.color}} />
-              <span style={{fontSize:11,fontWeight:800,color:richestTier.color,letterSpacing:1}}>
-                RANK {coinsRank} &middot; {richestTier.title.toUpperCase()}
-              </span>
-            </span>
-          )}
-          {activeTier && (
-            <span style={{
-              display:"inline-flex",alignItems:"center",gap:8,
-              background:`${activeTier.color}1a`,border:`1px solid ${activeTier.color}66`,
-              borderRadius:20,padding:"6px 16px",
-            }}>
-              <ShieldIcon size={14} style={{color:activeTier.color}} />
-              <span style={{fontSize:11,fontWeight:800,color:activeTier.color,letterSpacing:1}}>
-                RANK {attendRank} &middot; {activeTier.title.toUpperCase()}
-              </span>
-            </span>
-          )}
         </div>
       )}
       <button className="btn btn-outline btn-sm" style={{marginBottom:16}} onClick={onBack}>Back</button>
 
       <div className="card" style={{
         padding:24, marginBottom:20, position:"relative", overflow:"hidden",
-        background: rank1VideoAssets ? "rgba(10,8,6,0.35)" : undefined,
+        background: rank1VideoAssets
+          ? "rgba(10,8,6,0.35)"
+          : isTop10Power
+          ? `linear-gradient(180deg, rgba(10,8,6,0.5) 0%, rgba(10,8,6,0.8) 60%, rgba(10,8,6,0.95) 100%), url(${PROFILE_CLASS_BG[member.cls]})`
+          : undefined,
+        backgroundSize:"cover", backgroundPosition:"center",
       }}>
         {/* Mounted at the OUTER card level (not scoped to just the hero
             area) so the backdrop genuinely sits behind the entire card,
@@ -9450,13 +10259,13 @@ function PlayerInfo({ member, members, onBack }) {
             beside the sidebar. */}
         {rank1VideoAssets && rank1Tagline && (
           <div className="rank1-mobile-caption" style={{textAlign:"center",marginBottom:20}}>
-            <div style={{fontSize:10,color: powerRank===2 ? "rgba(255,200,80,0.85)" : "rgba(200,146,42,0.7)",letterSpacing:3,textTransform:"uppercase",fontWeight:700,marginBottom:6}}>
+            <div style={{fontSize:10,color:rank1CaptionColors.eyebrow,letterSpacing:3,textTransform:"uppercase",fontWeight:700,marginBottom:6}}>
               {CLAN_SEASON_LABEL} &middot; {prestige?.label || "Reigning Champion"}
             </div>
             <div style={{
               fontFamily:"'Spectral',serif",fontSize:22,fontWeight:800,lineHeight:1.15,marginBottom:rank1FlavorLine?10:0,
-              color: powerRank===2 ? "#ffd454" : "#f2cc60",
-              textShadow: powerRank===2 ? "0 0 24px rgba(255,200,80,0.55), 0 0 8px rgba(255,220,140,0.4)" : "0 0 20px rgba(242,204,96,0.35)",
+              color:rank1CaptionColors.title,
+              textShadow:rank1CaptionColors.glow,
             }}>
               {rank1Tagline}
             </div>
@@ -9518,14 +10327,16 @@ function PlayerInfo({ member, members, onBack }) {
                 approved and shipped, not something to change here. Rank
                 2 gets a richer, more saturated gold than the original
                 flat #f2cc60, leaning into "make it more gold-themed" for
-                that rank specifically without touching rank 1's look. */}
-            <div style={{fontSize:10,color: powerRank===2 ? "rgba(255,200,80,0.85)" : "rgba(200,146,42,0.7)",letterSpacing:3,textTransform:"uppercase",fontWeight:700,marginBottom:8}}>
+                that rank specifically without touching rank 1's look.
+                Rank 3 (new) gets its own coral identity matching its
+                PRESTIGE_TIERS color — see rank1CaptionColors above. */}
+            <div style={{fontSize:10,color:rank1CaptionColors.eyebrow,letterSpacing:3,textTransform:"uppercase",fontWeight:700,marginBottom:8}}>
               {CLAN_SEASON_LABEL} &middot; {prestige?.label || "Reigning Champion"}
             </div>
             <div style={{
               fontFamily:"'Spectral',serif",fontSize:28,fontWeight:800,lineHeight:1.15,
-              color: powerRank===2 ? "#ffd454" : "#f2cc60",
-              textShadow: powerRank===2 ? "0 0 24px rgba(255,200,80,0.55), 0 0 8px rgba(255,220,140,0.4)" : "0 0 20px rgba(242,204,96,0.35)",
+              color:rank1CaptionColors.title,
+              textShadow:rank1CaptionColors.glow,
             }}>
               {rank1Tagline}
             </div>
