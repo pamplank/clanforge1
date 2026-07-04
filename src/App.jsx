@@ -6303,6 +6303,24 @@ function WorldBossSchedule() {
 // ─── UPDATE NOTES ─────────────────────────────────────────────────────────────
 const UPDATE_NOTES = [
   {
+    version: "v2.3",
+    date: "July 2026",
+    title: "Clan HQ Visual Overhaul & Real Bug Fixes",
+    color: "#b388ff",
+    changes: [
+      { icon: "🏛️", text: "Dashboard, Attendance, Auction House, Leaderboard, Members, and the login screen all got a full visual pass — corner-bracket panels, a stats strip up top on each page, and consistent gold/crimson styling throughout, instead of the old plain cards." },
+      { icon: "🖱️", text: "Auction House: hovering an active auction's image now reveals its description and most recent bids without opening anything. Fixed a real bug where item images could get stuck permanently blurred after someone placed a bid." },
+      { icon: "🔗", text: "Leaderboard and Members: every name is now clickable, jumping straight to that member's profile instead of needing an extra step." },
+      { icon: "👑", text: "Player Info: rank #3 now gets the exact same premium treatment as #1 and #2. Ranks #4–10 get their own distinct banner style across Power, Richest, and Active — a clear step up from ranks 11+, without reusing the top-3 look. Top-10 Power members also get their class's artwork as their profile background." },
+      { icon: "🐛", text: "Fixed a layout bug where a member ranking in the top 10 of more than one leaderboard (Power, Richest, Active) at once could see their profile banners overlap and break." },
+      { icon: "📌", text: "The top navigation bar now stays properly pinned in place while scrolling, and the Admin Tools dropdown no longer pops open automatically when the page loads." },
+      { icon: "🎉", text: "The \"Welcome back\" popup was redesigned with a cleaner layout, and featured auction items now show a ×N count instead of repeating the same item over and over when it's been featured multiple times." },
+      { icon: "🔑", text: "The login screen now shows the clan's total power at a glance, plus a subtle tag naming the current #1 by Power." },
+      { icon: "👥", text: "Members tab overhaul: a stats strip up top (total warriors, clan total power, coins in circulation, class breakdown), class filters you can click instead of a dropdown, a 7-day attendance streak per member, and the default sort changed from Coins to Power." },
+      { icon: "🏆", text: "Fixed a real bug where some members' Auction Wins count on their profile didn't match how many auctions they'd actually won — a historical bug had inflated the number for 20 members. Corrected for everyone affected, and it's now protected against happening again, even if the same member wins multiple auctions closing at the same time." },
+    ],
+  },
+  {
     version: "v2.2",
     date: "June 2026",
     title: "Login News & Real Data-Loss Fixes",
