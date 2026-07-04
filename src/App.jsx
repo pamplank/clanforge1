@@ -6319,6 +6319,26 @@ const UPDATE_NOTES = [
       { icon: "👥", text: "Members tab overhaul: a stats strip up top (total warriors, clan total power, coins in circulation, class breakdown), class filters you can click instead of a dropdown, a 7-day attendance streak per member, and the default sort changed from Coins to Power." },
       { icon: "🏆", text: "Fixed a real bug where some members' Auction Wins count on their profile didn't match how many auctions they'd actually won — a historical bug had inflated the number for 20 members. Corrected for everyone affected, and it's now protected against happening again, even if the same member wins multiple auctions closing at the same time." },
     ],
+    // Short, atomic New/Fixed lines for the Discord announcement embed —
+    // deliberately separate from `changes` above, which is written as
+    // flowing in-app prose (often mixing a feature and a fix in the same
+    // bullet) that doesn't split cleanly into one-line-per-item.
+    discordSummary: {
+      new: [
+        "Full visual overhaul across every page",
+        "Auction hover previews",
+        "Clickable names everywhere",
+        "Rank #4–10 profile banners",
+        "7-day attendance streak",
+        "Nav bar stays pinned while scrolling",
+      ],
+      fixed: [
+        "Blurred auction images after bidding",
+        "Profile banner overlap on multi-tier members",
+        "Admin dropdown auto-opening on load",
+        "Auction Wins count accuracy",
+      ],
+    },
   },
   {
     version: "v2.2",
@@ -6481,14 +6501,49 @@ const UPDATE_NOTES = [
   },
 ];
 
-function UpdateNotes() {
+function UpdateNotes({ ctx }) {
+  const { currentUser, addToast } = ctx;
+  const isAdmin = currentUser.role === "Elder" || currentUser.role === "Master";
   const [expanded, setExpanded] = React.useState(null);
   const [showAll, setShowAll] = React.useState(false);
+  const [posting, setPosting] = React.useState(false);
   const [dismissed, setDismissed] = React.useState(() => {
     try { return localStorage.getItem("update_notes_dismissed") === "true"; } catch { return false; }
   });
 
   if (dismissed) return null;
+
+  // Builds the announcement from whichever version is currently
+  // "LATEST" (UPDATE_NOTES[0]) — New/Fixed columns come from that
+  // version's own discordSummary, kept separate from the flowing in-app
+  // prose in `changes` (which often mixes a feature and a fix in the
+  // same bullet and doesn't split cleanly into one line per item).
+  async function postLatestUpdateToDiscord() {
+    const latest = UPDATE_NOTES[0];
+    if (!latest.discordSummary) {
+      addToast("This version has no Discord summary configured yet.", "red", "Can't Post");
+      return;
+    }
+    setPosting(true);
+    const colorInt = parseInt(latest.color.replace("#", ""), 16);
+    const fields = [];
+    if (latest.discordSummary.new?.length) {
+      fields.push({ name: "New", value: latest.discordSummary.new.join("\n"), inline: true });
+    }
+    if (latest.discordSummary.fixed?.length) {
+      fields.push({ name: "Fixed", value: latest.discordSummary.fixed.join("\n"), inline: true });
+    }
+    const ok = await notifyDiscord({ embeds: [{
+      title: latest.title,
+      description: `Update · ${latest.version}`,
+      color: colorInt,
+      fields,
+      footer: { text: `ClanForge · ${latest.date}` },
+    }] }, "general");
+    setPosting(false);
+    if (ok) addToast(`Posted ${latest.version} to Discord.`, "gold", "Announced");
+    else addToast("Couldn't reach Discord — try again in a moment.", "red", "Post Failed");
+  }
 
   const VISIBLE = 5;
   const visibleNotes = showAll ? UPDATE_NOTES : UPDATE_NOTES.slice(0, VISIBLE);
@@ -6523,6 +6578,14 @@ function UpdateNotes() {
             border:"1px solid rgba(200,146,42,0.4)",borderRadius:20,padding:"2px 10px",
             color:"var(--gold-light)",
           }}>{UPDATE_NOTES[0].version} · LATEST</span>
+          {isAdmin && (
+            <button
+              className="btn btn-outline btn-sm"
+              disabled={posting}
+              style={{fontSize:10,opacity:posting?0.6:1}}
+              onClick={postLatestUpdateToDiscord}
+            >{posting ? "Posting…" : "Announce in Discord"}</button>
+          )}
         </div>
         <button
           className="btn btn-ghost btn-sm"
@@ -6756,7 +6819,7 @@ function Dashboard({ ctx, setPage }) {
       {/* Update Notes — clan-wide announcements, sits just under the hero
           rather than inside either column below since it isn't part of
           either column's theme (timely activity vs. at-a-glance stats). */}
-      <div style={{marginBottom:36}}><UpdateNotes /></div>
+      <div style={{marginBottom:36}}><UpdateNotes ctx={ctx} /></div>
 
       {/* ── Command Deck — asymmetric two-column split below the hero:
           a wide primary column for timely/content-rich material (World
