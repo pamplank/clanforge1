@@ -1370,13 +1370,26 @@ async function claimAuctionWin(auctionId, claimedBy) {
 // succeeded — called as a fire-and-forget side effect (not awaited by
 // its caller) since it needs to run async but the surrounding code is a
 // synchronous state updater.
-async function claimAuctionWinAndLog(auction, setMembers) {
+//
+// The win increment itself goes through incrementAuctionWinAtomic (a
+// single indivisible database UPDATE) instead of the old "read this
+// browser's local auctionWins, add 1 in JS, write the whole roster back
+// via setMembers" path — that path could silently lose a win if the same
+// member won two different auctions closing around the same time, since
+// whichever client's blanket write landed last in Postgres would
+// overwrite the other's increment. setMembersRaw (the bare state setter,
+// no DB side effects) is used afterward only to reflect the CONFIRMED
+// value the RPC returned in this browser's local state immediately,
+// rather than waiting for the next member poll.
+async function claimAuctionWinAndLog(auction, setMembersRaw) {
   const won = await claimAuctionWin(auction.id, auction.topBidder);
   if (!won) return; // someone/something else already claimed this exact auction
-  setMembers(ms => ms.map(m => {
+  const txEntry = {change:-auction.currentBid, reason:`Won auction: ${auction.name}`, date:new Date().toLocaleDateString(), ts:Date.now(), logType:"Auction Win", addedBy:"System", auctionId:auction.id};
+  const newWins = await incrementAuctionWinAtomic(auction.topBidder, txEntry);
+  if (newWins === null) return; // RPC failed — DB write didn't happen, so don't desync local state from it
+  setMembersRaw(ms => ms.map(m => {
     if (m.name !== auction.topBidder) return m;
-    return {...m, auctionWins: m.auctionWins+1,
-      txLog: [...(m.txLog||[]), {change:-auction.currentBid, reason:`Won auction: ${auction.name}`, date:new Date().toLocaleDateString(), ts:Date.now(), logType:"Auction Win", addedBy:"System", auctionId:auction.id}]};
+    return {...m, auctionWins: newWins, txLog: [...(m.txLog||[]), txEntry]};
   }));
 }
 // Re-fetches the TRUE current state of one specific auction from the
@@ -1388,7 +1401,7 @@ async function claimAuctionWinAndLog(auction, setMembers) {
 // browser's own (possibly stale) copy, used only if the fresh re-fetch
 // itself fails for some unrelated reason — better to proceed with
 // slightly-stale data than to leave an auction stuck mid-close forever.
-async function finalizeAuctionClose(localFallback, canWriteClose, setMembers, addToast) {
+async function finalizeAuctionClose(localFallback, canWriteClose, setMembersRaw, addToast) {
   let fresh = localFallback;
   try {
     const rows = await dbLoad("auctions", `id,current_bid,top_bidder,bids,status&id=eq.${encodeURIComponent(localFallback.id)}`);
@@ -1409,7 +1422,7 @@ async function finalizeAuctionClose(localFallback, canWriteClose, setMembers, ad
   }
   if (fresh.topBidder) {
     addToast(`${fresh.topBidder} won ${fresh.name} for ${fmt(fresh.currentBid)} coins!`, "gold", "Auction Ended");
-    claimAuctionWinAndLog(fresh, setMembers);
+    claimAuctionWinAndLog(fresh, setMembersRaw);
   }
   if (canWriteClose) {
     const endImageData = fresh.image?.dataUrl || _auctionImageCache.get(String(fresh.id)) || undefined;
@@ -1621,6 +1634,35 @@ async function adjustMemberCoinsAtomic(memberName, delta) {
     return typeof newBalance === "number" ? newBalance : null;
   } catch (e) {
     console.error(`adjustMemberCoinsAtomic(${memberName}, ${delta}) failed:`, e);
+    return null;
+  }
+}
+// Same atomic-single-UPDATE pattern as adjustMemberCoinsAtomic above (see
+// increment_auction_win in scripts/increment_auction_win.sql) — replaces
+// the old "read auctionWins from this browser's local members state, add
+// 1 in JS, write the whole roster back via setMembers" path, which could
+// silently lose a win: if the same member won two different auctions
+// closing around the same time, both reads could see the same stale win
+// count, and whichever write landed last in Postgres discarded the other
+// increment entirely. This runs the increment and the tx_log append as
+// one indivisible database statement, so it can't happen no matter how
+// many auctions close for the same member at once.
+async function incrementAuctionWinAtomic(memberName, txEntry) {
+  try {
+    const res = await fetchWithTimeout(`${SUPA_URL}/rest/v1/rpc/increment_auction_win`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPA_KEY,
+        "Authorization": `Bearer ${SUPA_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ p_member_name: memberName, p_tx_entry: txEntry }),
+    });
+    if (!res.ok) throw new Error(`increment_auction_win failed: HTTP ${res.status}`);
+    const newWins = await res.json();
+    return typeof newWins === "number" ? newWins : null;
+  } catch (e) {
+    console.error(`incrementAuctionWinAtomic(${memberName}) failed:`, e);
     return null;
   }
 }
@@ -5402,7 +5444,7 @@ function AppInner({ onMusicTrackChange }) {
           // "ended" immediately for a snappy UI; it's the consequential
           // actions (DB write, win claim, Discord) that wait for fresh
           // data.
-          finalizeAuctionClose(a, canWriteClose, setMembers, addToast);
+          finalizeAuctionClose(a, canWriteClose, setMembersRaw, addToast);
           return {...a, status:"ended"};
         }
         return a;
