@@ -2948,17 +2948,17 @@ tbody tr:last-child td{border-bottom:none;}
   .lb-val{min-width:60px;font-size:12px;}
   .lb-name{font-size:11px;}
   .lb-rank{min-width:22px;width:22px;font-size:11px;}
-  /* Members table — keep as real table on mobile, no stacking */
-  .members-table{width:100%;display:table!important;}
-  .members-table thead{display:table-header-group!important;}
-  .members-table tbody tr{display:table-row!important;background:transparent!important;border:none!important;border-radius:0!important;margin-bottom:0!important;padding:0!important;}
-  .members-table td{display:table-cell!important;padding:8px 8px!important;font-size:11px!important;gap:0!important;justify-content:unset!important;}
-  .members-table td::before{display:none!important;}
-  .members-table th{padding:8px 8px!important;font-size:8px!important;}
-  .members-table-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch;}
+  /* Members table used to be force-kept as a real, horizontally-scrolling
+     table on mobile instead of the stacked-card format every other table
+     uses — that got worse as more columns were added over time. Now it
+     just hides like the rest, replaced by .members-card-view below
+     (same table-view/card-view toggle pattern as Attendance). */
+  .members-table-view{display:none!important;}
+  .members-card-view{display:block!important;}
 }
 .members-table-wrap{overflow-x:auto;}
 .attendance-card-view{display:none;}
+.members-card-view{display:none;}
 @media(max-width:400px){
   .grid-4{grid-template-columns:1fr;}
   .lb-val{min-width:52px;font-size:11px;}
@@ -7032,36 +7032,48 @@ function Members({ ctx }) {
 
   return (
     <div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1.6fr",gap:1,background:"var(--border-dim)",border:"1px solid var(--border-dim)",borderRadius:8,overflow:"hidden",marginBottom:20}}>
-        <div style={{background:"var(--bg-card)",padding:"16px 18px"}}>
+      {/* Hero stats — same wrapping-flex + divider + corner-bracket pattern
+          Auctions' hero uses (not a fixed-column grid), so this actually
+          reflows on narrow screens instead of squeezing 4 rigid columns
+          into a phone width, and looks consistent with the rest of the app. */}
+      <div className="dash-panel" style={{position:"relative",display:"flex",flexWrap:"wrap",gap:20,alignItems:"center",padding:"16px 18px",marginBottom:12}}>
+        <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.35}/>
+        <div>
           <div style={{fontSize:9.5,letterSpacing:1.5,textTransform:"uppercase",color:"var(--text-dim)",fontWeight:700,marginBottom:6}}>{t("totalWarriors")}</div>
           <div style={{fontFamily:"'Spectral',serif",fontSize:22,fontWeight:800,color:"var(--gold-light)",textShadow:"0 0 16px rgba(242,204,96,0.25)",fontVariantNumeric:"tabular-nums"}}>{members.length}</div>
         </div>
-        <div style={{background:"var(--bg-card)",padding:"16px 18px"}}>
+        <div style={{width:1,height:32,background:"var(--border)"}}/>
+        <div>
           <div style={{fontSize:9.5,letterSpacing:1.5,textTransform:"uppercase",color:"var(--text-dim)",fontWeight:700,marginBottom:6}}>{t("clanTotalPower")}</div>
           <div style={{fontFamily:"'Spectral',serif",fontSize:22,fontWeight:800,color:"var(--gold-light)",textShadow:"0 0 16px rgba(242,204,96,0.25)",fontVariantNumeric:"tabular-nums"}}>{fmt(totalPower)}</div>
         </div>
-        <div style={{background:"var(--bg-card)",padding:"16px 18px"}}>
+        <div style={{width:1,height:32,background:"var(--border)"}}/>
+        <div>
           <div style={{fontSize:9.5,letterSpacing:1.5,textTransform:"uppercase",color:"var(--text-dim)",fontWeight:700,marginBottom:6}}>{t("coinsInCirculation")}</div>
           <div style={{display:"inline-flex",alignItems:"center",gap:6,fontFamily:"'Spectral',serif",fontSize:22,fontWeight:800,color:"var(--gold-light)",textShadow:"0 0 16px rgba(242,204,96,0.25)",fontVariantNumeric:"tabular-nums"}}>
             <StatIcon src={COINS_ICON} size={20}/>{fmt(totalCoins)}
           </div>
         </div>
-        <div style={{background:"var(--bg-card)",padding:"16px 18px"}}>
-          <div style={{fontSize:9.5,letterSpacing:1.5,textTransform:"uppercase",color:"var(--text-dim)",fontWeight:700,marginBottom:6}}>{t("classComposition")}</div>
-          {classComposition.map(c => {
-            const col = CLASS_COLORS[c.cls] || "#9c8c7c";
-            return (
-              <div key={c.cls} style={{display:"grid",gridTemplateColumns:"70px 1fr 20px",alignItems:"center",gap:8,marginTop:5}}>
-                <span style={{fontSize:10,color:"var(--text-mid)",fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.cls}</span>
-                <div style={{height:7,background:"rgba(255,255,255,0.05)",borderRadius:4,overflow:"hidden"}}>
-                  <div style={{height:"100%",borderRadius:4,width:`${(c.count/maxClassCount)*100}%`,background:`linear-gradient(90deg,${col},${col}cc)`,boxShadow:`0 0 6px ${col}66`}} />
-                </div>
-                <span style={{fontSize:10.5,color:col,fontWeight:800,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{c.count}</span>
+      </div>
+
+      {/* Class Composition gets its own panel below — it's a small bar
+          chart, not a single stat value, so it doesn't fit the flex-wrap
+          row above the same way the three numbers do. */}
+      <div className="dash-panel" style={{position:"relative",padding:"14px 18px",marginBottom:20}}>
+        <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.35}/>
+        <div style={{fontSize:9.5,letterSpacing:1.5,textTransform:"uppercase",color:"var(--text-dim)",fontWeight:700,marginBottom:6}}>{t("classComposition")}</div>
+        {classComposition.map(c => {
+          const col = CLASS_COLORS[c.cls] || "#9c8c7c";
+          return (
+            <div key={c.cls} style={{display:"grid",gridTemplateColumns:"70px 1fr 20px",alignItems:"center",gap:8,marginTop:5}}>
+              <span style={{fontSize:10,color:"var(--text-mid)",fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.cls}</span>
+              <div style={{height:7,background:"rgba(255,255,255,0.05)",borderRadius:4,overflow:"hidden"}}>
+                <div style={{height:"100%",borderRadius:4,width:`${(c.count/maxClassCount)*100}%`,background:`linear-gradient(90deg,${col},${col}cc)`,boxShadow:`0 0 6px ${col}66`}} />
               </div>
-            );
-          })}
-        </div>
+              <span style={{fontSize:10.5,color:col,fontWeight:800,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{c.count}</span>
+            </div>
+          );
+        })}
       </div>
 
       <div className="dash-panel" style={{position:"relative",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",padding:"14px 16px",marginBottom:16}}>
@@ -7090,7 +7102,7 @@ function Members({ ctx }) {
 
       <div className="members-layout">
         <div style={{flex:1,minWidth:0}}>
-          <div className="dash-panel" style={{position:"relative",padding:0,overflow:"hidden"}}>
+          <div className="dash-panel members-table-view" style={{position:"relative",padding:0,overflow:"hidden"}}>
             <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.35}/>
             <div className="table-wrap members-table-wrap">
               <table className="table-stack members-table">
@@ -7137,6 +7149,50 @@ function Members({ ctx }) {
             </div>
             {totalPages>1 && (
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderTop:"1px solid var(--border-dim)",flexWrap:"wrap",gap:8}}>
+                <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
+                  {safePage*MEMBERS_PAGE_SIZE+1}&ndash;{Math.min((safePage+1)*MEMBERS_PAGE_SIZE,filtered.length)} {t("ofPagination")} {filtered.length}
+                </span>
+                <div style={{display:"flex",gap:6}}>
+                  <button className="btn btn-outline btn-sm" disabled={safePage===0} onClick={()=>setPage(p=>p-1)} style={{opacity:safePage===0?0.4:1,fontSize:10,padding:"3px 10px"}}>{t("prevPage")}</button>
+                  <button className="btn btn-outline btn-sm" disabled={safePage>=totalPages-1} onClick={()=>setPage(p=>p+1)} style={{opacity:safePage>=totalPages-1?0.4:1,fontSize:10,padding:"3px 10px"}}>{t("nextPage")}</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Mobile card view — same data as the table above, shown only
+              on narrow screens (see .members-card-view media query).
+              Deliberately compact (name/class + Power/Coins only, same
+              as the desktop quick-view panel's summary) rather than
+              cramming every column in — tap a name to see everything
+              else on that member's profile. */}
+          <div className="members-card-view">
+            {visibleMembers.map((m,i) => {
+              const powerRank = powerRankOf(m.id);
+              const stripeColor = TIER_STRIPE_COLOR[powerRank];
+              return (
+                <div
+                  key={`card-${m.id}`} className="dash-subcard"
+                  style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",marginBottom:8,borderLeft:`2px solid ${stripeColor||"transparent"}`,cursor:"pointer"}}
+                  onClick={()=>setSelectedMember(m)}
+                >
+                  <ClassIcon cls={m.cls} size={30} />
+                  <div style={{minWidth:0,flex:1}}>
+                    <div
+                      style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:"var(--gold-light)",textDecoration:"underline",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}
+                      onClick={e=>{e.stopPropagation();setViewingProfile(m.id);}}
+                    >{m.name}</div>
+                    <div style={{fontSize:10,color:"var(--text-dim)"}}>{m.cls}</div>
+                  </div>
+                  <div style={{textAlign:"right",flexShrink:0}}>
+                    <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:13,color:"var(--gold-light)"}}>{fmt(m.power)}</div>
+                    <div style={{fontSize:10,color:"var(--text-dim)"}}>{fmt(m.coins)} coins</div>
+                  </div>
+                </div>
+              );
+            })}
+            {totalPages>1 && (
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 4px",gap:8}}>
                 <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
                   {safePage*MEMBERS_PAGE_SIZE+1}&ndash;{Math.min((safePage+1)*MEMBERS_PAGE_SIZE,filtered.length)} {t("ofPagination")} {filtered.length}
                 </span>
