@@ -153,6 +153,9 @@ const TRANSLATIONS = {
     clanTotalPower: "Clan Total Power",
     acrossWarriors: "Across {count} warriors",
     reigningChampion: "Reigning Champion",
+    totalWarriors: "Total Warriors",
+    coinsInCirculation: "Coins in Circulation",
+    sevenDayStreak: "7-Day Streak",
     yourPower: "Your power",
     yourCoins: "Your coins",
     classComposition: "Class Composition",
@@ -708,6 +711,9 @@ const TRANSLATIONS = {
     clanTotalPower: "军团总战力",
     acrossWarriors: "共 {count} 名勇士",
     reigningChampion: "在位冠军",
+    totalWarriors: "勇士总数",
+    coinsInCirculation: "流通金币",
+    sevenDayStreak: "7天出勤",
     yourPower: "你的战力",
     yourCoins: "你的金币",
     classComposition: "职业构成",
@@ -6829,6 +6835,25 @@ function Members({ ctx }) {
   const [page, setPage] = useState(0);
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
 
+  // Power rank computed independent of the table's current sort/search/
+  // filter, so the tier accent stripe always reflects a member's real
+  // standing — same byPower pattern PlayerInfo uses for its own rank
+  // badges, and the same colors ProfileCard's ribbon already uses.
+  const byPower = [...members].sort((a,b)=>b.power-a.power);
+  const powerRankOf = id => byPower.findIndex(m=>m.id===id)+1;
+  const TIER_STRIPE_COLOR = {1:"#c77dff",2:"#f2cc60",3:"#fe7e73"};
+
+  const totalPower = members.reduce((s,m)=>s+(m.power||0),0);
+  const totalCoins = members.reduce((s,m)=>s+(m.coins||0),0);
+  // Classes with zero members don't get a row — a clan that's never
+  // recruited a given class shouldn't see an empty bar cluttering the
+  // composition chart.
+  const classComposition = CLASSES
+    .map(c => ({cls:c, count: members.filter(m=>m.cls===c).length}))
+    .filter(c => c.count > 0)
+    .sort((a,b) => b.count-a.count);
+  const maxClassCount = Math.max(1, ...classComposition.map(c=>c.count));
+
   const filtered = members
     .filter(m=>m.name.toLowerCase().includes(search.toLowerCase()))
     .filter(m=>classFilter==="All"||m.cls===classFilter)
@@ -6873,47 +6898,106 @@ function Members({ ctx }) {
 
   return (
     <div>
-      <div style={{display:"flex",gap:12,marginBottom:20,flexWrap:"wrap"}}>
-        <input className="input" style={{maxWidth:240}} placeholder={t("searchWarrior")} value={search} onChange={e=>setSearch(e.target.value)} />
-        <select className="select" style={{maxWidth:160}} value={classFilter} onChange={e=>setClassFilter(e.target.value)}>
-          <option value="All">{t("allClasses")}</option>{CLASSES.map(c=><option key={c}>{c}</option>)}
-        </select>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1.6fr",gap:1,background:"var(--border-dim)",border:"1px solid var(--border-dim)",borderRadius:8,overflow:"hidden",marginBottom:20}}>
+        <div style={{background:"var(--bg-card)",padding:"16px 18px"}}>
+          <div style={{fontSize:9.5,letterSpacing:1.5,textTransform:"uppercase",color:"var(--text-dim)",fontWeight:700,marginBottom:6}}>{t("totalWarriors")}</div>
+          <div style={{fontFamily:"'Spectral',serif",fontSize:22,fontWeight:800,color:"var(--gold-light)",textShadow:"0 0 16px rgba(242,204,96,0.25)",fontVariantNumeric:"tabular-nums"}}>{members.length}</div>
+        </div>
+        <div style={{background:"var(--bg-card)",padding:"16px 18px"}}>
+          <div style={{fontSize:9.5,letterSpacing:1.5,textTransform:"uppercase",color:"var(--text-dim)",fontWeight:700,marginBottom:6}}>{t("clanTotalPower")}</div>
+          <div style={{fontFamily:"'Spectral',serif",fontSize:22,fontWeight:800,color:"var(--gold-light)",textShadow:"0 0 16px rgba(242,204,96,0.25)",fontVariantNumeric:"tabular-nums"}}>{fmt(totalPower)}</div>
+        </div>
+        <div style={{background:"var(--bg-card)",padding:"16px 18px"}}>
+          <div style={{fontSize:9.5,letterSpacing:1.5,textTransform:"uppercase",color:"var(--text-dim)",fontWeight:700,marginBottom:6}}>{t("coinsInCirculation")}</div>
+          <div style={{display:"inline-flex",alignItems:"center",gap:6,fontFamily:"'Spectral',serif",fontSize:22,fontWeight:800,color:"var(--gold-light)",textShadow:"0 0 16px rgba(242,204,96,0.25)",fontVariantNumeric:"tabular-nums"}}>
+            <StatIcon src={COINS_ICON} size={20}/>{fmt(totalCoins)}
+          </div>
+        </div>
+        <div style={{background:"var(--bg-card)",padding:"16px 18px"}}>
+          <div style={{fontSize:9.5,letterSpacing:1.5,textTransform:"uppercase",color:"var(--text-dim)",fontWeight:700,marginBottom:6}}>{t("classComposition")}</div>
+          {classComposition.map(c => {
+            const col = CLASS_COLORS[c.cls] || "#9c8c7c";
+            return (
+              <div key={c.cls} style={{display:"grid",gridTemplateColumns:"70px 1fr 20px",alignItems:"center",gap:8,marginTop:5}}>
+                <span style={{fontSize:10,color:"var(--text-mid)",fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.cls}</span>
+                <div style={{height:7,background:"rgba(255,255,255,0.05)",borderRadius:4,overflow:"hidden"}}>
+                  <div style={{height:"100%",borderRadius:4,width:`${(c.count/maxClassCount)*100}%`,background:`linear-gradient(90deg,${col},${col}cc)`,boxShadow:`0 0 6px ${col}66`}} />
+                </div>
+                <span style={{fontSize:10.5,color:col,fontWeight:800,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{c.count}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="dash-panel" style={{position:"relative",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",padding:"14px 16px",marginBottom:16}}>
+        <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.35}/>
+        <input className="input" style={{maxWidth:200}} placeholder={t("searchWarrior")} value={search} onChange={e=>setSearch(e.target.value)} />
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {["All",...CLASSES].map(c => (
+            <span
+              key={c}
+              onClick={()=>setClassFilter(c)}
+              style={{
+                fontSize:11,padding:"6px 12px",borderRadius:16,cursor:"pointer",fontWeight:600,whiteSpace:"nowrap",
+                border:`1px solid ${classFilter===c?"var(--border-bright)":"var(--border-dim)"}`,
+                background:classFilter===c?"rgba(201,151,42,0.14)":"transparent",
+                color:classFilter===c?"var(--gold-light)":"var(--text-dim)",
+              }}
+            >{c==="All"?t("allClasses"):c}</span>
+          ))}
+        </div>
         <select className="select" style={{maxWidth:160}} value={sortBy} onChange={e=>setSortBy(e.target.value)}>
           <option value="coins">{t("sortCoins")}</option><option value="power">{t("sortPower")}</option>
           <option value="attendance">{t("sortAttendance")}</option><option value="name">{t("sortName")}</option>
         </select>
-        {isAdmin && <button className="btn btn-gold" style={{marginLeft:isAdmin?"auto":0}} onClick={()=>setModal({type:"addMember"})}>{t("addMember")}</button>}
+        {isAdmin && <button className="btn btn-gold" style={{marginLeft:"auto"}} onClick={()=>setModal({type:"addMember"})}>{t("addMember")}</button>}
       </div>
 
       <div className="members-layout">
         <div style={{flex:1,minWidth:0}}>
-          <div className="card" style={{padding:0,overflow:"hidden"}}>
+          <div className="dash-panel" style={{position:"relative",padding:0,overflow:"hidden"}}>
+            <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.35}/>
             <div className="table-wrap members-table-wrap">
               <table className="table-stack members-table">
-                <thead><tr><th>{t("colRank")}</th><th>{t("colCharacter")}</th><th>{t("colPower")}</th><th>{t("colCoins")}</th><th>{t("colAttend")}</th><th>{t("colWins")}</th><th>{t("colRole")}</th>{isAdmin&&<th>{t("colActions")}</th>}</tr></thead>
+                <thead><tr><th>{t("colRank")}</th><th>{t("colCharacter")}</th><th>{t("colPower")}</th><th>{t("colCoins")}</th><th>{t("sevenDayStreak")}</th><th>{t("colWins")}</th><th>{t("colRole")}</th>{isAdmin&&<th>{t("colActions")}</th>}</tr></thead>
                 <tbody>
-                  {visibleMembers.map((m,i) => (
-                    <>
-                    <tr key={m.id} style={{cursor:"pointer",background:selectedMember?.id===m.id?"rgba(201,151,42,0.05)":""}} onClick={()=>setSelectedMember(m)}>
+                  {visibleMembers.map((m,i) => {
+                    const powerRank = powerRankOf(m.id);
+                    const stripeColor = TIER_STRIPE_COLOR[powerRank];
+                    const pulse = getLast7DaysPulseGmt8(m.attendLog);
+                    return (
+                    <tr key={m.id} style={{cursor:"pointer",borderLeft:`2px solid ${stripeColor||"transparent"}`,background:selectedMember?.id===m.id?"rgba(201,151,42,0.05)":""}} onClick={()=>setSelectedMember(m)}>
                       <td data-label="#" style={{color:"var(--text-dim)",fontWeight:700,fontSize:11}}>{rankIcon(safePage*MEMBERS_PAGE_SIZE+i)}</td>
                       <td data-label="Character">
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
                           <ClassIcon cls={m.cls} size={40} />
                           <div>
-                            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",textAlign:"left"}}>{m.name}</div>
+                            <div
+                              style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:"var(--text-bright)",textAlign:"left",cursor:"pointer"}}
+                              onClick={e=>{e.stopPropagation();setViewingProfile(m.id);}}
+                              onMouseEnter={e=>e.currentTarget.style.textDecoration="underline"}
+                              onMouseLeave={e=>e.currentTarget.style.textDecoration="none"}
+                            >{m.name}</div>
                             <div style={{fontSize:10,color:"var(--text-dim)",fontWeight:500}}>{t("joinedOn")} {m.joinDate}</div>
                           </div>
                         </div>
                       </td>
                       <td data-label="Power" style={{fontFamily:"'Inter',sans-serif",fontWeight:700,color:"#a8b8c8"}}><span style={{display:"inline-flex",alignItems:"center",gap:5}}><PowerIcon size={14} />{fmt(m.power)}</span></td>
                       <td data-label="Coins" style={{fontFamily:"'Inter',sans-serif",fontWeight:800,color:"var(--gold-light)"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={28}/>{fmt(m.coins)}</span></td>
-                      <td data-label="Attend." style={{color:"#60aadd",fontWeight:700}}>{m.attendance}</td>
+                      <td data-label="Streak">
+                        <div style={{display:"inline-flex",gap:2}}>
+                          {pulse.map((on,pi) => (
+                            <span key={pi} style={{width:5,height:12,borderRadius:1,background:on?"linear-gradient(180deg, var(--gold-light), var(--gold))":"rgba(255,255,255,0.08)"}} />
+                          ))}
+                        </div>
+                      </td>
                       <td data-label="Wins" style={{color:"var(--gold)",fontWeight:700}}>{m.auctionWins}×</td>
                       <td data-label="Role"><span className={`badge ${m.role==="Master"?"badge-gold":m.role==="Elder"?"badge-red":"badge-silver"}`}>{m.role}</span></td>
                       {isAdmin && <td data-label="Action"><button className="btn btn-ghost btn-sm" onClick={e=>{e.stopPropagation();removeMember(m.id);}}>{t("remove")}</button></td>}
                     </tr>
-                    </>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -6942,7 +7026,10 @@ function Members({ ctx }) {
             {selectedMember.discord && <div style={{textAlign:"center",marginBottom:10}}><span className="discord-tag">🎮 {selectedMember.discord}</span></div>}
             <button className="btn btn-outline btn-sm" style={{width:"100%",marginBottom:12}} onClick={()=>setViewingProfile(selectedMember.id)}>View Profile</button>
             <div className="divider" />
-            {[[t("statCoins"),fmt(selectedMember.coins)],[t("statAttendance"),selectedMember.attendance],[t("statWins"),selectedMember.auctionWins],[t("statJoined"),selectedMember.joinDate]].map(([k,v]) => (
+            {/* "Joined" used to be a fourth row here — folded into the
+                table's name sub-line instead (already shown there),
+                since it's rarely the reason someone opens a quick-view. */}
+            {[[t("statCoins"),fmt(selectedMember.coins)],[t("statAttendance"),selectedMember.attendance],[t("statWins"),selectedMember.auctionWins]].map(([k,v]) => (
               <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--border-dim)",fontSize:12}}>
                 <span style={{color:"var(--text-dim)",fontFamily:"'Inter',sans-serif",fontWeight:500}}>{k}</span>
                 <span style={{color:"var(--text-bright)",fontFamily:"'Inter',sans-serif",fontWeight:700}}>{v}</span>
