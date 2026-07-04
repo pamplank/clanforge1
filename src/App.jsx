@@ -4718,6 +4718,12 @@ function AppInner({ onMusicTrackChange }) {
   // more auction "put in news" posts, all visible at once, each
   // independently dismissible). Each entry: {id, text, postedAt}.
   const [loginAnnouncements, setLoginAnnouncements] = useState([]);
+  // The one auction (if any) currently pulled out of the regular grid and
+  // shown in its own spotlight banner at the top of the Auction House.
+  // Stored in app_state under "featured_auction_id" (a single id, not an
+  // array — only one auction can be featured at a time; setting a new one
+  // replaces the old one rather than appending, unlike loginAnnouncements).
+  const [featuredAuctionId, setFeaturedAuctionId] = useState(null);
 
   // ── Load all data from Supabase on mount ──────────────────────────────────
   useEffect(() => {
@@ -4878,6 +4884,8 @@ function AppInner({ onMusicTrackChange }) {
             } catch {}
           }
         }
+        const featuredRow = asRows.find(r => r.key === "featured_auction_id");
+        if (featuredRow && featuredRow.value) setFeaturedAuctionId(featuredRow.value);
       }
       // ── Restore session from localStorage ───────────────────────────────
       const savedId = localStorage.getItem("cf_user_id");
@@ -5679,7 +5687,7 @@ function AppInner({ onMusicTrackChange }) {
 
 
   const ctx = { members, setMembers, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
-    currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion, decayRate, setDecayRate, loginAnnouncements, setLoginAnnouncements };
+    currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion, decayRate, setDecayRate, loginAnnouncements, setLoginAnnouncements, featuredAuctionId, setFeaturedAuctionId };
 
   const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings"),"record-attendance":t("tabRecordAttendance"),"create-auction":t("tabCreateAuction")};
 
@@ -8484,7 +8492,7 @@ function BidMarquee({ feed, auctions }) {
 function CreateAuctionPanel({ ctx }) {
   const { t } = useLang();
   const { setAuctions, addToast, imageLibrary, addImage } = ctx;
-  const [newAuction, setNewAuction] = useState({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000),postToNews:false});
+  const [newAuction, setNewAuction] = useState({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000),postToNews:false,featureAtTop:false});
 
   const RARITY_OPTS=[
     {value:"epic",label:t("rarityEpic"),color:"#ff8080",bg:"rgba(122,26,26,0.25)",border:"rgba(192,57,43,0.55)"},
@@ -8527,6 +8535,7 @@ function CreateAuctionPanel({ ctx }) {
     setAuctions(prev=>[...prev,a]);
     addToast(`${t("auctionStarted")} ${a.name}`,"gold",t("auctionLive"));
     if (newAuction.postToNews) postAuctionToNews(a, ctx);
+    if (newAuction.featureAtTop) setFeaturedAuction(a.id, ctx);
     {
       const imgUrl = auctionImageUrl(a);
       notifyDiscord({ embeds: [{
@@ -8537,7 +8546,7 @@ function CreateAuctionPanel({ ctx }) {
         ...(imgUrl ? { thumbnail: { url: imgUrl } } : {}),
       }] }, "auctions");
     }
-    setNewAuction({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000),postToNews:false});
+    setNewAuction({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000),postToNews:false,featureAtTop:false});
   }
 
   return (
@@ -8612,6 +8621,10 @@ function CreateAuctionPanel({ ctx }) {
         <BellIcon size={14} style={{color:"var(--gold)"}}/>
         {t("postToNewsLabel")}
       </label>
+      <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,fontSize:13,color:"var(--text)",cursor:"pointer"}}>
+        <input type="checkbox" checked={newAuction.featureAtTop||false} onChange={e=>setNewAuction(p=>({...p,featureAtTop:e.target.checked}))} />
+        Feature this at the top of the Auction House (replaces any currently featured item)
+      </label>
       <button className="btn btn-gold" onClick={createAuction} style={{width:"100%",justifyContent:"center"}}><span style={{display:"inline-flex",alignItems:"center",gap:6}}><StatIcon src={AUCTION_ICON} size={28}/>{t("startAuction")}</span></button>
     </div>
   );
@@ -8682,6 +8695,27 @@ async function postAuctionToNews(auction, ctx) {
     addToast(
       <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't post — please try again.</span>,
       "red", "Post Failed"
+    );
+  }
+}
+
+// Sets (or clears, if auctionId is null) the ONE auction currently pulled
+// out of the regular grid into its own spotlight banner. Unlike
+// postAuctionToNews's list, this is a single value — setting a new
+// featured auction always replaces whichever one was featured before,
+// it never appends. Hoisted to module scope, same reasoning as
+// postAuctionToNews (shared between Auctions and CreateAuctionPanel).
+async function setFeaturedAuction(auctionId, ctx) {
+  const { setFeaturedAuctionId, addToast } = ctx;
+  const ok = await dbUpsertReliable("app_state", { key: "featured_auction_id", value: auctionId ? String(auctionId) : "", updated_at: Date.now() });
+  if (ok) {
+    setFeaturedAuctionId(auctionId || null);
+    if (auctionId) addToast("Pulled out to the spotlight at the top of the Auction House.", "gold", "Featured");
+    else addToast("No longer featured.", "gold", "Unfeatured");
+  } else {
+    addToast(
+      <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't update the featured item — please try again.</span>,
+      "red", "Failed"
     );
   }
 }
@@ -8773,6 +8807,7 @@ function AuctionGridCard({ a, isWinning, minBid, rc2, t, bidAmounts, setBidAmoun
           <button className="btn btn-gold" onClick={(e)=>placeBid(a.id,e)} disabled={!!bidSubmitting[a.id]}>{bidSubmitting[a.id]?"…":t("bidButton")}</button>
         </div>
 
+        {isAdmin&&<button className="btn btn-outline btn-sm" style={{width:"100%",marginTop:6}} onClick={()=>setFeaturedAuction(a.id, ctx)}>Feature at top</button>}
         {isAdmin&&<button className={isAuctionInNews(a.id)?"btn btn-gold btn-sm":"btn btn-outline btn-sm"} style={{width:"100%",marginTop:6,display:"flex",alignItems:"center",justifyContent:"center",gap:6}} onClick={()=>isAuctionInNews(a.id)?removeAuctionFromNews(a.id):postAuctionToNews(a, ctx)}><BellIcon size={13}/>{isAuctionInNews(a.id)?t("removeFromNewsBtn"):t("putInNewsBtn")}</button>}
         {isMaster&&<button className="btn btn-red btn-sm" style={{width:"100%",marginTop:6}} onClick={()=>removeAuction(a.id)}>{t("removeAuctionBtn")}</button>}
         {!isHoverCapable && ((a.bids||[]).length>0 || a.topBidder)&&(
@@ -8796,8 +8831,83 @@ function AuctionGridCard({ a, isWinning, minBid, rc2, t, bidAmounts, setBidAmoun
   );
 }
 
+// The one auction pulled out of the regular grid into its own spotlight
+// banner at the top of the Active tab — cinematic full-bleed art with a
+// warm spotlight glow behind the item and a heavy vignette (the "B4"
+// treatment), rather than another grid card. Still fully biddable from
+// here; it just isn't shown a second time in the grid below.
+function FeaturedAuctionSpotlight({ a, isWinning, minBid, t, bidAmounts, setBidAmounts, bidSubmitting, placeBid, isAdmin, ctx }) {
+  return (
+    <div style={{
+      position:"relative", overflow:"hidden", borderRadius:10, minHeight:230,
+      border:"1px solid rgba(200,146,42,0.5)",
+      boxShadow:"0 0 50px rgba(201,151,42,0.08), 0 20px 50px rgba(0,0,0,0.5)",
+      marginBottom:20, display:"flex", alignItems:"flex-end",
+    }}>
+      <AuctionImage auction={a} alt={a.name} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} fallback={
+        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 78% 45%, rgba(180,30,30,0.5) 0%, rgba(90,10,10,0.7) 45%, #0d0a0a 80%)"}} />
+      }/>
+      {/* Spotlight glow + vignette + left-to-right dark gradient so the
+          text on the left always stays legible regardless of what the
+          underlying item image looks like. */}
+      <div style={{
+        position:"absolute", inset:0,
+        background: `
+          radial-gradient(ellipse 600px 500px at 74% 40%, rgba(242,204,96,0.22) 0%, transparent 55%),
+          linear-gradient(90deg, rgba(4,3,3,0.98) 0%, rgba(4,3,3,0.78) 40%, rgba(4,3,3,0.35) 78%, rgba(4,3,3,0.55) 100%)
+        `,
+        boxShadow:"inset 0 0 90px rgba(0,0,0,0.6)",
+      }} />
+      <div style={{
+        position:"absolute", top:16, left:0, zIndex:3,
+        background:"linear-gradient(135deg, var(--gold-light), var(--gold))", color:"#241a08",
+        fontSize:10, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
+        padding:"6px 16px 6px 12px", borderRadius:"0 4px 4px 0",
+        boxShadow:"2px 2px 8px rgba(0,0,0,0.4)",
+      }}>Featured</div>
+      {isAdmin && (
+        <button
+          className="btn btn-ghost btn-sm"
+          style={{position:"absolute", top:14, right:14, zIndex:3, fontSize:10}}
+          onClick={()=>setFeaturedAuction(null, ctx)}
+        >Unfeature</button>
+      )}
+      <div style={{position:"relative", zIndex:2, padding:"26px 32px", width:"100%"}}>
+        <div style={{fontSize:10, letterSpacing:2, textTransform:"uppercase", color:"var(--gold-light)", fontWeight:700, marginBottom:8}}>{CLAN_SEASON_LABEL} &middot; Featured Item</div>
+        <div style={{fontFamily:"'Spectral',serif", fontSize:26, fontWeight:800, color:"var(--text-bright)", marginBottom:8, textShadow:"0 0 30px rgba(242,204,96,0.3), 0 2px 10px rgba(0,0,0,0.8)"}}>{a.name}</div>
+        {a.desc && <div style={{fontSize:12.5, color:"var(--text-mid)", lineHeight:1.6, marginBottom:16, maxWidth:"52ch", textShadow:"0 1px 6px rgba(0,0,0,0.6)"}}>{a.desc}</div>}
+        <div style={{display:"flex", alignItems:"center", gap:28, flexWrap:"wrap"}}>
+          <div>
+            <div style={{fontSize:9, letterSpacing:1.5, textTransform:"uppercase", color:"var(--text-dim)", marginBottom:3}}>Current Bid</div>
+            <div style={{fontFamily:"'Spectral',serif", fontSize:19, fontWeight:800, color:"var(--gold-light)"}}>{fmt(a.currentBid)} Coins</div>
+          </div>
+          <div>
+            <div style={{fontSize:9, letterSpacing:1.5, textTransform:"uppercase", color:"var(--text-dim)", marginBottom:3}}>Ends In</div>
+            <div style={{fontFamily:"'Spectral',serif", fontSize:19, fontWeight:800, color:"#e08585"}}>{timeLeft(a.endsAt)}</div>
+          </div>
+          {isWinning ? (
+            <div style={{marginLeft:"auto", fontSize:12, fontWeight:800, color:"#7ddc7d"}}>You're winning this!</div>
+          ) : (
+            <div style={{marginLeft:"auto", display:"flex", gap:8}}>
+              <input
+                type="number" className="input" placeholder={String(minBid)} style={{width:110}}
+                value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p, [a.id]: e.target.value}))}
+              />
+              <button
+                className="btn btn-gold" disabled={bidSubmitting[a.id]}
+                style={{opacity:bidSubmitting[a.id]?0.6:1}}
+                onClick={e=>placeBid(a.id, e)}
+              >{bidSubmitting[a.id] ? "…" : t("bidButton")}</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Auctions({ ctx }) {
-  const { auctions, setAuctions, members, setMembers, currentUser, addToast, fireCoinBurst, fireBalancePopup, tick, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, loginAnnouncements, setLoginAnnouncements } = ctx;
+  const { auctions, setAuctions, members, setMembers, currentUser, addToast, fireCoinBurst, fireBalancePopup, tick, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, loginAnnouncements, setLoginAnnouncements, featuredAuctionId, setFeaturedAuctionId } = ctx;
   const { t } = useLang();
   const [tab, setTab] = useState("active");
   const [bidAmounts, setBidAmounts] = useState({});
@@ -8841,6 +8951,12 @@ function Auctions({ ctx }) {
 
   const active = sortAuctions(auctions.filter(a=>a.status==="active"));
   const ended  = [...auctions.filter(a=>a.status==="ended")].sort((a,b)=>(b.endsAt||0)-(a.endsAt||0));
+  // Pulled out of the grid entirely (not duplicated) once it's found here
+  // — if the featured auction has since ended or been removed, this is
+  // simply null and the grid renders exactly as it did before this
+  // feature existed.
+  const featuredAuction = featuredAuctionId ? active.find(a => String(a.id) === String(featuredAuctionId)) || null : null;
+  const gridAuctions = featuredAuction ? active.filter(a => a.id !== featuredAuction.id) : active;
 
   async function placeBid(auctionId, clickEvent) {
     // Grab the button's screen position synchronously — React's synthetic
@@ -9203,10 +9319,18 @@ function Auctions({ ctx }) {
         </div>
       )}
 
+      {tab==="active" && featuredAuction && (
+        <FeaturedAuctionSpotlight
+          a={featuredAuction} isWinning={featuredAuction.topBidder===currentUser.name} minBid={featuredAuction.currentBid+5}
+          t={t} bidAmounts={bidAmounts} setBidAmounts={setBidAmounts} bidSubmitting={bidSubmitting} placeBid={placeBid}
+          isAdmin={isAdmin} ctx={ctx}
+        />
+      )}
+
       {tab==="active" && (
         <div className={viewMode==="grid"?"grid-3":""} style={viewMode==="compact"?{display:"flex",flexDirection:"column",gap:6}:{}}>
-          {active.length===0&&<div style={{color:"var(--text-dim)",gridColumn:"1/-1",textAlign:"center",padding:48,fontFamily:"'Inter',sans-serif"}}>{t("noActiveAuctionsNow")}</div>}
-          {active.map(a=>{
+          {gridAuctions.length===0&&!featuredAuction&&<div style={{color:"var(--text-dim)",gridColumn:"1/-1",textAlign:"center",padding:48,fontFamily:"'Inter',sans-serif"}}>{t("noActiveAuctionsNow")}</div>}
+          {gridAuctions.map(a=>{
             const isWinning=a.topBidder===currentUser.name;
             const minBid=a.currentBid+5;
             const rc={epic:{bg:"rgba(122,26,26,0.92)",color:"#ff8080",border:"rgba(192,57,43,0.5)"},rare:{bg:"rgba(26,90,138,0.92)",color:"#60aadd",border:"rgba(46,134,193,0.5)"},kari:{bg:"rgba(0,60,130,0.92)",color:"#a0d8ff",border:"rgba(100,200,255,0.6)"},material:{bg:"rgba(120,120,120,0.92)",color:"#cccccc",border:"rgba(160,160,160,0.5)"},uncommon:{bg:"rgba(46,138,46,0.92)",color:"#7ddc7d",border:"rgba(80,180,80,0.5)"}};
