@@ -6823,7 +6823,7 @@ function Members({ ctx }) {
   const { t } = useLang();
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState("All");
-  const [sortBy, setSortBy] = useState("coins");
+  const [sortBy, setSortBy] = useState("power");
   const [selectedMember, setSelectedMember] = useState(null);
   const [viewingProfile, setViewingProfile] = useState(null);
   const [page, setPage] = useState(0);
@@ -9808,18 +9808,26 @@ function RankOneVideoBackdrop({ assets }) {
   const videoRef = useRef(null);
   const { phase, onEnded } = useIntroThenLoopVideo(videoRef, assets);
 
-  // Video sits at its natural square shape, scaled to the container's
-  // full height (uncropped — nothing trimmed off the character or the
-  // gold circle), centered horizontally. The background fills the whole
-  // container behind it with object-fit:cover, so it's visible on
-  // whatever width the square video doesn't cover on either side.
+  // This outer div is sized to the ENTIRE outer .card (top:0/bottom:0),
+  // which includes the sidebar+stats AND the events/recent-activity
+  // section further down — intentional, so the bg still image bleeds
+  // through behind those lower cards too. The video is height:100% of
+  // that same full-card height too — it used to be capped shorter to
+  // stop it stretching to match the card, but once the card's overall
+  // height was brought back under control (rank1-hero-wrapper's
+  // minHeight reduced from 760 to 640, plus top-aligning instead of
+  // centering below), the mismatch that caused was the video visibly
+  // ending partway down the card, well before the events section, with
+  // nothing but the flat bg image behind the remaining space. Matching
+  // it back to 100% again removes that seam — the video now runs the
+  // full height of the card, same as the bg image already does.
   return (
     <div style={{
       position:"absolute", top:0, left:0, right:0, bottom:0,
       overflow:"hidden", borderRadius:8,
       pointerEvents:"none", zIndex:0,
       background:"var(--bg-void)",
-      display:"flex", justifyContent:"center", alignItems:"center",
+      display:"flex", justifyContent:"center", alignItems:"flex-start",
     }}>
       <img src={assets.bg} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} />
       <video
@@ -10183,33 +10191,34 @@ function PlayerInfo({ member, members, onBack }) {
           coral (those stay exclusive to ranks 1-3) and deliberately not the
           video hero (static image, no autoplay, no card reflow) — a real
           middle tier, not a smaller copy of either neighbor.
-          Richest and Active use the same banner across their ENTIRE top
-          10 (not just 4-10 like Power) — they have no video-hero concept
-          to keep separate for ranks 1-3, so there's no reason to hold
-          those ranks back to the old plain pill the way Power's 1-3 still
-          are (that pill is unchanged, still shown further below). */}
-      {!rank1VideoAssets && prestige && powerRank>=4 && powerRank<=10 && (
+          Power's ranks 1-3 used to fall back to a plain pill here (no
+          corner brackets, no backdrop) whenever video assets weren't
+          available for that class — meaning 1-3 looked LESS decorated
+          than 4-10 whenever a class's video hadn't been uploaded yet,
+          backwards from what rank should imply. Now ranks 1-3 use the
+          exact same RankTierBanner as 4-10 (just with their own
+          mythical/gold/epic color from PRESTIGE_TIERS instead of silver),
+          matching how Richest/Active already treat their entire top 10
+          uniformly.
+          These banners are ALWAYS rendered here — outside the video-hero
+          card entirely, in plain page flow — regardless of whether this
+          member also has rank1VideoAssets. They used to ALSO be
+          duplicated a second time inside the video wrapper below (see
+          rank1-hero-wrapper), sized to stack vertically inside a fixed
+          760px-tall box; a member who was top-10 in more than one of
+          Power/Richest/Active could end up with 2-3 tall banner cards
+          stacked inside a box that didn't grow to fit them, breaking the
+          layout. Rendering them exactly once, here, sidesteps that
+          entirely — nothing below needs to reserve space for a variable
+          number of banners anymore. */}
+      {prestige && (
         <RankTierBanner tier={prestige} rank={powerRank} member={member} valueLabel="Power" valueText={`${fmt(member.power)} Power`} />
       )}
-      {!rank1VideoAssets && richestTier && (
+      {richestTier && (
         <TreasuryBanner tier={richestTier} rank={coinsRank} member={member} valueLabel="Coins" valueText={`${fmt(member.coins)} Coins`} />
       )}
-      {!rank1VideoAssets && activeTier && (
+      {activeTier && (
         <BattleStreakBanner tier={activeTier} rank={attendRank} member={member} valueLabel="Events" valueText={`${member.attendance} Events`} />
-      )}
-      {!rank1VideoAssets && prestige && !(powerRank>=4 && powerRank<=10) && (
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8,margin:"4px 0 16px"}}>
-          <span style={{
-              display:"inline-flex",alignItems:"center",gap:8,
-              background:`${prestige.color}1a`,border:`1px solid ${prestige.color}66`,
-              borderRadius:20,padding:"6px 16px",
-            }}>
-              <CrownIcon size={14} style={{color:prestige.color}} />
-              <span style={{fontSize:11,fontWeight:800,color:prestige.color,letterSpacing:1}}>
-                RANK {powerRank} &middot; {prestige.label.toUpperCase()}
-              </span>
-            </span>
-        </div>
       )}
       <button className="btn btn-outline btn-sm" style={{marginBottom:16}} onClick={onBack}>Back</button>
 
@@ -10259,9 +10268,9 @@ function PlayerInfo({ member, members, onBack }) {
             beside the sidebar. */}
         {rank1VideoAssets && rank1Tagline && (
           <div className="rank1-mobile-caption" style={{textAlign:"center",marginBottom:20}}>
-            <div style={{fontSize:10,color:rank1CaptionColors.eyebrow,letterSpacing:3,textTransform:"uppercase",fontWeight:700,marginBottom:6}}>
-              {CLAN_SEASON_LABEL} &middot; {prestige?.label || "Reigning Champion"}
-            </div>
+            {/* Same removal as the desktop caption — this eyebrow duplicated
+                what the RankTierBanner (rendered further below on mobile
+                too) already shows in its own eyebrow. */}
             <div style={{
               fontFamily:"'Spectral',serif",fontSize:22,fontWeight:800,lineHeight:1.15,marginBottom:rank1FlavorLine?10:0,
               color:rank1CaptionColors.title,
@@ -10276,49 +10285,15 @@ function PlayerInfo({ member, members, onBack }) {
             )}
           </div>
         )}
-        <div className="rank1-hero-wrapper" style={{position:"relative", minHeight: rank1VideoAssets ? 760 : undefined}}>
-        {rank1VideoAssets && (prestige || richestTier || activeTier) && (
-          <div style={{position:"relative",zIndex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:8,marginBottom:20}}>
-            {prestige && (
-              <span style={{
-                display:"inline-flex",alignItems:"center",gap:8,
-                background:`${prestige.color}1a`,border:`1px solid ${prestige.color}66`,
-                borderRadius:20,padding:"6px 16px",
-              }}>
-                <CrownIcon size={14} style={{color:prestige.color}} />
-                <span style={{fontSize:11,fontWeight:800,color:prestige.color,letterSpacing:1}}>
-                  RANK {powerRank} &middot; {prestige.label.toUpperCase()}
-                </span>
-              </span>
-            )}
-            {richestTier && (
-              <span style={{
-                display:"inline-flex",alignItems:"center",gap:8,
-                background:`${richestTier.color}1a`,border:`1px solid ${richestTier.color}66`,
-                borderRadius:20,padding:"6px 16px",
-              }}>
-                <CrownIcon size={14} style={{color:richestTier.color}} />
-                <span style={{fontSize:11,fontWeight:800,color:richestTier.color,letterSpacing:1}}>
-                  RANK {coinsRank} &middot; {richestTier.title.toUpperCase()}
-                </span>
-              </span>
-            )}
-            {activeTier && (
-              <span style={{
-                display:"inline-flex",alignItems:"center",gap:8,
-                background:`${activeTier.color}1a`,border:`1px solid ${activeTier.color}66`,
-                borderRadius:20,padding:"6px 16px",
-              }}>
-                <ShieldIcon size={14} style={{color:activeTier.color}} />
-                <span style={{fontSize:11,fontWeight:800,color:activeTier.color,letterSpacing:1}}>
-                  RANK {attendRank} &middot; {activeTier.title.toUpperCase()}
-                </span>
-              </span>
-            )}
-          </div>
-        )}
+        <div className="rank1-hero-wrapper" style={{position:"relative", minHeight: rank1VideoAssets ? 640 : undefined}}>
         {rank1VideoAssets && rank1Tagline && (
           <div className="rank1-video-caption" style={{
+            // Back to the original absolute positioning — the banners
+            // that used to sit inside this same wrapper (which is what
+            // required switching this to normal flow for a while) have
+            // been moved out entirely, so this is once again the only
+            // thing inside .rank1-hero-wrapper alongside the video, same
+            // as before any of that banner work happened.
             position:"absolute", zIndex:1, left:"calc(220px + 24px + 24px)", right:24, top:"15%",
             maxWidth:280,
           }}>
@@ -10330,9 +10305,11 @@ function PlayerInfo({ member, members, onBack }) {
                 that rank specifically without touching rank 1's look.
                 Rank 3 (new) gets its own coral identity matching its
                 PRESTIGE_TIERS color — see rank1CaptionColors above. */}
-            <div style={{fontSize:10,color:rank1CaptionColors.eyebrow,letterSpacing:3,textTransform:"uppercase",fontWeight:700,marginBottom:8}}>
-              {CLAN_SEASON_LABEL} &middot; {prestige?.label || "Reigning Champion"}
-            </div>
+            {/* The "Season N · [tier label]" eyebrow that used to sit here
+                is gone — it's exactly the same text the RankTierBanner
+                above now already shows in its own eyebrow, and having
+                both visible at once (which never happened when this was
+                the lone pill row) was pure duplication. */}
             <div style={{
               fontFamily:"'Spectral',serif",fontSize:28,fontWeight:800,lineHeight:1.15,
               color:rank1CaptionColors.title,
