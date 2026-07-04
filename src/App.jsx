@@ -6527,11 +6527,14 @@ function UpdateNotes({ ctx }) {
     setPosting(true);
     const colorInt = parseInt(latest.color.replace("#", ""), 16);
     const fields = [];
+    // Discord only renders a bullet marker with explicit markdown syntax
+    // ("- item" per line) — a plain \n-joined list just shows as stacked
+    // lines with no marker at all.
     if (latest.discordSummary.new?.length) {
-      fields.push({ name: "New", value: latest.discordSummary.new.join("\n"), inline: true });
+      fields.push({ name: "New", value: latest.discordSummary.new.map(x => `- ${x}`).join("\n"), inline: true });
     }
     if (latest.discordSummary.fixed?.length) {
-      fields.push({ name: "Fixed", value: latest.discordSummary.fixed.join("\n"), inline: true });
+      fields.push({ name: "Fixed", value: latest.discordSummary.fixed.map(x => `- ${x}`).join("\n"), inline: true });
     }
     const ok = await notifyDiscord({ embeds: [{
       title: latest.title,
