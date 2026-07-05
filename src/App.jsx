@@ -1741,14 +1741,50 @@ const PROFILE_AWAKENING_BADGE_URL = `${PROFILE_ASSETS_BASE}/awakening.webp`;
 // behind the whole Player Info page. `bg` is a wide image matching the
 // video's own scene (same lighting/architecture), used to fill the
 // space around the centered square video so it doesn't look like a
-// floating box. Only Archer has assets so far; other classes fall back
-// to no video (the page just renders normally) until their assets are
-// uploaded here, same graceful-fallback approach as the mythic portraits.
+// floating box. Berserker doesn't have video assets uploaded yet (only
+// its _bg.webp still exists) and falls back to no video until they are,
+// same graceful-fallback approach as the mythic portraits.
 const PROFILE_RANK1_VIDEO = {
   "Archer": {
     intro: `${PROFILE_ASSETS_BASE}/archer_intro.mp4`,
     loop:  `${PROFILE_ASSETS_BASE}/archer_looping.mp4`,
     bg:    `${PROFILE_ASSETS_BASE}/archer_bg.webp`,
+  },
+  "Rune Fighter": {
+    intro: `${PROFILE_ASSETS_BASE}/runefighter_intro.mp4`,
+    loop:  `${PROFILE_ASSETS_BASE}/runefighter_looping.mp4`,
+    bg:    `${PROFILE_ASSETS_BASE}/runefighter_bg.webp`,
+    // This source video frames the character smaller/more distant than
+    // Archer's does, so a plain 1:1 cover crop reads as "too small" —
+    // zoom in to compensate. Starting value, tune after visual check.
+    scale: 1.3,
+    // Closes a visible gap between the video's own top edge and the
+    // container's — pulls it up. Starting value, tune after visual check.
+    shiftY: -60,
+  },
+  "Skald": {
+    intro: `${PROFILE_ASSETS_BASE}/skald_intro.mp4`,
+    loop:  `${PROFILE_ASSETS_BASE}/skald_looping.mp4`,
+    bg:    `${PROFILE_ASSETS_BASE}/skald_bg.webp`,
+    // Standing pose, same framing issue as Rune Fighter — same starting
+    // values, tune after visual check.
+    scale: 1.3,
+    shiftY: -60,
+  },
+  "Volva": {
+    intro: `${PROFILE_ASSETS_BASE}/volva_intro.mp4`,
+    loop:  `${PROFILE_ASSETS_BASE}/volva_looping.mp4`,
+    bg:    `${PROFILE_ASSETS_BASE}/volva_bg.webp`,
+    // Standing pose, same framing issue as Rune Fighter — same starting
+    // values, tune after visual check.
+    scale: 1.3,
+    shiftY: -60,
+  },
+  "Warlord": {
+    intro: `${PROFILE_ASSETS_BASE}/warlord_intro.mp4`,
+    loop:  `${PROFILE_ASSETS_BASE}/warlord_looping.mp4`,
+    bg:    `${PROFILE_ASSETS_BASE}/warlord_bg.webp`,
+    // Bent-down pose, same as Archer's — no scale/shiftY needed.
   },
 };
 // Static per-class background stills for the ranks 4-10 "notable roster"
@@ -5021,7 +5057,19 @@ function AppInner({ onMusicTrackChange }) {
         if (endsAtChanged) row.ending_soon_notified = false;
         // Only write image_data if we actually have it — never overwrite DB with null
         if (imageData) row.image_data = imageData;
-        dbUpsert("auctions", row);
+        // ROOT CAUSE of "a new auction appears then immediately disappears":
+        // this used to be a fire-and-forget dbUpsert with no retry and no
+        // failure feedback — same class of bug already fixed for
+        // attendance_logs below. If this write failed (a network blip, or
+        // a slow/erroring database), the new auction never actually landed
+        // in Postgres, and the very next 3s poll overwrote local state with
+        // the DB's (auction-less) truth, silently wiping it with zero
+        // indication anything went wrong. Now retries a couple times and
+        // tells whoever's admin panel this is if it still doesn't stick.
+        const isNewAuction = !prevAuction;
+        dbUpsertReliable("auctions", row).then(ok => {
+          if (!ok && isNewAuction) addToast(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>"{row.name}" failed to save to the shared auction list — please try adding it again.</span>, "red", "Save Failed");
+        });
       });
       return safe;
     });
@@ -10318,10 +10366,34 @@ function RankOneVideoBackdrop({ assets }) {
         onEnded={onEnded}
         style={{
           position:"relative",
+          top: assets.shiftY || 0,
           height:"100%", width:"auto", aspectRatio:"1/1",
           objectFit:"cover",
+          // Per-class zoom/reframe — each class's source video was shot
+          // with its own framing, so the character doesn't necessarily
+          // fill a 1:1 crop the same way Archer's does. scale zooms in
+          // (character reads larger). transformOrigin controls which edge
+          // the zoom expands FROM — default "center top" means the zoom
+          // grows downward from the top edge, keeping the head in frame
+          // (the overflow that used to clip it happened because scale()
+          // expands from the center by default, pushing the top out of
+          // the overflow:hidden container by just as much as the bottom).
+          // shiftY is a plain top offset (unaffected by scale/transform-
+          // origin math) for closing/opening a gap between the video's
+          // own top edge and the container's — negative pulls it up.
+          // All default to no-op values so Archer (already correct) is
+          // untouched.
+          transform: `scale(${assets.scale || 1})`,
+          transformOrigin: assets.focus || "center top",
         }}
       />
+      {/* Vignette anchored to the CONTAINER's own edges (not the video's
+          rendered box) — fades in from each side of the whole backdrop
+          toward transparent in the middle. */}
+      <div style={{
+        position:"absolute", inset:0, zIndex:1,
+        background:"linear-gradient(90deg, rgba(0,0,0,0.9) 0%, transparent 48%, transparent 52%, rgba(0,0,0,0.9) 100%)",
+      }} />
     </div>
   );
 }
@@ -10775,7 +10847,7 @@ function PlayerInfo({ member, members, onBack }) {
             // been moved out entirely, so this is once again the only
             // thing inside .rank1-hero-wrapper alongside the video, same
             // as before any of that banner work happened.
-            position:"absolute", zIndex:1, left:"calc(220px + 24px + 24px)", right:24, top:"15%",
+            position:"absolute", zIndex:1, left:"calc(220px + 24px + 24px - 15px)", right:24, top:"9%",
             maxWidth:280,
           }}>
             {/* Rank 1's tagline stays gold regardless of its purple
