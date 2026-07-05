@@ -2424,7 +2424,9 @@ function timeLeft(ms) {
   // and "Ended" once the auction is confirmed ended in DB state.
   if (diff <= -10000) return "Ended";
   if (diff <= 0) return "Closing…";
-  const d=Math.max(0,diff),h=Math.floor(d/3600000),m=Math.floor((d%3600000)/60000),s=Math.floor((d%60000)/1000);
+  const rem=Math.max(0,diff);
+  const days=Math.floor(rem/86400000), h=Math.floor((rem%86400000)/3600000), m=Math.floor((rem%3600000)/60000), s=Math.floor((rem%60000)/1000);
+  if (days>0) return `${days}d ${h}h`;
   return h>0?`${h}h ${m}m`:m>0?`${m}m ${s}s`:`${s}s`;
 }
 function rankIcon(i){return `#${i+1}`;}
