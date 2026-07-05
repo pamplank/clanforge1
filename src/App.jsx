@@ -1905,43 +1905,32 @@ async function uploadAuctionImage(file) {
     return `${SUPA_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${path}`;
   } catch { return null; }
 }
-// ROOT CAUSE of the "library empties on refresh, leading to repeat uploads
-// and duplicate files in Storage" bug: the image library used to be a
-// plain in-memory array (_imageLibrary) that only ever grew via addImage()
-// at upload time — nothing ever populated it FROM Storage, so every page
-// load started from an empty list even though the bucket still had every
-// previously uploaded file sitting in it untouched. This lists what's
-// actually in the bucket and turns each entry into the same {id, name,
-// dataUrl} shape addImage() already produces, so ItemImagePicker doesn't
-// need any changes — it just receives a non-empty library from the start.
-async function listAuctionImages() {
+// ROOT CAUSE of "uploaded images don't show up in the library" on this
+// (newer) Supabase project — confirmed directly against the live bucket:
+// storage/v1/object/list/auction-images returns HTTP 200 with an empty
+// array via the anon key, even though the bucket genuinely has files in
+// it (auctions display their own images fine via direct known-path GET,
+// which anon CAN do). Anonymous LIST on this bucket is simply blocked —
+// the same class of restriction already documented elsewhere in this app
+// for a different bucket. The previous fix for "library empties on
+// refresh" relied entirely on this LIST call to backfill from Storage,
+// so it silently regressed to doing nothing the moment this project's
+// bucket policy didn't allow it — every session again started from
+// whatever this one browser had uploaded itself, same as before that fix.
+//
+// Storage's LIST isn't the only way to know what's been uploaded: every
+// addImage() call already has the {name, dataUrl} pair in hand at upload
+// time, so instead of asking Storage what's there, the library's own
+// growing list is persisted directly to app_state (same key/value table
+// already used for decay_rate, login_announcements, featured_auction_id
+// — all things anon CAN reliably read/write on this project).
+async function loadImageLibraryFromAppState() {
   try {
-    const res = await fetchWithTimeout(
-      `${SUPA_URL}/storage/v1/object/list/${STORAGE_BUCKET}`,
-      {
-        method: "POST",
-        headers: {
-          "apikey": SUPA_KEY,
-          "Authorization": `Bearer ${SUPA_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prefix: "",
-          limit: 200,
-          sortBy: { column: "created_at", order: "desc" },
-        }),
-      },
-      10000
-    );
-    if (!res.ok) return [];
-    const rows = await res.json();
-    return (rows || [])
-      .filter(r => r.name && r.id) // folders/placeholder rows lack an id
-      .map(r => ({
-        id: r.id,
-        name: r.name,
-        dataUrl: `${SUPA_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${r.name}`,
-      }));
+    const rows = await dbLoad("app_state");
+    const row = Array.isArray(rows) && rows.find(r => r.key === "auction_image_library");
+    if (!row) return [];
+    const parsed = JSON.parse(row.value);
+    return Array.isArray(parsed) ? parsed : [];
   } catch { return []; }
 }
 
@@ -3432,36 +3421,42 @@ tbody tr:last-child td{border-bottom:none;}
 @keyframes profileCardShimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
 @keyframes fadeInUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
 
-/* ── LOADING SIGIL — "awakening ward circle" loading indicator ──
-   A static central icon (not spinning, unlike the old generic spinner)
-   with a slow breathing glow, ringed by a thin tick-mark circle that
-   rotates almost imperceptibly (60s/revolution) — reads as an ancient
-   seal coming alive rather than a UI loading spinner. Pure CSS
-   transform/opacity animations only, no new image/font assets, so it
-   costs nothing extra on top of actual load time. */
-@keyframes sigilSpin{to{transform:rotate(360deg);}}
-@keyframes sigilBreathe{
-  0%,100%{opacity:0.55;transform:scale(0.94);}
-  50%{opacity:1;transform:scale(1.05);}
+/* ── LOADING SIGIL — "rune ring draw-in" loading indicator ──
+   The ring inscribes itself (stroke-dasharray/dashoffset, not a spinning
+   conic-gradient) like a rune being drawn, the clan logo settles into
+   place once it completes, then both fade and the cycle restarts —
+   implies something actually completing rather than decoration that
+   loops forever with no meaning. Pure CSS/SVG, no new image assets
+   beyond the logo that was already shipped elsewhere in the app (login
+   screen, sidebar), so it costs nothing extra on top of actual load time. */
+@keyframes sigilDrawRing{
+  0%{stroke-dashoffset:280;opacity:0.3;}
+  45%{stroke-dashoffset:0;opacity:1;}
+  70%{stroke-dashoffset:0;opacity:1;}
+  100%{stroke-dashoffset:-280;opacity:0.3;}
+}
+@keyframes sigilLogoSettle{
+  0%,40%{opacity:0;transform:scale(0.75);}
+  55%,85%{opacity:1;transform:scale(1);}
+  100%{opacity:0;transform:scale(0.75);}
 }
 .loading-sigil{position:relative;width:120px;height:120px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.loading-sigil-ring{
-  position:absolute;inset:0;border-radius:50%;
-  background:repeating-conic-gradient(var(--gold-dim) 0deg 3deg, transparent 3deg 18deg);
-  -webkit-mask:radial-gradient(closest-side, transparent calc(100% - 6px), #000 calc(100% - 6px));
-  mask:radial-gradient(closest-side, transparent calc(100% - 6px), #000 calc(100% - 6px));
-  animation:sigilSpin 60s linear infinite;
+.loading-sigil-ring-svg{position:absolute;inset:0;width:100%;height:100%;}
+.loading-sigil-ring-svg circle{
+  fill:none;stroke:var(--gold-light);stroke-width:2;stroke-linecap:round;
+  stroke-dasharray:280;stroke-dashoffset:280;
+  animation:sigilDrawRing 2.8s cubic-bezier(0.65,0,0.35,1) infinite;
+  filter:drop-shadow(0 0 4px rgba(230,176,72,0.5));
 }
-.loading-sigil-glow{
-  position:absolute;width:70px;height:70px;border-radius:50%;
-  background:radial-gradient(circle, rgba(200,146,42,0.45), rgba(168,50,40,0.15) 60%, transparent 75%);
-  filter:blur(6px);
-  animation:sigilBreathe 2.2s ease-in-out infinite;
+.loading-sigil-logo-wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
+.loading-sigil-logo{
+  width:62px;height:62px;object-fit:contain;
+  animation:sigilLogoSettle 2.8s cubic-bezier(0.34,1.56,0.64,1) infinite;
+  filter:drop-shadow(0 0 6px rgba(230,176,72,0.5));
 }
-.loading-sigil-icon{position:relative;z-index:1;display:flex;filter:drop-shadow(0 0 6px rgba(230,176,72,0.6));}
 @media (prefers-reduced-motion: reduce){
-  .loading-sigil-ring{animation:none;}
-  .loading-sigil-glow{animation:none;opacity:0.85;transform:none;}
+  .loading-sigil-ring-svg circle{animation:none;stroke-dashoffset:0;opacity:0.85;}
+  .loading-sigil-logo{animation:none;opacity:1;transform:none;}
 }
 
 /* ── MISC ── */
@@ -3767,16 +3762,16 @@ function Toast({ toasts, remove }) {
 
 function useImageLibrary() {
   const [library, setLibrary] = useState(_imageLibrary);
-  // Fetch what's actually in Storage once per app load and merge it into
-  // the library — this is the actual fix for images "disappearing" on
-  // refresh. Guarded by a module-level flag so re-mounting this hook
-  // (e.g. navigating away from and back to the auction page) doesn't
-  // re-fetch and re-merge every time; once populated for this session,
-  // newly uploaded images are added via addImage() same as before.
+  // Load the persisted library from app_state once per app load and merge
+  // it in — this is the actual fix for images "disappearing"/not showing
+  // up across sessions. Guarded by a module-level flag so re-mounting
+  // this hook (e.g. navigating away from and back to the auction page)
+  // doesn't re-fetch every time; once populated for this session, newly
+  // uploaded images are added via addImage() same as before.
   useEffect(() => {
     if (_imageLibraryFetched) return;
     _imageLibraryFetched = true;
-    listAuctionImages().then(remoteEntries => {
+    loadImageLibraryFromAppState().then(remoteEntries => {
       if (remoteEntries.length === 0) return;
       const existingNames = new Set(_imageLibrary.map(e => e.name));
       const newOnes = remoteEntries.filter(e => !existingNames.has(e.name));
@@ -3789,6 +3784,11 @@ function useImageLibrary() {
     const entry = { id: Date.now() + Math.random(), name, dataUrl };
     _imageLibrary = [..._imageLibrary, entry];
     setLibrary([..._imageLibrary]);
+    // Fire-and-forget — the entry is already usable locally regardless of
+    // whether this write succeeds; a failed persist just means this one
+    // upload won't be there for a future session (same as before this
+    // fix existed at all), not that anything breaks right now.
+    dbUpsertReliable("app_state", { key: "auction_image_library", value: JSON.stringify(_imageLibrary), updated_at: Date.now() });
     return entry;
   }, []);
   return [library, addImage];
@@ -5695,7 +5695,7 @@ function AppInner({ onMusicTrackChange }) {
   if (dbError) return (
     <>
       <style>{GLOBAL_CSS}</style>
-      <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--bg-dark)",flexDirection:"column",gap:16,padding:24,textAlign:"center"}}>
+      <div style={{position:"fixed",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"var(--bg-dark)",flexDirection:"column",gap:16,padding:24,textAlign:"center",zIndex:9999}}>
         <div style={{display:"flex",justifyContent:"center"}}><WarningIcon size={36} style={{color:"var(--gold-light)"}}/></div>
         <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:18,color:"var(--gold-light)",letterSpacing:2}}>Connection Problem</div>
         <div style={{fontSize:13,color:"var(--text-dim)",maxWidth:360}}>
@@ -5707,17 +5707,28 @@ function AppInner({ onMusicTrackChange }) {
   );
 
   // ── Loading screen while DB data loads ────────────────────────────────────
+  // position:fixed + inset:0 (rather than a plain flow div sized off
+  // minHeight:100vh) so this genuinely fills the real viewport — #root
+  // carries a leftover Vite-template max-width:1920px (see src/index.css)
+  // that centers everything on wider screens. A plain block div here just
+  // stretches to fill THAT capped column, leaving equal dead space (the
+  // page's own body background bleeding through) on both sides on any
+  // screen wider than 1920px. Fixed positioning escapes that constraint
+  // entirely, the same way the login screen's video background already
+  // does — that's the actual bug behind the "awkward box with black bars"
+  // report, not something specific to this screen's own styling.
   if (!dbReady) return (
     <>
       <style>{GLOBAL_CSS}</style>
-      <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--bg-dark)",flexDirection:"column",gap:16}}>
+      <div style={{position:"fixed",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"var(--bg-dark)",flexDirection:"column",gap:16,zIndex:9999}}>
         <div className="loading-sigil">
-          <div className="loading-sigil-ring"/>
-          <div className="loading-sigil-glow"/>
-          <div className="loading-sigil-icon"><SwordsIcon size={40} style={{color:"var(--gold-light)"}}/></div>
+          <svg className="loading-sigil-ring-svg" viewBox="0 0 120 120"><circle cx="60" cy="60" r="45" transform="rotate(-90 60 60)"/></svg>
+          <div className="loading-sigil-logo-wrap">
+            <img className="loading-sigil-logo" src="/images/ymir-logo-gold.png" alt="Legend of Ymir" />
+          </div>
         </div>
-        <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:18,color:"var(--gold-light)",letterSpacing:2}}>Loading ClanForge…</div>
-        <div style={{fontSize:12,color:"var(--text-dim)"}}>Connecting to database</div>
+        <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:18,color:"var(--gold-light)",letterSpacing:2}}>Sharpening Blades…</div>
+        <div style={{fontSize:12,color:"var(--text-dim)"}}>Loading the war table</div>
       </div>
     </>
   );
@@ -7036,8 +7047,14 @@ function Members({ ctx }) {
           Auctions' hero uses (not a fixed-column grid), so this actually
           reflows on narrow screens instead of squeezing 4 rigid columns
           into a phone width, and looks consistent with the rest of the app. */}
-      <div className="dash-panel" style={{position:"relative",display:"flex",flexWrap:"wrap",gap:20,alignItems:"center",padding:"16px 18px",marginBottom:12}}>
+      <div className="dash-panel" style={{
+        position:"relative",display:"flex",flexWrap:"wrap",gap:20,alignItems:"center",padding:"16px 18px",marginBottom:12,
+        background:"linear-gradient(135deg,#0e0b09 0%,#161110 50%,#0e0b09 100%)",
+        border:"1px solid rgba(200,146,42,0.18)",borderRadius:8,
+        boxShadow:"0 6px 32px rgba(0,0,0,0.7), inset 0 1px 0 rgba(200,146,42,0.1)",
+      }}>
         <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.35}/>
+        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 15% 0%,rgba(200,146,42,0.08) 0%,transparent 55%)",pointerEvents:"none"}}/>
         <div>
           <div style={{fontSize:9.5,letterSpacing:1.5,textTransform:"uppercase",color:"var(--text-dim)",fontWeight:700,marginBottom:6}}>{t("totalWarriors")}</div>
           <div style={{fontFamily:"'Spectral',serif",fontSize:22,fontWeight:800,color:"var(--gold-light)",textShadow:"0 0 16px rgba(242,204,96,0.25)",fontVariantNumeric:"tabular-nums"}}>{members.length}</div>
@@ -7059,8 +7076,14 @@ function Members({ ctx }) {
       {/* Class Composition gets its own panel below — it's a small bar
           chart, not a single stat value, so it doesn't fit the flex-wrap
           row above the same way the three numbers do. */}
-      <div className="dash-panel" style={{position:"relative",padding:"14px 18px",marginBottom:20}}>
+      <div className="dash-panel" style={{
+        position:"relative",padding:"14px 18px",marginBottom:20,
+        background:"linear-gradient(135deg,#0e0b09 0%,#161110 50%,#0e0b09 100%)",
+        border:"1px solid rgba(200,146,42,0.18)",borderRadius:8,
+        boxShadow:"0 6px 32px rgba(0,0,0,0.7), inset 0 1px 0 rgba(200,146,42,0.1)",
+      }}>
         <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.35}/>
+        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 15% 0%,rgba(200,146,42,0.08) 0%,transparent 55%)",pointerEvents:"none"}}/>
         <div style={{fontSize:9.5,letterSpacing:1.5,textTransform:"uppercase",color:"var(--text-dim)",fontWeight:700,marginBottom:6}}>{t("classComposition")}</div>
         {classComposition.map(c => {
           const col = CLASS_COLORS[c.cls] || "#9c8c7c";
@@ -7076,8 +7099,14 @@ function Members({ ctx }) {
         })}
       </div>
 
-      <div className="dash-panel" style={{position:"relative",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",padding:"14px 16px",marginBottom:16}}>
+      <div className="dash-panel" style={{
+        position:"relative",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",padding:"14px 16px",marginBottom:16,
+        background:"linear-gradient(135deg,#0e0b09 0%,#161110 50%,#0e0b09 100%)",
+        border:"1px solid rgba(200,146,42,0.18)",borderRadius:8,
+        boxShadow:"0 6px 32px rgba(0,0,0,0.7), inset 0 1px 0 rgba(200,146,42,0.1)",
+      }}>
         <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.35}/>
+        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 15% 0%,rgba(200,146,42,0.08) 0%,transparent 55%)",pointerEvents:"none"}}/>
         <input className="input" style={{maxWidth:200}} placeholder={t("searchWarrior")} value={search} onChange={e=>setSearch(e.target.value)} />
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
           {["All",...CLASSES].map(c => (
@@ -7102,8 +7131,14 @@ function Members({ ctx }) {
 
       <div className="members-layout">
         <div style={{flex:1,minWidth:0}}>
-          <div className="dash-panel members-table-view" style={{position:"relative",padding:0,overflow:"hidden"}}>
+          <div className="dash-panel members-table-view" style={{
+            position:"relative",padding:0,overflow:"hidden",
+            background:"linear-gradient(135deg,#0e0b09 0%,#161110 50%,#0e0b09 100%)",
+            border:"1px solid rgba(200,146,42,0.18)",borderRadius:8,
+            boxShadow:"0 6px 32px rgba(0,0,0,0.7), inset 0 1px 0 rgba(200,146,42,0.1)",
+          }}>
             <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.35}/>
+            <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 15% 0%,rgba(200,146,42,0.08) 0%,transparent 55%)",pointerEvents:"none"}}/>
             <div className="table-wrap members-table-wrap">
               <table className="table-stack members-table">
                 <thead><tr><th>{t("colRank")}</th><th>{t("colCharacter")}</th><th>{t("colPower")}</th><th>{t("colCoins")}</th><th>{t("sevenDayStreak")}</th><th>{t("colWins")}</th><th>{t("colRole")}</th>{isAdmin&&<th>{t("colActions")}</th>}</tr></thead>
@@ -8893,29 +8928,64 @@ function AuctionGridCard({ a, isWinning, minBid, rc2, t, bidAmounts, setBidAmoun
 // treatment), rather than another grid card. Still fully biddable from
 // here; it just isn't shown a second time in the grid below.
 function FeaturedAuctionSpotlight({ a, isWinning, minBid, t, bidAmounts, setBidAmounts, bidSubmitting, placeBid, isAdmin, ctx }) {
+  // Same rarity color map AuctionGridCard uses — the spotlight was
+  // shipping with a fixed gold border and no rarity badge at all,
+  // dropping the one visual signal (rarity color) that's meaningful and
+  // consistent across every other auction card on the page.
+  const rc={epic:{bg:"rgba(122,26,26,0.92)",color:"#ff8080",border:"rgba(192,57,43,0.5)"},rare:{bg:"rgba(26,90,138,0.92)",color:"#60aadd",border:"rgba(46,134,193,0.5)"},kari:{bg:"rgba(0,60,130,0.92)",color:"#a0d8ff",border:"rgba(100,200,255,0.6)"},material:{bg:"rgba(120,120,120,0.92)",color:"#cccccc",border:"rgba(160,160,160,0.5)"},uncommon:{bg:"rgba(46,138,46,0.92)",color:"#7ddc7d",border:"rgba(80,180,80,0.5)"}};
+  const rc2=rc[a.rarity]||rc.epic;
+  // Same radial vignette every .auction-img.rarity-X already uses in the
+  // grid (bright/saturated near the item, fading through a darker mid
+  // tone to near-black at the edges) — re-centered toward the right
+  // where the item art sits here, instead of dead-center like a square
+  // grid card. Replaces an earlier linear left-to-right wash + a bolted-
+  // on separate inset-shadow "vignette", which was really just an
+  // approximation of this exact effect the grid already has.
+  const VIGNETTE_MAP={
+    epic:"radial-gradient(ellipse at 74% 50%,rgba(180,30,30,0.55) 0%,rgba(90,10,10,0.85) 50%,#0d0a0a 100%)",
+    rare:"radial-gradient(ellipse at 74% 50%,rgba(30,100,180,0.55) 0%,rgba(10,40,90,0.85) 50%,#090d12 100%)",
+    material:"radial-gradient(ellipse at 74% 50%,rgba(140,140,140,0.5) 0%,rgba(60,60,60,0.85) 50%,#0d0d0d 100%)",
+    uncommon:"radial-gradient(ellipse at 74% 50%,rgba(60,180,60,0.5) 0%,rgba(20,70,20,0.85) 50%,#0a0d0a 100%)",
+    kari:"radial-gradient(ellipse at 74% 50%,rgba(0,80,170,0.55) 0%,rgba(0,40,90,0.85) 50%,#090d12 100%)",
+  };
+  const vignette=VIGNETTE_MAP[a.rarity]||VIGNETTE_MAP.epic;
   return (
     <div style={{
       position:"relative", overflow:"hidden", borderRadius:10, minHeight:230,
-      border:"1px solid rgba(200,146,42,0.5)",
+      border:`1px solid ${rc2.border}`,
+      // Solid opaque base BEHIND the vignette — the grid cards' own
+      // .auction-card has this same var(--bg-card) sitting under their
+      // vignette for exactly this reason. The vignette's bright/mid
+      // stops are semi-transparent by design (matching the grid's own
+      // rgba values), so without an opaque layer under it, whatever's
+      // actually behind this element (the page body's own background
+      // image) shows straight through instead of a solid dark card.
+      background:"var(--bg-card)",
       boxShadow:"0 0 50px rgba(201,151,42,0.08), 0 20px 50px rgba(0,0,0,0.5)",
       marginBottom:20, display:"flex", alignItems:"flex-end",
     }}>
-      <AuctionImage auction={a} alt={a.name} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} fallback={
-        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 78% 45%, rgba(180,30,30,0.5) 0%, rgba(90,10,10,0.7) 45%, #0d0a0a 80%)"}} />
-      }/>
-      {/* Spotlight glow + vignette + left-to-right dark gradient so the
-          text on the left always stays legible regardless of what the
-          underlying item image looks like. */}
+      <div style={{position:"absolute", inset:0, background:vignette}} />
+      {/* Item art floats free with no container — just a soft rarity-
+          tinted glow behind it and a drop-shadow on the image itself
+          (not a box-shadow, since there's no box) so it doesn't read as
+          pasted flat onto the gradient. Falls back to the same glow
+          alone (no image) if this auction has no photo. */}
       <div style={{
-        position:"absolute", inset:0,
-        background: `
-          radial-gradient(ellipse 600px 500px at 74% 40%, rgba(242,204,96,0.22) 0%, transparent 55%),
-          linear-gradient(90deg, rgba(4,3,3,0.98) 0%, rgba(4,3,3,0.78) 40%, rgba(4,3,3,0.35) 78%, rgba(4,3,3,0.55) 100%)
-        `,
-        boxShadow:"inset 0 0 90px rgba(0,0,0,0.6)",
+        position:"absolute", right:70, top:"50%", transform:"translateY(-50%)",
+        width:220, height:220, borderRadius:"50%",
+        background:`radial-gradient(circle, ${rc2.border} 0%, transparent 72%)`,
+        filter:"blur(2px)", zIndex:1, pointerEvents:"none",
       }} />
+      {a.image && (
+        <AuctionImage auction={a} alt={a.name} style={{
+          position:"absolute", right:60, top:"50%", transform:"translateY(-50%)",
+          width:180, height:180, objectFit:"contain", zIndex:2,
+          filter:`drop-shadow(0 12px 20px rgba(0,0,0,0.55)) drop-shadow(0 0 20px ${rc2.border})`,
+        }} fallback={null}/>
+      )}
+      <div style={{position:"absolute", top:8, left:8, zIndex:3, background:rc2.bg, fontFamily:"'Inter',sans-serif", fontSize:10, fontWeight:700, padding:"3px 8px", border:`1px solid ${rc2.border}`, letterSpacing:1, color:rc2.color}}>{rarityLabel(a.rarity||"epic",t)}</div>
       <div style={{
-        position:"absolute", top:16, left:0, zIndex:3,
+        position:"absolute", top:36, left:0, zIndex:3,
         background:"linear-gradient(135deg, var(--gold-light), var(--gold))", color:"#241a08",
         fontSize:10, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
         padding:"6px 16px 6px 12px", borderRadius:"0 4px 4px 0",
@@ -8928,25 +8998,32 @@ function FeaturedAuctionSpotlight({ a, isWinning, minBid, t, bidAmounts, setBidA
           onClick={()=>setFeaturedAuction(null, ctx)}
         >Unfeature</button>
       )}
-      <div style={{position:"relative", zIndex:2, padding:"26px 32px", width:"100%"}}>
-        <div style={{fontSize:10, letterSpacing:2, textTransform:"uppercase", color:"var(--gold-light)", fontWeight:700, marginBottom:8}}>{CLAN_SEASON_LABEL} &middot; Featured Item</div>
-        <div style={{fontFamily:"'Spectral',serif", fontSize:26, fontWeight:800, color:"var(--text-bright)", marginBottom:8, textShadow:"0 0 30px rgba(242,204,96,0.3), 0 2px 10px rgba(0,0,0,0.8)"}}>{a.name}</div>
+      {/* padding-top:66 (not 26) — clears BOTH the rarity badge and the
+          Featured ribbon stacked above it; at 26 the ribbon's own height
+          overlapped this block's first line (the eyebrow text), a real
+          bug caught in an early screenshot, not just a mockup artifact.
+          Capped max-width clears the item art + its glow on the right so
+          nothing in this column, including the bid input, can reach
+          into that space. */}
+      <div style={{position:"relative", zIndex:2, padding:"66px 32px 26px", width:"100%", maxWidth:"calc(100% - 260px)"}}>
+        <div style={{fontSize:10, letterSpacing:2, textTransform:"uppercase", color:"var(--gold-light)", fontWeight:700, marginBottom:8, textShadow:"0 1px 6px rgba(0,0,0,0.9)"}}>{CLAN_SEASON_LABEL} &middot; Featured Item</div>
+        <div style={{fontFamily:"'Spectral',serif", fontSize:26, fontWeight:800, color:"var(--text-bright)", marginBottom:8, textShadow:"0 0 30px rgba(242,204,96,0.3), 0 2px 12px rgba(0,0,0,0.9)"}}>{a.name}</div>
         {a.desc && <div style={{fontSize:12.5, color:"var(--text-mid)", lineHeight:1.6, marginBottom:16, maxWidth:"52ch", textShadow:"0 1px 6px rgba(0,0,0,0.6)"}}>{a.desc}</div>}
-        <div style={{display:"flex", alignItems:"center", gap:28, flexWrap:"wrap"}}>
+        <div style={{display:"flex", alignItems:"center", gap:20, flexWrap:"wrap"}}>
           <div>
-            <div style={{fontSize:9, letterSpacing:1.5, textTransform:"uppercase", color:"var(--text-dim)", marginBottom:3}}>Current Bid</div>
-            <div style={{fontFamily:"'Spectral',serif", fontSize:19, fontWeight:800, color:"var(--gold-light)"}}>{fmt(a.currentBid)} Coins</div>
+            <div style={{fontSize:9, letterSpacing:1.5, textTransform:"uppercase", color:"var(--text-mid)", marginBottom:3, textShadow:"0 1px 5px rgba(0,0,0,0.95), 0 1px 2px rgba(0,0,0,1)"}}>Current Bid</div>
+            <div style={{fontFamily:"'Spectral',serif", fontSize:19, fontWeight:800, color:"var(--gold-light)", textShadow:"0 1px 6px rgba(0,0,0,0.9)"}}>{fmt(a.currentBid)} Coins</div>
           </div>
           <div>
-            <div style={{fontSize:9, letterSpacing:1.5, textTransform:"uppercase", color:"var(--text-dim)", marginBottom:3}}>Ends In</div>
-            <div style={{fontFamily:"'Spectral',serif", fontSize:19, fontWeight:800, color:"#e08585"}}>{timeLeft(a.endsAt)}</div>
+            <div style={{fontSize:9, letterSpacing:1.5, textTransform:"uppercase", color:"var(--text-mid)", marginBottom:3, textShadow:"0 1px 5px rgba(0,0,0,0.95), 0 1px 2px rgba(0,0,0,1)"}}>Ends In</div>
+            <div style={{fontFamily:"'Spectral',serif", fontSize:19, fontWeight:800, color:"#e08585", textShadow:"0 1px 6px rgba(0,0,0,0.9)"}}>{timeLeft(a.endsAt)}</div>
           </div>
           {isWinning ? (
-            <div style={{marginLeft:"auto", fontSize:12, fontWeight:800, color:"#7ddc7d"}}>You're winning this!</div>
+            <div style={{fontSize:12, fontWeight:800, color:"#7ddc7d"}}>You're winning this!</div>
           ) : (
-            <div style={{marginLeft:"auto", display:"flex", gap:8}}>
+            <div style={{display:"flex", gap:8}}>
               <input
-                type="number" className="input" placeholder={String(minBid)} style={{width:110}}
+                type="number" className="input" placeholder={String(minBid)} style={{width:100}}
                 value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p, [a.id]: e.target.value}))}
               />
               <button
