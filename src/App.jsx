@@ -9015,6 +9015,15 @@ function FeaturedAuctionSpotlight({ a, isWinning, minBid, t, bidAmounts, setBidA
           <div>
             <div style={{fontSize:9, letterSpacing:1.5, textTransform:"uppercase", color:"var(--text-mid)", marginBottom:3, textShadow:"0 1px 5px rgba(0,0,0,0.95), 0 1px 2px rgba(0,0,0,1)"}}>Current Bid</div>
             <div style={{fontFamily:"'Spectral',serif", fontSize:19, fontWeight:800, color:"var(--gold-light)", textShadow:"0 1px 6px rgba(0,0,0,0.9)"}}>{fmt(a.currentBid)} Coins</div>
+            {/* Grid cards show who's currently winning right under the bid
+                (green trophy pill) — the spotlight had no such indicator
+                at all. Same style, reused here. */}
+            {a.topBidder && (
+              <div style={{display:"inline-flex", alignItems:"center", gap:5, marginTop:5, background:"rgba(39,174,96,0.15)", border:"1px solid rgba(39,174,96,0.45)", padding:"3px 8px", borderRadius:2}}>
+                <TrophyIcon size={12} style={{color:"rgba(39,174,96,0.85)"}}/>
+                <span style={{fontSize:12, color:"#6ee89a", fontWeight:800, fontFamily:"'Inter',sans-serif", letterSpacing:0.5}}>{a.topBidder}</span>
+              </div>
+            )}
           </div>
           <div>
             <div style={{fontSize:9, letterSpacing:1.5, textTransform:"uppercase", color:"var(--text-mid)", marginBottom:3, textShadow:"0 1px 5px rgba(0,0,0,0.95), 0 1px 2px rgba(0,0,0,1)"}}>Ends In</div>
