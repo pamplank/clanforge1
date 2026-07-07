@@ -5164,10 +5164,6 @@ function AppInner({ onMusicTrackChange }) {
   }
 
   useEffect(() => { const iv = setInterval(() => setTick(t=>t+1), 1000); return () => clearInterval(iv); }, []);
-  // Track whether THIS client is the "closer" — only Masters/Elders write ended status
-  // to DB. Everyone else just waits for the poll to pick up the DB change.
-  // This prevents a race where 50 clients all simultaneously write status="ended".
-  const isCloserRole = currentUser && (currentUser.role === "Master" || currentUser.role === "Elder");
   // TWO-TIER MEMBERS POLL — replaces the old single `select=*` every 5s
   // that was the root cause of the egress overage (re-downloading every
   // member's entire log history every 5 seconds, for every open tab).
@@ -5384,7 +5380,29 @@ function AppInner({ onMusicTrackChange }) {
           confirmedTopBidders.current.set(auctionKey, next.topBidder ?? null);
           return next;
         }).filter(a => !deletedAuctionIds.current.has(a.id));
-        return updated;
+        // ROOT CAUSE of "a new auction appears then immediately disappears"
+        // (still reproducible even with dbUpsertReliable's retries on the
+        // write side — see setAuctions above): this poll used to replace
+        // local state with EXACTLY what aRows contains, full stop. A
+        // brand-new auction is added to local state optimistically the
+        // instant createAuction runs, but its write to the DB is still an
+        // in-flight async call — if this poll's own fetch lands first (a
+        // real, ordinary race, not a failure), aRows simply doesn't have
+        // the row yet, and the auction vanished from every screen even
+        // though the write goes on to succeed moments later. Bridge that
+        // gap: keep any local-only auction that isn't in aRows yet, as
+        // long as it's new enough to plausibly still be in flight (ids are
+        // Date.now()-based) and wasn't an explicit delete. Once the DB
+        // catches up, the next poll's aRows naturally includes the real
+        // row and replaces this optimistic placeholder.
+        const CREATE_GRACE_MS = 20000;
+        const updatedIds = new Set(updated.map(a => String(a.id)));
+        const pendingLocal = prev.filter(a =>
+          !updatedIds.has(String(a.id)) &&
+          !deletedAuctionIds.current.has(a.id) &&
+          (Date.now() - (Number(a.id) || 0)) < CREATE_GRACE_MS
+        );
+        return [...updated, ...pendingLocal];
       });
   }, 3000, 1000, []);
 
