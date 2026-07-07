@@ -11262,13 +11262,10 @@ function EventCoinValuesTable({ isMaster, addToast, eventsVersion, setEventsVers
 // ─── DECAY RATE (editable) ────────────────────────────────────────────────────
 // Saved to app_state under key "decay_rate" — the SAME table/row pattern
 // already used for last_decay_ts, which both this app and the server-side
-// cron job (api/check-weekly-decay.js) read. IMPORTANT: editing the rate
-// here only updates the manual "Trigger Weekly Decay" button in this app.
-// The automatic Tuesday-7am cron job has its OWN hardcoded 0.05 in a
-// separate file this app can't reach or redeploy — that file needs the
-// matching change made by hand for the automatic decay to use the new
-// rate too. See the comment in check-weekly-decay.js for exactly what to
-// change there.
+// cron job (api/check-weekly-decay.js) read. Editing the rate here updates
+// BOTH the manual "Trigger Weekly Decay" button in this app AND the
+// automatic Tuesday-7am cron job, since check-weekly-decay.js reads this
+// same app_state row rather than a hardcoded value.
 function DecayRateEditor({ decayRate, setDecayRate, addToast, t }) {
   const [editing, setEditing] = useState(false);
   const [draftPct, setDraftPct] = useState(String(Math.round(decayRate*1000)/10));
@@ -11291,7 +11288,7 @@ function DecayRateEditor({ decayRate, setDecayRate, addToast, t }) {
     if (ok) {
       setDecayRate(rate);
       setEditing(false);
-      addToast(`Weekly decay rate set to ${pct}%. Remember: the automatic Tuesday cron job needs this updated separately in check-weekly-decay.js.`, "gold", "Updated");
+      addToast(`Weekly decay rate set to ${pct}%. This applies to both the manual trigger and the automatic Tuesday cron job.`, "gold", "Updated");
     } else {
       addToast(
         <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't save — please try again.</span>,

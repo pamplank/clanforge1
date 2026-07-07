@@ -85,35 +85,64 @@ export default async function handler(req, res) {
     const decayDate = new Date().toLocaleDateString("en-US");
     const decayTs = Date.now();
     const ratePct = Math.round(decayRate * 1000) / 10; // e.g. 0.05 -> 5, 0.075 -> 7.5
-    let totalDecayed = 0;
 
-    const updates = members.map((m) => {
-      const coins = Number(m.coins) || 0;
-      const d = Math.floor(coins * decayRate);
-      totalDecayed += d;
+    // ROOT CAUSE of a real incident: this used to fire every member PATCH
+    // with Promise.allSettled and never look at the results, then advance
+    // last_decay_ts unconditionally. allSettled never rejects — so if
+    // every single PATCH failed (network blip, Supabase hiccup, anything),
+    // this job still reported success and marked the week as "handled,"
+    // permanently. That's exactly what happened on 2026-07-07: last_decay_ts
+    // advanced right on schedule, but zero members show a decay_log/tx_log
+    // entry from that run. Nothing retried it, because nothing knew it failed.
+    //
+    // Fix: skip members who already have a decay_log entry at/after this
+    // run's scheduled timestamp (idempotent per-member guard — makes a
+    // retry safe, since already-succeeded members won't be decayed twice),
+    // actually check each PATCH's response status, and only advance
+    // last_decay_ts once every member is confirmed decayed (either just
+    // now, or already, from an earlier partial run). If any fail, leave
+    // last_decay_ts alone so the next scheduler tick retries just the
+    // failures — visible in the response instead of silently "succeeding".
+    const alreadyDone = [];
+    const toUpdate = [];
+    members.forEach((m) => {
       let decayLog = [];
       try { decayLog = typeof m.decay_log === "string" ? JSON.parse(m.decay_log) : (m.decay_log || []); } catch {}
+      if (decayLog.some((e) => (e.ts || 0) >= mostRecentScheduled)) {
+        alreadyDone.push(m.id);
+        return;
+      }
+      const coins = Number(m.coins) || 0;
+      const d = Math.floor(coins * decayRate);
       decayLog = [...decayLog, { amount: -d, date: decayDate, ts: decayTs }];
-      return { id: m.id, coins: coins - d, decay_log: JSON.stringify(decayLog) };
+      toUpdate.push({ id: m.id, coins: coins - d, decay_log: JSON.stringify(decayLog), _amount: d });
     });
 
-    // Attach one consolidated tx_log announcement to the first member only,
-    // matching the original behavior (single "All Members" row in the
-    // Global Points Log instead of one entry per member).
-    let firstMemberTxLog = [];
-    try {
-      const raw = members[0].tx_log;
-      firstMemberTxLog = typeof raw === "string" ? JSON.parse(raw) : (raw || []);
-    } catch {}
-    firstMemberTxLog = [...firstMemberTxLog, {
-      change: -totalDecayed,
-      reason: `${ratePct}% weekly coin decay applied to all ${members.length} members`,
-      date: decayDate, logType: "Weekly Decay", addedBy: "System", ts: decayTs,
-    }];
-    updates[0].tx_log = JSON.stringify(firstMemberTxLog);
+    let totalDecayed = 0;
+    toUpdate.forEach((u) => { totalDecayed += u._amount; });
 
-    await Promise.allSettled(
-      updates.map((u) =>
+    // Attach one consolidated tx_log announcement to the first member being
+    // updated this run (not just members[0] overall, since that member may
+    // already be done from a prior partial run) — matches the original
+    // "single combined row" behavior in the Global Points Log.
+    if (toUpdate.length > 0) {
+      const firstUpdate = toUpdate[0];
+      const firstMember = members.find((m) => String(m.id) === String(firstUpdate.id));
+      let firstMemberTxLog = [];
+      try {
+        const raw = firstMember?.tx_log;
+        firstMemberTxLog = typeof raw === "string" ? JSON.parse(raw) : (raw || []);
+      } catch {}
+      firstMemberTxLog = [...firstMemberTxLog, {
+        change: -totalDecayed,
+        reason: `${ratePct}% weekly coin decay applied to all ${toUpdate.length} members`,
+        date: decayDate, logType: "Weekly Decay", addedBy: "System", ts: decayTs,
+      }];
+      firstUpdate.tx_log = JSON.stringify(firstMemberTxLog);
+    }
+
+    const results = await Promise.allSettled(
+      toUpdate.map(({ _amount, ...u }) =>
         fetch(`${SUPA_URL}/rest/v1/members?id=eq.${encodeURIComponent(u.id)}`, {
           method: "PATCH",
           headers: {
@@ -123,21 +152,41 @@ export default async function handler(req, res) {
             Prefer: "return=minimal",
           },
           body: JSON.stringify(u),
-        })
+        }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r; })
       )
     );
 
-    await fetch(`${SUPA_URL}/rest/v1/app_state?key=eq.last_decay_ts`, {
-      method: "PATCH",
-      headers: {
-        apikey: SUPA_KEY,
-        Authorization: `Bearer ${SUPA_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ value: String(mostRecentScheduled), updated_at: Date.now() }),
-    });
+    const failed = [];
+    results.forEach((r, i) => { if (r.status === "rejected") failed.push({ id: toUpdate[i].id, error: String(r.reason) }); });
+    const succeeded = toUpdate.length - failed.length;
 
-    return res.status(200).json({ ran: true, membersAffected: members.length, totalDecayed, decayRate });
+    if (failed.length === 0) {
+      // Every member (whether just now or in an earlier partial run) is
+      // confirmed decayed for this scheduled run — safe to advance.
+      await fetch(`${SUPA_URL}/rest/v1/app_state?key=eq.last_decay_ts`, {
+        method: "PATCH",
+        headers: {
+          apikey: SUPA_KEY,
+          Authorization: `Bearer ${SUPA_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ value: String(mostRecentScheduled), updated_at: Date.now() }),
+      });
+    } else {
+      console.error(`check-weekly-decay: ${failed.length}/${toUpdate.length} member updates failed, NOT advancing last_decay_ts so the next run retries them:`, failed);
+    }
+
+    return res.status(200).json({
+      ran: true,
+      alreadyDone: alreadyDone.length,
+      attempted: toUpdate.length,
+      succeeded,
+      failed: failed.length,
+      failedIds: failed.map((f) => f.id),
+      totalDecayed,
+      decayRate,
+      advancedSchedule: failed.length === 0,
+    });
   } catch (err) {
     console.error("check-weekly-decay failed:", err);
     return res.status(500).json({ error: "Failed to check/apply weekly decay" });
