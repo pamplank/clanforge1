@@ -1351,19 +1351,35 @@ async function dbLoadAuctionImage(id) {
 // tabs/sessions race for it simultaneously. Returns true only for
 // whichever caller actually wins that race — everyone else gets false
 // and should NOT proceed to log the win.
-async function claimAuctionWin(auctionId, claimedBy) {
-  try {
-    const t = await supa.from("auction_win_claims");
-    const result = await t.insert({ auction_id: String(auctionId), claimed_by: claimedBy, claimed_at: Date.now() });
-    return !result.conflict;
-  } catch {
-    // If the claim attempt itself fails for an unrelated reason (network
-    // blip, etc.), default to NOT proceeding — a missed win log is far
-    // less damaging than risking yet another duplicate, and the member
-    // sync poll will eventually reconcile most of these naturally since
-    // the underlying coins are tracked separately from this log.
-    return false;
+// ROOT CAUSE of a real incident: a batch of ~20 auctions sharing the exact
+// same deadline all fired their claim INSERTs at the same instant (this
+// project's small DB tier is already known to strain under write bursts —
+// see setAuctions above), and a plain network/HTTP failure here was
+// indistinguishable from a genuine 409 "someone else already claimed it" —
+// both just returned false, no retry. Once that happens, the win is lost
+// for good: the auction's status flips to "ended" regardless (a separate,
+// unrelated write — see finalizeAuctionClose), and nothing ever revisits
+// an "ended" auction again, so a transient failure here was as permanent
+// as a legitimate rejection. Retrying only on the genuinely-transient
+// path (a thrown error) — never on an actual 409 conflict, which is a
+// real, final answer — closes that gap without risking a double-claim.
+async function claimAuctionWin(auctionId, claimedBy, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const t = await supa.from("auction_win_claims");
+      const result = await t.insert({ auction_id: String(auctionId), claimed_by: claimedBy, claimed_at: Date.now() });
+      return !result.conflict;
+    } catch {
+      if (attempt < retries) { await new Promise(r => setTimeout(r, 600 * (attempt + 1))); continue; }
+      // Exhausted retries on a transient error (not a conflict) — default
+      // to NOT proceeding here; the broader safety net below (retrying
+      // claimAuctionWinAndLog for any recently-ended auction that still
+      // shows no confirmed win) is what actually recovers from this now,
+      // since the insert itself is safely idempotent to attempt again.
+      return false;
+    }
   }
+  return false;
 }
 // Attempts the real cross-session claim for this specific auction, and
 // only appends the "Auction Win" txLog entry if that claim genuinely
@@ -1645,24 +1661,39 @@ async function adjustMemberCoinsAtomic(memberName, delta) {
 // increment entirely. This runs the increment and the tx_log append as
 // one indivisible database statement, so it can't happen no matter how
 // many auctions close for the same member at once.
-async function incrementAuctionWinAtomic(memberName, txEntry) {
-  try {
-    const res = await fetchWithTimeout(`${SUPA_URL}/rest/v1/rpc/increment_auction_win`, {
-      method: "POST",
-      headers: {
-        "apikey": SUPA_KEY,
-        "Authorization": `Bearer ${SUPA_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ p_member_name: memberName, p_tx_entry: txEntry }),
-    });
-    if (!res.ok) throw new Error(`increment_auction_win failed: HTTP ${res.status}`);
-    const newWins = await res.json();
-    return typeof newWins === "number" ? newWins : null;
-  } catch (e) {
-    console.error(`incrementAuctionWinAtomic(${memberName}) failed:`, e);
-    return null;
+// ROOT CAUSE of winners' coin deduction silently never appearing: this had
+// zero retries — a single transient failure here (after claimAuctionWin
+// had ALREADY recorded the claim) permanently stranded the win in a
+// "claimed but never paid" state, since claimAuctionWin correctly refuses
+// to re-claim an auction this same call chain already owns. Retrying here
+// (like dbUpsertReliable elsewhere in this file) closes that gap. Not
+// perfectly exactly-once — a response lost after the server-side UPDATE
+// already committed could in principle double-apply on retry — but that's
+// the same trade-off dbUpsertReliable already accepts for every other
+// at-least-once write in this app, and it's far preferable to silently
+// losing the payment entirely, which is what real members hit in production.
+async function incrementAuctionWinAtomic(memberName, txEntry, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetchWithTimeout(`${SUPA_URL}/rest/v1/rpc/increment_auction_win`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPA_KEY,
+          "Authorization": `Bearer ${SUPA_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ p_member_name: memberName, p_tx_entry: txEntry }),
+      });
+      if (!res.ok) throw new Error(`increment_auction_win failed: HTTP ${res.status}`);
+      const newWins = await res.json();
+      return typeof newWins === "number" ? newWins : null;
+    } catch (e) {
+      if (attempt < retries) { await new Promise(r => setTimeout(r, 600 * (attempt + 1))); continue; }
+      console.error(`incrementAuctionWinAtomic(${memberName}) failed after retries:`, e);
+      return null;
+    }
   }
+  return null;
 }
 // ROOT CAUSE FIX for "a lower bid sometimes beats a higher one": the old
 // flow checked the live database value, THEN did more work (coin
@@ -5012,6 +5043,18 @@ function AppInner({ onMusicTrackChange }) {
 
   const deletedAuctionIds = useRef(new Set());
   const endedAuctionIds = useRef(new Set());
+  // Safety net for winners' coin deduction silently never landing (see
+  // claimAuctionWin/incrementAuctionWinAtomic comments) — even with
+  // retries there, a sustained outage could still exhaust them, and once
+  // an auction is "ended" nothing else ever revisits it. Re-attempting
+  // claimAuctionWinAndLog is always safe to repeat (a genuinely-already-
+  // claimed auction just gets rejected via the auction_win_claims 409), so
+  // the 3s poll below opportunistically retries any recently-ended auction
+  // this browser session hasn't already tried, catching failures that
+  // happened in a completely different session. Per-session only (not
+  // persisted) — harmless, since a later session tries again anyway, and
+  // avoids hammering every ended auction on every single poll tick forever.
+  const reconciledWinClaims = useRef(new Set());
   const deletedAttendanceIds = useRef(new Set());
   // Tracks topBidder as last CONFIRMED by a DB poll read, per auction id —
   // deliberately separate from the `auctions` React state, which placeBid
@@ -5343,6 +5386,20 @@ function AppInner({ onMusicTrackChange }) {
             if (next.topBidder) {
               addToast(`${next.topBidder} won ${next.name} for ${fmt(next.currentBid)} coins!`, "gold", "Auction Ended");
             }
+          }
+          // Reconciliation safety net (see reconciledWinClaims above) — not
+          // just newly-transitioned auctions, ANY ended auction with a
+          // topBidder this session hasn't tried yet, since the original
+          // claim could have failed in a totally different session. Capped
+          // to a recent window so this doesn't replay the entire history
+          // on every load; 7 days comfortably covers any realistic retry gap.
+          if (
+            next.status === "ended" && next.topBidder &&
+            !reconciledWinClaims.current.has(next.id) &&
+            (Date.now() - next.endsAt) < 7 * 24 * 60 * 60 * 1000
+          ) {
+            reconciledWinClaims.current.add(next.id);
+            claimAuctionWinAndLog(next, setMembersRaw);
           }
           // Live in-app outbid detection: this poll already has the fresh
           // state of every auction every 3s — if the current user was
