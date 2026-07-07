@@ -15,6 +15,19 @@
 -- here no matter how many auctions close for the same member at once.
 --
 -- Run this once in the Supabase SQL Editor for this project.
+--
+-- FIX (see incident notes below): members.tx_log is actually a TEXT column
+-- storing a JSON-encoded string (matching how every other read/write path
+-- in the client treats it - always JSON.stringify/JSON.parse), not a real
+-- jsonb column. The original version below assumed jsonb and did
+-- `coalesce(tx_log, '[]'::jsonb)`, which Postgres cannot type-check against
+-- a text column - "COALESCE types text and jsonb cannot be matched". This
+-- has been failing on every single call where tx_log is non-null (i.e.
+-- basically every real member), permanently losing auction winners' coin-
+-- deduction history entry and win counter increment, ever since this RPC
+-- replaced the older non-atomic path. Casting tx_log to jsonb for the
+-- concatenation and back to text for storage fixes this while keeping the
+-- on-disk representation identical to every other write path.
 create or replace function increment_auction_win(
   p_member_name text,
   p_tx_entry jsonb
@@ -28,7 +41,7 @@ begin
   update members
   set
     auction_wins = coalesce(auction_wins, 0) + 1,
-    tx_log = coalesce(tx_log, '[]'::jsonb) || jsonb_build_array(p_tx_entry)
+    tx_log = (coalesce(tx_log::jsonb, '[]'::jsonb) || jsonb_build_array(p_tx_entry))::text
   where name = p_member_name
   returning auction_wins into new_wins;
 
