@@ -1401,7 +1401,7 @@ async function claimAuctionWinAndLog(auction, setMembersRaw) {
 // browser's own (possibly stale) copy, used only if the fresh re-fetch
 // itself fails for some unrelated reason — better to proceed with
 // slightly-stale data than to leave an auction stuck mid-close forever.
-async function finalizeAuctionClose(localFallback, canWriteClose, setMembersRaw, addToast) {
+async function finalizeAuctionClose(localFallback, setMembersRaw, addToast) {
   let fresh = localFallback;
   try {
     const rows = await dbLoad("auctions", `id,current_bid,top_bidder,bids,status&id=eq.${encodeURIComponent(localFallback.id)}`);
@@ -1424,28 +1424,26 @@ async function finalizeAuctionClose(localFallback, canWriteClose, setMembersRaw,
     addToast(`${fresh.topBidder} won ${fresh.name} for ${fmt(fresh.currentBid)} coins!`, "gold", "Auction Ended");
     claimAuctionWinAndLog(fresh, setMembersRaw);
   }
-  if (canWriteClose) {
-    const endImageData = fresh.image?.dataUrl || _auctionImageCache.get(String(fresh.id)) || undefined;
-    const endRow = {
-      id:          String(fresh.id),
-      name:        fresh.name ?? "",
-      description: fresh.description ?? fresh.desc ?? "",
-      status:      "ended",
-      ends_at:     fresh.endsAt ?? 0,
-      started_at:  fresh.startedAt ?? Date.now(),
-      current_bid: fresh.currentBid ?? 0,
-      top_bidder:  fresh.topBidder ?? null,
-      min_bid:     fresh.minBid ?? fresh.startBid ?? 0,
-      image_name:  fresh.image?.name ?? null,
-      // See setAuctions for why this must NOT be JSON.stringify'd again —
-      // `bids` is a genuine jsonb array column and dbUpsert already
-      // stringifies the whole row object once.
-      bids:        fresh.bids ?? [],
-    };
-    if (endImageData) endRow.image_data = endImageData;
-    dbUpsert("auctions", endRow);
-    notifyAuctionEndedOnce(fresh);
-  }
+  const endImageData = fresh.image?.dataUrl || _auctionImageCache.get(String(fresh.id)) || undefined;
+  const endRow = {
+    id:          String(fresh.id),
+    name:        fresh.name ?? "",
+    description: fresh.description ?? fresh.desc ?? "",
+    status:      "ended",
+    ends_at:     fresh.endsAt ?? 0,
+    started_at:  fresh.startedAt ?? Date.now(),
+    current_bid: fresh.currentBid ?? 0,
+    top_bidder:  fresh.topBidder ?? null,
+    min_bid:     fresh.minBid ?? fresh.startBid ?? 0,
+    image_name:  fresh.image?.name ?? null,
+    // See setAuctions for why this must NOT be JSON.stringify'd again —
+    // `bids` is a genuine jsonb array column and dbUpsert already
+    // stringifies the whole row object once.
+    bids:        fresh.bids ?? [],
+  };
+  if (endImageData) endRow.image_data = endImageData;
+  dbUpsert("auctions", endRow);
+  notifyAuctionEndedOnce(fresh);
 }
 async function dbUpsert(table, data) {
   try {
@@ -2386,10 +2384,10 @@ async function notifyDiscord(payload, channel = "general") {
   }
 }
 // Wraps notifyDiscord with a best-effort dedupe check for the auction-
-// ended case specifically — multiple Elders' browsers can independently
-// notice the same auction ending within the same few milliseconds (the
-// canWriteClose gate alone doesn't prevent this, since EVERY currently-
-// online Elder/Master passes that check, not just one designated one).
+// ended case specifically — every currently-online client independently
+// notices the same auction ending within the same few milliseconds and
+// will try to close it (see the AUCTION EXPIRY LOGIC effect), so without
+// this guard they'd all fire a Discord notification for the same auction.
 // This isn't a perfect lock — two browsers could still both pass the
 // check before either one's claim write lands — but it meaningfully
 // reduces how often duplicates actually happen, which is the realistic
@@ -4769,7 +4767,17 @@ function AppInner({ onMusicTrackChange }) {
     try {
       const [mRows, aRows, lRows, cRows, rRows, evRows, asRows] = await Promise.all([
         dbLoad("members"),
-        dbLoad("auctions", AUCTION_LIST_COLS + ",image_data"),
+        // Deliberately NOT ",image_data" here — this fetches EVERY auction
+        // row ever created (all-time history, no status/date filter), and
+        // image_data can be a large base64 blob on older pre-bucket-storage
+        // rows. Pulling that for the entire table on every single app load
+        // is exactly the "large enough to cause DB statement timeouts"
+        // scenario documented at AUCTION_LIST_COLS above — the real source
+        // of the lag/crash reports, not just the ended-history buildup.
+        // AuctionImage already lazily fetches image_data per-item on demand
+        // (see its comment) and caches it in _auctionImageCache, so nothing
+        // here needs it eagerly.
+        dbLoad("auctions", AUCTION_LIST_COLS),
         dbLoad("attendance_logs"),
         dbLoad("coin_requests"),
         dbLoad("loot_results"),
@@ -4832,8 +4840,6 @@ function AppInner({ onMusicTrackChange }) {
         return;
       }
       if (Array.isArray(aRows) && aRows.length > 0) {
-        // Seed the image cache from initial load so the poll never loses image URLs
-        aRows.forEach(r => { if (r.image_data) _auctionImageCache.set(String(r.id), r.image_data); });
         setAuctionsRaw(aRows.map(r => ({
           id:          String(r.id),
           name:        r.name ?? "",
@@ -4848,12 +4854,14 @@ function AppInner({ onMusicTrackChange }) {
           startBid:    Number(r.min_bid)    || 0,
           topBidder:   r.top_bidder ?? null,
           bids:        (() => { try { const b = typeof r.bids === "string" ? JSON.parse(r.bids) : (Array.isArray(r.bids) ? r.bids : []); return b || []; } catch { return []; } })(),
-          image:       r.image_name ? { dataUrl: r.image_data || _auctionImageCache.get(String(r.id)) || null, name: r.image_name } : null,
+          // dataUrl is intentionally not eager here — AuctionImage fetches
+          // and caches it on demand per-item (see loadAll's dbLoad above).
+          image:       r.image_name ? { dataUrl: _auctionImageCache.get(String(r.id)) || null, name: r.image_name } : null,
         })));
       } else if (aRows === null) {
-        // Auctions fetch failed/errored (e.g. statement timeout from large
-        // image_data blobs). Don't block the whole app over this — just
-        // log it and show an empty auction house. The 3s poll will retry.
+        // Auctions fetch failed/errored (network blip, etc). Don't block
+        // the whole app over this — just log it and show an empty auction
+        // house. The 3s poll will retry.
         console.warn("auctions failed to load (will retry via poll):", aRows);
       }
       // If table is empty, nothing is seeded (SEED_AUCTIONS is empty by design)
@@ -5025,8 +5033,24 @@ function AppInner({ onMusicTrackChange }) {
       const safe = next.filter(a => !deletedAuctionIds.current.has(a.id));
       const prevById = new Map(prev.map(a => [String(a.id), a]));
       safe.forEach(a => {
-        const imageData = a.image?.dataUrl || _auctionImageCache.get(String(a.id)) || undefined;
         const prevAuction = prevById.get(String(a.id));
+        // ROOT CAUSE of "can't add auctions past a certain count, no error
+        // shown": every call to setAuctions rewrote EVERY auction in the
+        // array to the database, not just the one that actually changed —
+        // createAuction's `[...prev, a]` and placeBid's `.map(x => x.id
+        // === id ? {...x} : x)` both preserve object identity for
+        // untouched auctions, so adding ONE new auction with N existing
+        // ones queued up N+1 concurrent writes instead of 1. That burst
+        // scaled with the total auction count, and against this project's
+        // small (nano-tier) database — already shown elsewhere to throw
+        // real errors under load — a big enough burst could make ANY one
+        // of those N+1 writes fail, including the new auction itself,
+        // while N others succeeded fine and masked it. Skipping the write
+        // entirely when the object reference hasn't changed means a
+        // single new/updated auction now writes exactly once, regardless
+        // of how many other auctions already exist.
+        if (a === prevAuction) return;
+        const imageData = a.image?.dataUrl || _auctionImageCache.get(String(a.id)) || undefined;
         // Whenever the end time changes (a brand-new auction, or an
         // existing one extended by snipe protection), reset the
         // "ending soon" notification flag so the cron check can fire
@@ -5467,12 +5491,18 @@ function AppInner({ onMusicTrackChange }) {
     // 1. GRACE_MS raised to 10s (was 5s) — accommodates real-world clock drift
     //    and network lag. A client that is 5s ahead will NOT close the auction
     //    while others still show ~5-10s on their timers.
-    // 2. DB writes (the actual close) only happen from the logged-in Master or
-    //    Elder user. Everyone else just updates LOCAL display state — they let
-    //    the 3s poll pick up the DB-written "ended" status.
+    // 2. Any logged-in client can perform the DB write — restricting this to
+    //    Master/Elder used to seem safer, but it meant an auction whose timer
+    //    lapsed while no Master/Elder had the site open would NEVER close:
+    //    every other client only flipped local display state, and the next
+    //    3s poll just re-fetched "active" from the DB forever (real incident:
+    //    a member-created auction stayed biddable indefinitely). The actual
+    //    fix for the original race (see finalizeAuctionClose) is re-fetching
+    //    the auction's true state from the DB before writing, which makes
+    //    concurrent closers harmless — they all write the same fresh values
+    //    — so gating by role bought no extra correctness, only outages.
     // 3. endedAuctionIds ref prevents any double-fires even across re-renders.
     const GRACE_MS = 10000; // 10s buffer — wide enough for most clock skew
-    const canWriteClose = currentUser && (currentUser.role === "Master" || currentUser.role === "Elder");
 
     setAuctionsRaw(prev => prev
       .filter(a => !deletedAuctionIds.current.has(a.id))
@@ -5502,7 +5532,7 @@ function AppInner({ onMusicTrackChange }) {
           // "ended" immediately for a snappy UI; it's the consequential
           // actions (DB write, win claim, Discord) that wait for fresh
           // data.
-          finalizeAuctionClose(a, canWriteClose, setMembersRaw, addToast);
+          finalizeAuctionClose(a, setMembersRaw, addToast);
           return {...a, status:"ended"};
         }
         return a;
@@ -8775,7 +8805,12 @@ function CreateAuctionPanel({ ctx }) {
 // both Auctions (Live tab's "Put in News"/broadcast buttons) and
 // CreateAuctionPanel can build a Discord embed without duplicating the logic.
 function auctionImageUrl(auction) {
-  const dataUrl = auction?.image?.dataUrl;
+  // Falls back to _auctionImageCache: since the initial bulk load no longer
+  // eagerly fetches image_data (see loadAll), auction.image.dataUrl from
+  // shared ctx.auctions state is null until AuctionImage renders that item
+  // and lazily populates the cache — which, in practice, has already
+  // happened by the time a user can click "Put in News" on a visible card.
+  const dataUrl = auction?.image?.dataUrl || (auction?.id ? _auctionImageCache.get(String(auction.id)) : null);
   if (dataUrl && dataUrl.startsWith("http")) return dataUrl;
   return null;
 }
