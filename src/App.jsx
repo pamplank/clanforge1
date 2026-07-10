@@ -4785,6 +4785,14 @@ function AppInner({ onMusicTrackChange }) {
   // more auction "put in news" posts, all visible at once, each
   // independently dismissible). Each entry: {id, text, postedAt}.
   const [loginAnnouncements, setLoginAnnouncements] = useState([]);
+  // Weekly decay's clan-wide summary ("X% decay applied to all N members").
+  // Stored in app_state under "decay_announcements" (an array, capped
+  // server-side) instead of being appended to one arbitrary member's own
+  // tx_log — writing it into an individual's personal history made that
+  // member's own coins look wildly wrong against their My Points History
+  // (see check-weekly-decay.js), since the combined total has nothing to
+  // do with their own balance. Each entry: {date, ts, ratePct, memberCount, totalDecayed}.
+  const [decayAnnouncements, setDecayAnnouncements] = useState([]);
   // The one auction (if any) currently pulled out of the regular grid and
   // shown in its own spotlight banner at the top of the Auction House.
   // Stored in app_state under "featured_auction_id" (a single id, not an
@@ -4963,6 +4971,13 @@ function AppInner({ onMusicTrackChange }) {
         }
         const featuredRow = asRows.find(r => r.key === "featured_auction_id");
         if (featuredRow && featuredRow.value) setFeaturedAuctionId(featuredRow.value);
+        const decayAnnRow = asRows.find(r => r.key === "decay_announcements");
+        if (decayAnnRow) {
+          try {
+            const parsed = JSON.parse(decayAnnRow.value);
+            setDecayAnnouncements(Array.isArray(parsed) ? parsed : []);
+          } catch {}
+        }
       }
       // ── Restore session from localStorage ───────────────────────────────
       const savedId = localStorage.getItem("cf_user_id");
@@ -5842,7 +5857,7 @@ function AppInner({ onMusicTrackChange }) {
 
 
   const ctx = { members, setMembers, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
-    currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion, decayRate, setDecayRate, loginAnnouncements, setLoginAnnouncements, featuredAuctionId, setFeaturedAuctionId };
+    currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion, decayRate, setDecayRate, loginAnnouncements, setLoginAnnouncements, featuredAuctionId, setFeaturedAuctionId, decayAnnouncements };
 
   const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings"),"record-attendance":t("tabRecordAttendance"),"create-auction":t("tabCreateAuction")};
 
@@ -7125,7 +7140,7 @@ function Dashboard({ ctx, setPage }) {
 
 // ─── MEMBERS ──────────────────────────────────────────────────────────────────
 function Members({ ctx }) {
-  const { members, setMembers, currentUser, addToast, setModal } = ctx;
+  const { members, setMembers, currentUser, addToast, setModal, decayAnnouncements } = ctx;
   const { t } = useLang();
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState("All");
@@ -8610,11 +8625,23 @@ function Attendance({ ctx }) {
           {(()=>{
             // Show admin manual adds and all bonus entries
             const BONUS_TYPES = new Set(["Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Bonus Points","Elder Request","Weekly Decay"]);
+            // Weekly decay's clan-wide summary lives in app_state
+            // (decayAnnouncements), not in any one member's tx_log — see
+            // the decayAnnouncements state comment. Older entries from
+            // before that fix still live in whichever member's tx_log
+            // happened to get picked that week; the "Weekly Decay" branch
+            // below still relabels those as "All Members" for display,
+            // but going forward new ones only come from decayAnnouncements.
+            const decayEntries = (decayAnnouncements||[]).map(entry=>({
+              date:entry.date,ts:entry.ts,member:t("allMembersLabel"),type:"Weekly Decay",
+              amount:-entry.totalDecayed,addedBy:"System",
+              reason:`${entry.ratePct}% weekly coin decay applied to all ${entry.memberCount} members`,cls:undefined,
+            }));
             const allEntries = members.flatMap(m=>
               (m.txLog||[])
                 .filter(entry=>entry.logType==="Admin Manual Add" || BONUS_TYPES.has(entry.logType) || (!entry.logType && entry.addedBy && entry.addedBy!=="System"))
                 .map(entry=>({date:entry.date,ts:entry.ts,member:entry.logType==="Weekly Decay"?t("allMembersLabel"):m.name,type:entry.logType||"Admin Manual Add",amount:entry.change,addedBy:entry.addedBy||"—",reason:entry.reason||"—",cls:m.cls}))
-            ).sort((a,b)=>logSortKey(b)-logSortKey(a)).slice(0,100);
+            ).concat(decayEntries).sort((a,b)=>logSortKey(b)-logSortKey(a)).slice(0,100);
             if (allEntries.length===0) return (
               <div style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noGlobalAdjustments")}</div>
             );
@@ -9312,12 +9339,17 @@ function Auctions({ ctx }) {
       return;
     }
 
-    // The bid genuinely succeeded — NOW it's safe to know who the
-    // previous bidder actually was (for the refund) and to apply coin
-    // changes, since placeBidAtomic already confirmed, inside the locked
-    // transaction, that this amount really did beat whatever was there.
-    const prevBidder = a.topBidder;
-    const prevRefund = prevBidder ? (a.currentBid || 0) : 0;
+    // The bid genuinely succeeded. The previous bidder/amount MUST come
+    // from place_bid_atomic's own response (captured inside its locked
+    // transaction), not from this browser's local `a` — `a` is only as
+    // fresh as this client's last 3s poll, and using it here silently
+    // refunded the WRONG member (whoever this stale cache still thought
+    // was winning) whenever another client's bid had already changed the
+    // real top bidder in the gap since this browser's last poll. That
+    // credited coins to someone who was no longer actually the outbid
+    // party, with no corresponding log entry — see scripts/fix_place_bid_atomic_refund_target.sql.
+    const prevBidder = result.prev_bidder || null;
+    const prevRefund = prevBidder ? (Number(result.prev_amount) || 0) : 0;
 
     // Apply both coin changes as ATOMIC database operations (see
     // adjustMemberCoinsAtomic above for why this matters) — this is the

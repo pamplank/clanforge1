@@ -56,8 +56,8 @@ export default async function handler(req, res) {
   try {
     const mostRecentScheduled = getLastTuesday7amGmt8();
 
-    // Fetch both last_decay_ts and decay_rate in one query, same table.
-    const stateRes = await fetch(`${SUPA_URL}/rest/v1/app_state?select=key,value&key=in.(last_decay_ts,decay_rate)`, {
+    // Fetch last_decay_ts, decay_rate, and decay_announcements in one query, same table.
+    const stateRes = await fetch(`${SUPA_URL}/rest/v1/app_state?select=key,value&key=in.(last_decay_ts,decay_rate,decay_announcements)`, {
       headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` },
     });
     const stateRows = await stateRes.json();
@@ -74,7 +74,7 @@ export default async function handler(req, res) {
 
     // Apply decay (decayRate, e.g. 0.05 = 5%) to every member, same math as
     // the old client-side logic, now using the configurable rate.
-    const membersRes = await fetch(`${SUPA_URL}/rest/v1/members?select=id,coins,decay_log,tx_log`, {
+    const membersRes = await fetch(`${SUPA_URL}/rest/v1/members?select=id,coins,decay_log`, {
       headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` },
     });
     const members = await membersRes.json();
@@ -121,24 +121,37 @@ export default async function handler(req, res) {
     let totalDecayed = 0;
     toUpdate.forEach((u) => { totalDecayed += u._amount; });
 
-    // Attach one consolidated tx_log announcement to the first member being
-    // updated this run (not just members[0] overall, since that member may
-    // already be done from a prior partial run) — matches the original
-    // "single combined row" behavior in the Global Points Log.
+    // ROOT CAUSE of members' balances looking wildly wrong against their own
+    // My Points History: this used to attach the clan-wide combined total
+    // to one arbitrary member's own tx_log (whichever happened to be first
+    // in toUpdate that run — different every week). That entry has nothing
+    // to do with that member's personal balance, but lived in their
+    // personal history anyway, making a reconciliation of their tx_log sum
+    // vs their real coins off by the entire clan's decay for the week.
+    // Fix: write it to app_state under "decay_announcements" instead — a
+    // genuine clan-wide log, not any one person's. The client merges this
+    // into the Global Points Log tab (see decayAnnouncements in App.jsx).
     if (toUpdate.length > 0) {
-      const firstUpdate = toUpdate[0];
-      const firstMember = members.find((m) => String(m.id) === String(firstUpdate.id));
-      let firstMemberTxLog = [];
+      let announcements = [];
       try {
-        const raw = firstMember?.tx_log;
-        firstMemberTxLog = typeof raw === "string" ? JSON.parse(raw) : (raw || []);
+        announcements = stateMap.decay_announcements ? JSON.parse(stateMap.decay_announcements) : [];
+        if (!Array.isArray(announcements)) announcements = [];
       } catch {}
-      firstMemberTxLog = [...firstMemberTxLog, {
-        change: -totalDecayed,
-        reason: `${ratePct}% weekly coin decay applied to all ${toUpdate.length} members`,
-        date: decayDate, logType: "Weekly Decay", addedBy: "System", ts: decayTs,
-      }];
-      firstUpdate.tx_log = JSON.stringify(firstMemberTxLog);
+      announcements.push({
+        date: decayDate, ts: decayTs, ratePct, memberCount: toUpdate.length, totalDecayed,
+      });
+      // Cap history so this app_state row doesn't grow unbounded.
+      if (announcements.length > 30) announcements = announcements.slice(-30);
+      await fetch(`${SUPA_URL}/rest/v1/app_state?on_conflict=key`, {
+        method: "POST",
+        headers: {
+          apikey: SUPA_KEY,
+          Authorization: `Bearer ${SUPA_KEY}`,
+          "Content-Type": "application/json",
+          Prefer: "resolution=merge-duplicates,return=minimal",
+        },
+        body: JSON.stringify({ key: "decay_announcements", value: JSON.stringify(announcements), updated_at: Date.now() }),
+      });
     }
 
     const results = await Promise.allSettled(
