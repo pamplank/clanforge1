@@ -9243,6 +9243,7 @@ function Auctions({ ctx }) {
   const [bidSubmitting, setBidSubmitting] = useState({});
   const [sortBy, setSortBy] = useState("default");
   const [viewMode, setViewMode] = useState("grid");
+  const [historyPage, setHistoryPage] = useState(0);
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
   const isMaster = currentUser.role==="Master";
   // Real mouse/trackpad hover only — excludes touchscreens. The auction
@@ -9280,6 +9281,19 @@ function Auctions({ ctx }) {
 
   const active = sortAuctions(auctions.filter(a=>a.status==="active"));
   const ended  = [...auctions.filter(a=>a.status==="ended")].sort((a,b)=>(b.endsAt||0)-(a.endsAt||0));
+  // ROOT CAUSE of the History tab locking up/lagging: this list used to
+  // render with zero pagination, in BOTH the desktop table and the
+  // duplicate mobile card list at once — and each row's AuctionImage
+  // fires its own independent fetch the instant it mounts (see
+  // AuctionImage's effect above), with no concurrency limit. With
+  // hundreds of ended auctions sitting in the 14-day retention window
+  // (see api/clear-auction-history.js), that's hundreds of DOM rows and
+  // hundreds of simultaneous network requests firing at once. Paginating
+  // caps both to whatever fits on one page.
+  const HISTORY_PAGE_SIZE = 15;
+  const historyTotalPages = Math.max(1, Math.ceil(ended.length / HISTORY_PAGE_SIZE));
+  const safeHistoryPage = Math.min(historyPage, historyTotalPages - 1);
+  const pagedEnded = ended.slice(safeHistoryPage*HISTORY_PAGE_SIZE, (safeHistoryPage+1)*HISTORY_PAGE_SIZE);
   // Pulled out of the grid entirely (not duplicated) once it's found here
   // — if the featured auction has since ended or been removed, this is
   // simply null and the grid renders exactly as it did before this
@@ -9743,7 +9757,7 @@ function Auctions({ ctx }) {
               <thead><tr><th>{t("colDateTime")}</th><th>{t("colItem")}</th><th>{t("colRarity")}</th><th>{t("colWinner")}</th><th>{t("colFinalBid")}</th></tr></thead>
               <tbody>
                 {ended.length===0 && <tr><td colSpan={5} style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noEndedAuctions")}</td></tr>}
-                {ended.map(a=>(
+                {pagedEnded.map(a=>(
                   <tr key={a.id}>
                     <td data-label="Date & Time" style={{fontWeight:500,whiteSpace:"nowrap"}}>{formatLogDateTime({ts:a.endsAt})}</td>
                     <td data-label="Item">
@@ -9762,12 +9776,19 @@ function Auctions({ ctx }) {
               </tbody>
             </table>
           </div>
+          {historyTotalPages>1 && (
+            <div style={{display:"flex",alignItems:"center",gap:10,padding:"14px 18px",borderTop:"1px solid var(--border)",justifyContent:"flex-end"}}>
+              <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:"var(--text-dim)"}}>{t("pageOf")} {safeHistoryPage+1} {t("ofLabel")} {historyTotalPages}</span>
+              <button className="btn btn-outline btn-sm" disabled={safeHistoryPage===0} onClick={()=>setHistoryPage(p=>p-1)} style={{opacity:safeHistoryPage===0?0.4:1}}>{t("prevPage")}</button>
+              <button className="btn btn-outline btn-sm" disabled={safeHistoryPage>=historyTotalPages-1} onClick={()=>setHistoryPage(p=>p+1)} style={{opacity:safeHistoryPage>=historyTotalPages-1?0.4:1}}>{t("nextPage")}</button>
+            </div>
+          )}
         </div>
 
         {/* Mobile card view */}
         <div className="attendance-card-view">
           {ended.length===0 && <div className="dash-subcard" style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noEndedAuctions")}</div>}
-          {ended.map(a=>(
+          {pagedEnded.map(a=>(
             <div key={`card-${a.id}`} className="dash-subcard" style={{marginBottom:10,padding:"14px 16px"}}>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
                 <div style={{width:36,height:36,borderRadius:3,overflow:"hidden",background:a.rarity==="epic"?"rgba(122,26,26,0.2)":"rgba(26,90,138,0.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
@@ -9791,6 +9812,13 @@ function Auctions({ ctx }) {
               </div>
             </div>
           ))}
+          {historyTotalPages>1 && (
+            <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 4px",justifyContent:"center"}}>
+              <button className="btn btn-outline btn-sm" disabled={safeHistoryPage===0} onClick={()=>setHistoryPage(p=>p-1)} style={{opacity:safeHistoryPage===0?0.4:1}}>{t("prevPage")}</button>
+              <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:"var(--text-dim)"}}>{safeHistoryPage+1} {t("ofLabel")} {historyTotalPages}</span>
+              <button className="btn btn-outline btn-sm" disabled={safeHistoryPage>=historyTotalPages-1} onClick={()=>setHistoryPage(p=>p+1)} style={{opacity:safeHistoryPage>=historyTotalPages-1?0.4:1}}>{t("nextPage")}</button>
+            </div>
+          )}
         </div>
         </>
       )}
