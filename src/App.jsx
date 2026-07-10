@@ -5786,7 +5786,7 @@ function AppInner({ onMusicTrackChange }) {
     const req = pendingCoinRequests.find(r=>r.id===reqId);
     if (!req) return;
     const change = req.type==="add" ? req.amount : -req.amount;
-    setMembers(ms=>ms.map(m=>m.id===req.memberId?{...m,coins:Math.max(0,m.coins+change),txLog:[...(m.txLog||[]),{change,reason:req.reason,date:new Date().toLocaleDateString(),logType:"Elder Request",addedBy:req.requestedBy,ts:Date.now()}]}:m));
+    setMembers(ms=>ms.map(m=>m.id===req.memberId?{...m,coins:m.coins+change,txLog:[...(m.txLog||[]),{change,reason:req.reason,date:new Date().toLocaleDateString(),logType:"Elder Request",addedBy:req.requestedBy,ts:Date.now()}]}:m));
     setPendingCoinRequests(prev=>prev.filter(r=>r.id!==reqId));
     deletedCoinReqIds.current.add(String(reqId));
     // If this delete fails, the request could reappear on the next poll and
@@ -11794,7 +11794,7 @@ function AdjustCoinsModal({ ctx }) {
     }
     const change=type==="add"?val:-val;
     const logType=reason.toLowerCase().includes("bonus")?"Bonus Points":"Admin Manual Add";
-    setMembers(ms=>ms.map(m=>m.id===member.id?{...m,coins:Math.max(0,m.coins+change),txLog:[...(m.txLog||[]),{change,reason:reason||"—",date:new Date().toLocaleDateString(),logType,addedBy:currentUser.name,ts:Date.now()}]}:m));
+    setMembers(ms=>ms.map(m=>m.id===member.id?{...m,coins:m.coins+change,txLog:[...(m.txLog||[]),{change,reason:reason||"—",date:new Date().toLocaleDateString(),logType,addedBy:currentUser.name,ts:Date.now()}]}:m));
     addToast(`${type==="add"?t("addedCoinsToast"):t("removedCoinsToast")} ${fmt(val)} ${type==="add"?t("coinsToLabel"):t("coinsFromLabel")} ${member.name}.`,type==="add"?"gold":"red",t("coinsAdjustedTitle"));
     setModal(null);
   }
@@ -12019,7 +12019,7 @@ function DeleteAttendanceModal({ ctx }) {
       const bonusRefund = (m.txLog||[]).filter(entry => entry.addedBy === "System" && entryTs != null && String(entry.ts) === String(entryTs)).reduce((s,entry)=>s+(entry.change||0),0);
       return {
         ...m,
-        coins: Math.max(0, m.coins - refund - bonusRefund),
+        coins: m.coins - refund - bonusRefund,
         attendance: Math.max(0, m.attendance - (matchingAttend.qualifier!=="afk" ? 1 : 0)),
         attendLog: (m.attendLog||[]).filter(e => e !== matchingAttend),
         txLog: (m.txLog||[]).filter(entry => !(entry.addedBy === "System" && entryTs != null && String(entry.ts) === String(entryTs))),

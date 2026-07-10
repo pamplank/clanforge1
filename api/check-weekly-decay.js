@@ -113,7 +113,10 @@ export default async function handler(req, res) {
         return;
       }
       const coins = Number(m.coins) || 0;
-      const d = Math.floor(coins * decayRate);
+      // Members can now carry a negative balance (see reset_coins_allow_negative.sql) -
+      // debt should only shrink when they actually earn points back, never
+      // erode on its own here, so decay is skipped entirely once coins <= 0.
+      const d = coins > 0 ? Math.floor(coins * decayRate) : 0;
       decayLog = [...decayLog, { amount: -d, date: decayDate, ts: decayTs }];
       toUpdate.push({ id: m.id, coins: coins - d, decay_log: JSON.stringify(decayLog), _amount: d });
     });
