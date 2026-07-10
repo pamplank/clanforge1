@@ -1341,6 +1341,33 @@ async function dbLoadAuctionImage(id) {
     return null;
   } catch { return null; }
 }
+// Every visible <AuctionImage> with an uncached photo mounts its own
+// dbLoadAuctionImage call — fine for a handful of rows, but paging through
+// Auction History can mount 15 of them at once, all racing the same
+// unbounded burst of requests as everything else's regular polling. That
+// burst is what was blowing the 8s fetchWithTimeout budget on totally
+// unrelated tables (members, auctions, bid_events, ...) and leaving pages
+// beyond the first couple looking broken. Capping how many image loads run
+// at once keeps a page turn from ever competing with the rest of the app's
+// traffic.
+const MAX_CONCURRENT_IMAGE_LOADS = 3;
+let _activeImageLoads = 0;
+const _imageLoadQueue = [];
+function _runNextImageLoad() {
+  if (_activeImageLoads >= MAX_CONCURRENT_IMAGE_LOADS) return;
+  const next = _imageLoadQueue.shift();
+  if (!next) return;
+  _activeImageLoads++;
+  dbLoadAuctionImage(next.id)
+    .then(next.resolve)
+    .finally(() => { _activeImageLoads--; _runNextImageLoad(); });
+}
+function queueLoadAuctionImage(id) {
+  return new Promise(resolve => {
+    _imageLoadQueue.push({ id, resolve });
+    _runNextImageLoad();
+  });
+}
 // Genuine cross-session lock for "has this auction's win already been
 // logged" — unlike checking a member's local txLog (which can't see
 // what a DIFFERENT browser tab/session just wrote a moment ago, the
@@ -3889,7 +3916,7 @@ function AuctionImage({ auction, alt="", style, fallback }) {
     if (!auction?.image?.name) return;
     if (!cacheKey) return;
     let cancelled = false;
-    dbLoadAuctionImage(cacheKey).then(row => {
+    queueLoadAuctionImage(cacheKey).then(row => {
       if (cancelled) return;
       if (row?.image_data) {
         _auctionImageCache.set(cacheKey, row.image_data);
