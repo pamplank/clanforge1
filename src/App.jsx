@@ -7140,7 +7140,7 @@ function Dashboard({ ctx, setPage }) {
 
 // ─── MEMBERS ──────────────────────────────────────────────────────────────────
 function Members({ ctx }) {
-  const { members, setMembers, currentUser, addToast, setModal, decayAnnouncements } = ctx;
+  const { members, setMembers, currentUser, addToast, setModal } = ctx;
   const { t } = useLang();
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState("All");
@@ -8161,7 +8161,7 @@ function RecordAttendancePanel({ ctx }) {
 
 function Attendance({ ctx }) {
   const { t } = useLang();
-  const { members, addToast, currentUser, attendanceLogs, setAttendanceLogs, setModal, decayRate } = ctx;
+  const { members, addToast, currentUser, attendanceLogs, setAttendanceLogs, setModal, decayRate, decayAnnouncements } = ctx;
   const [tab, setTab] = useState("logs");
   const [bonusSearch, setBonusSearch] = useState("");
   const [historyFilter, setHistoryFilter] = useState("All");
