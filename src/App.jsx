@@ -237,7 +237,7 @@ const TRANSLATIONS = {
     nextPage: "Next →",
     noWarriorMatch: "No warrior matches your search.",
     bonusRules: "Bonus Rules",
-    bonusRuleMajor: "Major Events — attend all 5 event types this week: ISB (×1), CA (×2), STI (×2), CS (×1), WB (×3):",
+    bonusRuleMajor: "Major Events — attend all 8 event types this week: ISB (×1), CA (×2), STI (×2), CS (×1), and all 4 World Bosses (×2 each):",
     bonusCoins300: "+300 Coins",
     bonusRuleSindri: "Sindri Veteran — attend 2× Sindri's Treasure Island per week for 5 weeks:",
     bonusCoins400: "+400 Coins",
@@ -795,7 +795,7 @@ const TRANSLATIONS = {
     nextPage: "下一页 →",
     noWarriorMatch: "没有符合搜索条件的勇士。",
     bonusRules: "奖励规则",
-    bonusRuleMajor: "重大活动 — 本周参加全部5种活动类型：ISB(×1)、CA(×2)、STI(×2)、CS(×1)、WB(×3)：",
+    bonusRuleMajor: "重大活动 — 本周参加全部8种活动类型：ISB(×1)、CA(×2)、STI(×2)、CS(×1)、4只世界首领各(×2)：",
     bonusCoins300: "+300 金币",
     bonusRuleSindri: "辛德里老兵 — 每周参加2次辛德里的宝藏岛，连续5周：",
     bonusCoins400: "+400 金币",
@@ -2360,11 +2360,19 @@ function BackgroundMusic({ desiredTrack }) {
 }
 
 const EVENTS = [
-  { id:"ISB", name:"Inter Server Battle", coins:100, color:"#e74c3c" },
-  { id:"CA",  name:"Clan Annihilation",   coins:40,  color:"#e67e22" },
-  { id:"CS",  name:"Clan Sanctuary",      coins:60,  color:"#3498db" },
-  { id:"STI", name:"Sindris Treasure Island", coins:40, color:"#9b59b6" },
-  { id:"WB",  name:"World Boss",          coins:10,  color:"#27ae60" },
+  { id:"ISB",  name:"Inter Server Battle", coins:100, color:"#e74c3c" },
+  { id:"CA",   name:"Clan Annihilation",   coins:40,  color:"#e67e22" },
+  { id:"CS",   name:"Clan Sanctuary",      coins:60,  color:"#3498db" },
+  { id:"STI",  name:"Sindris Treasure Island", coins:40, color:"#9b59b6" },
+  // World Boss used to be one generic entry covering Mon/Wed/Fri, which made
+  // recording attendance ambiguous once members started asking "which boss?"
+  // Split into the 4 actual named bosses, each appearing on its own 2 days
+  // a week (see WEEKLY_SCHEDULE) - RecordAttendancePanel lists these
+  // straight from this array, so admins now pick the real boss by name.
+  { id:"CWTD", name:"Canyon of the World Tree Depth", coins:10, color:"#27ae60" },
+  { id:"CN1F", name:"Canyon of Nidavellir 1f",         coins:10, color:"#16a085" },
+  { id:"COR",  name:"Crossroad of Ragnarok",           coins:10, color:"#2ecc71" },
+  { id:"F5F",  name:"Folkvang 5f",                     coins:10, color:"#1abc9c" },
 ];
 // ─── EVENT IMAGES (compressed WebP thumbnails) ────────────────────────────────
 const WORLDBOSS_IMG = "data:image/webp;base64,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";
@@ -2382,13 +2390,18 @@ const CLAN_ANNIHILATION_IMG = "data:image/webp;base64,UklGRuAXAABXRUJQVlA4INQXAA
 // per event; this is just a display reference to it.
 function coinsForEvent(id) { return EVENTS.find(e => e.id === id)?.coins ?? 0; }
 const WEEKLY_SCHEDULE = [
-  { day:"Sunday",    events:[{ name:"Clan Sanctuary",          time:"22:00",               img:CLANSANCTUARY_IMG,    get coins(){return coinsForEvent("CS");},  id:"CS"  }]},
-  { day:"Monday",    events:[{ name:"World Boss",              time:"Conqueror's Call",    img:WORLDBOSS_IMG,        get coins(){return coinsForEvent("WB");},  id:"WB"  }]},
+  { day:"Sunday",    events:[{ name:"Canyon of Nidavellir 1f",         time:"Conqueror's Call", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("CN1F");}, id:"CN1F" },
+                              { name:"Canyon of the World Tree Depth", time:"Conqueror's Call", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("CWTD");}, id:"CWTD" },
+                              { name:"Clan Sanctuary",                 time:"22:00",             img:CLANSANCTUARY_IMG, get coins(){return coinsForEvent("CS");}, id:"CS"  }]},
+  { day:"Monday",    events:[{ name:"Canyon of Nidavellir 1f",         time:"Conqueror's Call", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("CN1F");}, id:"CN1F" },
+                              { name:"Folkvang 5f",                    time:"Conqueror's Call", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("F5F");},  id:"F5F"  }]},
   { day:"Tuesday",   events:[{ name:"Inter-Server Battle",     time:"20:00",               img:SERVERBATTLE_IMG,     get coins(){return coinsForEvent("ISB");}, id:"ISB" }]},
-  { day:"Wednesday", events:[{ name:"World Boss",              time:"Conqueror's Call",    img:WORLDBOSS_IMG,        get coins(){return coinsForEvent("WB");},  id:"WB"  }]},
+  { day:"Wednesday", events:[{ name:"Canyon of the World Tree Depth", time:"Conqueror's Call", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("CWTD");}, id:"CWTD" },
+                              { name:"Crossroad of Ragnarok",          time:"Conqueror's Call", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("COR");},  id:"COR"  }]},
   { day:"Thursday",  events:[{ name:"Clan Annihilation",       time:"13:00",               img:CLAN_ANNIHILATION_IMG,get coins(){return coinsForEvent("CA");},  id:"CA"  },
                               { name:"Clan Annihilation",       time:"20:00",               img:CLAN_ANNIHILATION_IMG,get coins(){return coinsForEvent("CA");},  id:"CA"  }]},
-  { day:"Friday",    events:[{ name:"World Boss",              time:"Conqueror's Call",    img:WORLDBOSS_IMG,        get coins(){return coinsForEvent("WB");},  id:"WB"  }]},
+  { day:"Friday",    events:[{ name:"Folkvang 5f",             time:"Conqueror's Call", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("F5F");}, id:"F5F" },
+                              { name:"Crossroad of Ragnarok",   time:"Conqueror's Call", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("COR");}, id:"COR" }]},
   { day:"Saturday",  events:[{ name:"Sindris Treasure Island", time:"13:00",               img:SINDRIS_IMG,          get coins(){return coinsForEvent("STI");}, id:"STI" },
                               { name:"Sindris Treasure Island", time:"20:00",               img:SINDRIS_IMG,          get coins(){return coinsForEvent("STI");}, id:"STI" }]},
 ];
@@ -2399,13 +2412,16 @@ const EVENT_DESCRIPTIONS = {
   CA:  "Clan Annihilation — an all-out war between clans. Coordinate with your team to secure victory.",
   CS:  "Clan Sanctuary — defend your clan's territory and earn coins for every successful defence.",
   STI: "Sindris Treasure Island — race to collect treasures across the island before time runs out.",
-  WB:  "World Boss — unite the clan to bring down a powerful boss and share the spoils of battle.",
+  CWTD: "Canyon of the World Tree Depth — unite the clan to bring down this world boss and share the spoils of battle.",
+  CN1F: "Canyon of Nidavellir 1f — unite the clan to bring down this world boss and share the spoils of battle.",
+  COR:  "Crossroad of Ragnarok — unite the clan to bring down this world boss and share the spoils of battle.",
+  F5F:  "Folkvang 5f — unite the clan to bring down this world boss and share the spoils of battle.",
 };
 // Hoisted to module scope (was previously redeclared inside WorldBossSchedule)
 // so the compact banner teaser can share the exact same event colors instead
 // of maintaining a second copy that could drift out of sync.
-const EVENT_COLOR = { ISB:"#e74c3c", CA:"#e67e22", CS:"#3498db", STI:"#9b59b6", WB:"#27ae60" };
-const EVENT_GLOW  = { ISB:"rgba(231,76,60,0.45)", CA:"rgba(230,126,22,0.45)", CS:"rgba(52,152,219,0.45)", STI:"rgba(155,89,182,0.45)", WB:"rgba(39,174,96,0.45)" };
+const EVENT_COLOR = { ISB:"#e74c3c", CA:"#e67e22", CS:"#3498db", STI:"#9b59b6", CWTD:"#27ae60", CN1F:"#16a085", COR:"#2ecc71", F5F:"#1abc9c" };
+const EVENT_GLOW  = { ISB:"rgba(231,76,60,0.45)", CA:"rgba(230,126,22,0.45)", CS:"rgba(52,152,219,0.45)", STI:"rgba(155,89,182,0.45)", CWTD:"rgba(39,174,96,0.45)", CN1F:"rgba(22,160,133,0.45)", COR:"rgba(46,204,113,0.45)", F5F:"rgba(26,188,156,0.45)" };
 
 const SEED_MEMBERS = [
   { id:1, name:"ThomasShelby", username:"thomasshelby", password:"master123", role:"Master", cls:"Archer", power:123205, coins:0, attendance:0, joinDate:"2024-01-01", auctionWins:0, decayLog:[], txLog:[], attendLog:[], discord:"" },
@@ -8013,7 +8029,7 @@ function getWeekStartFor(refDate) {
 // responsible for calling setMembers(updatedMembers) and showing toasts.
 function performAttendancePayout(members, { ev, date, ts, present, qualifierMap }) {
   const weekStart = getWeekStartFor(date);
-  const EVENT_REQUIRED = { CA: 2, STI: 2, WB: 3 };
+  const EVENT_REQUIRED = { CA: 2, STI: 2, CWTD: 2, CN1F: 2, COR: 2, F5F: 2 };
   const totalEvents = EVENTS.length;
   function getAttendedIds(log) {
     const weekLog = log.filter(e=>{ const d=new Date(e.date); return !isNaN(d)&&d>=weekStart; });
@@ -8254,8 +8270,8 @@ function Attendance({ ctx }) {
     });
 
     // Build the set of "counted" events this week:
-    // CA requires 2x, STI requires 2x, WB requires 3x; all others require 1x.
-    const EVENT_REQUIRED = { CA: 2, STI: 2, WB: 3 };
+    // CA requires 2x, STI requires 2x, each World Boss requires 2x; all others require 1x.
+    const EVENT_REQUIRED = { CA: 2, STI: 2, CWTD: 2, CN1F: 2, COR: 2, F5F: 2 };
     const attendedIds = new Set();
     Object.entries(weekEventCounts).forEach(([id, count])=>{
       const required = EVENT_REQUIRED[id] || 1;
@@ -8490,7 +8506,7 @@ function Attendance({ ctx }) {
                     <div style={{height:4,background:"rgba(255,255,255,0.07)",borderRadius:2}}>
                       <div style={{height:4,borderRadius:2,background:"linear-gradient(90deg,var(--gold-dim),var(--gold-light))",width:`${Math.min(100,(b.attendedNames.size/b.totalEvents)*100)}%`,transition:"width 0.4s"}} />
                     </div>
-                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>ISB · CA×2 · STI×2 · CS · WB×3</div>
+                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>ISB · CA×2 · STI×2 · CS · CWTD×2 · CN1F×2 · COR×2 · F5F×2</div>
                   </div>
                   {/* Sindri Veteran */}
                   <div style={{marginBottom:10}}>
@@ -9991,6 +10007,8 @@ function Auctions({ ctx }) {
                         "World Boss":"#27ae60","Inter-Server Battle":"#e74c3c",
                         "Clan Sanctuary":"#3498db","Clan Annihilation":"#e67e22",
                         "Loot Distribution":"#c8922a",
+                        "Canyon of the World Tree Depth":"#27ae60","Canyon of Nidavellir 1f":"#16a085",
+                        "Crossroad of Ragnarok":"#2ecc71","Folkvang 5f":"#1abc9c",
                       };
                       const evColor=EVENT_COLOR_MAP[entry.eventLabel]||"#c8922a";
                       return(
