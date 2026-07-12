@@ -2390,18 +2390,18 @@ const CLAN_ANNIHILATION_IMG = "data:image/webp;base64,UklGRuAXAABXRUJQVlA4INQXAA
 // per event; this is just a display reference to it.
 function coinsForEvent(id) { return EVENTS.find(e => e.id === id)?.coins ?? 0; }
 const WEEKLY_SCHEDULE = [
-  { day:"Sunday",    events:[{ name:"Canyon of Nidavellir 1f",         time:"Conqueror's Call", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("CN1F");}, id:"CN1F" },
-                              { name:"Canyon of the World Tree Depth", time:"Conqueror's Call", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("CWTD");}, id:"CWTD" },
-                              { name:"Clan Sanctuary",                 time:"22:00",             img:CLANSANCTUARY_IMG, get coins(){return coinsForEvent("CS");}, id:"CS"  }]},
-  { day:"Monday",    events:[{ name:"Canyon of Nidavellir 1f",         time:"Conqueror's Call", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("CN1F");}, id:"CN1F" },
-                              { name:"Folkvang 5f",                    time:"Conqueror's Call", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("F5F");},  id:"F5F"  }]},
+  { day:"Sunday",    events:[{ name:"Canyon of Nidavellir 1f",         time:"1st Boss", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("CN1F");}, id:"CN1F" },
+                              { name:"Canyon of the World Tree Depth", time:"2nd Boss", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("CWTD");}, id:"CWTD" },
+                              { name:"Clan Sanctuary",                 time:"22:00",     img:CLANSANCTUARY_IMG, get coins(){return coinsForEvent("CS");}, id:"CS"  }]},
+  { day:"Monday",    events:[{ name:"Canyon of Nidavellir 1f",         time:"1st Boss", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("CN1F");}, id:"CN1F" },
+                              { name:"Folkvang 5f",                    time:"2nd Boss", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("F5F");},  id:"F5F"  }]},
   { day:"Tuesday",   events:[{ name:"Inter-Server Battle",     time:"20:00",               img:SERVERBATTLE_IMG,     get coins(){return coinsForEvent("ISB");}, id:"ISB" }]},
-  { day:"Wednesday", events:[{ name:"Canyon of the World Tree Depth", time:"Conqueror's Call", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("CWTD");}, id:"CWTD" },
-                              { name:"Crossroad of Ragnarok",          time:"Conqueror's Call", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("COR");},  id:"COR"  }]},
+  { day:"Wednesday", events:[{ name:"Canyon of the World Tree Depth", time:"1st Boss", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("CWTD");}, id:"CWTD" },
+                              { name:"Crossroad of Ragnarok",          time:"2nd Boss", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("COR");},  id:"COR"  }]},
   { day:"Thursday",  events:[{ name:"Clan Annihilation",       time:"13:00",               img:CLAN_ANNIHILATION_IMG,get coins(){return coinsForEvent("CA");},  id:"CA"  },
                               { name:"Clan Annihilation",       time:"20:00",               img:CLAN_ANNIHILATION_IMG,get coins(){return coinsForEvent("CA");},  id:"CA"  }]},
-  { day:"Friday",    events:[{ name:"Folkvang 5f",             time:"Conqueror's Call", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("F5F");}, id:"F5F" },
-                              { name:"Crossroad of Ragnarok",   time:"Conqueror's Call", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("COR");}, id:"COR" }]},
+  { day:"Friday",    events:[{ name:"Folkvang 5f",             time:"1st Boss", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("F5F");}, id:"F5F" },
+                              { name:"Crossroad of Ragnarok",   time:"2nd Boss", img:WORLDBOSS_IMG, get coins(){return coinsForEvent("COR");}, id:"COR" }]},
   { day:"Saturday",  events:[{ name:"Sindris Treasure Island", time:"13:00",               img:SINDRIS_IMG,          get coins(){return coinsForEvent("STI");}, id:"STI" },
                               { name:"Sindris Treasure Island", time:"20:00",               img:SINDRIS_IMG,          get coins(){return coinsForEvent("STI");}, id:"STI" }]},
 ];
