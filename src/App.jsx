@@ -9522,6 +9522,11 @@ function Auctions({ ctx }) {
     if (ok) {
       setLoginAnnouncements(next);
       addToast("Removed from the login news.", "gold", "Updated");
+    } else {
+      addToast(
+        <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't remove — please try again.</span>,
+        "red", "Remove Failed"
+      );
     }
   }
 
