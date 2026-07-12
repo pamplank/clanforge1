@@ -7769,7 +7769,17 @@ function LoginSummaryModal({ summary, memberName, announcements, onClose, onDism
     const stillVisible = (announcements || []).filter(a => !remaining.has(a.id));
     if (stillVisible.length === 0 && !summary) onClose();
   }
-  const visibleAnnouncements = (announcements || []).filter(a => !locallyDismissed.has(a.id));
+  // Auction-news cards are a static snapshot taken when an admin clicks
+  // "Post to News" (see postAuctionToNews) — nothing ever re-checks it
+  // against the auction's real live status, so an ended auction just sits
+  // here forever unless someone manually removes it. Filtering by endsAt
+  // here means it naturally drops off the moment it ends, no manual
+  // cleanup required, regardless of how stale the underlying stored list
+  // has gotten.
+  const visibleAnnouncements = (announcements || [])
+    .filter(a => !locallyDismissed.has(a.id))
+    .map(a => a.type === "auctions" ? { ...a, items: (a.items||[]).filter(i => (i.endsAt||0) > Date.now()) } : a)
+    .filter(a => a.type !== "auctions" || a.items.length > 0);
   return (
     <div className="modal-overlay" onClick={handleClose}>
       <div className="modal" style={{maxWidth:420,position:"relative",overflow:"hidden",padding:0}} onClick={e=>e.stopPropagation()}>
@@ -8974,10 +8984,16 @@ async function postAuctionToNews(auction, ctx) {
     // in there (re-clicking "Put in News" refreshes the bid/time shown
     // instead of creating a duplicate row), otherwise append it.
     const existing = list[existingIdx];
-    const itemIdx = existing.items.findIndex(i => i.auctionId === auction.id);
+    // Drop anything that's already ended while we're here, so this list
+    // doesn't grow forever from posts nobody ever manually removed - the
+    // one being posted right now is exempt even if its own endsAt is
+    // somehow already past, since posting it is an explicit request to
+    // show it.
+    const live = existing.items.filter(i => i.auctionId === auction.id || (i.endsAt||0) > Date.now());
+    const itemIdx = live.findIndex(i => i.auctionId === auction.id);
     const items = itemIdx >= 0
-      ? existing.items.map((it,i) => i===itemIdx ? snapshot : it)
-      : [...existing.items, snapshot];
+      ? live.map((it,i) => i===itemIdx ? snapshot : it)
+      : [...live, snapshot];
     next = list.map((a,i) => i===existingIdx ? {...a, items, postedAt: Date.now()} : a);
   } else {
     next = [...list, { id: Date.now(), type: "auctions", items: [snapshot], postedAt: Date.now() }];
