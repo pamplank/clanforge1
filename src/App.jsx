@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -182,6 +182,7 @@ const TRANSLATIONS = {
     colCharacter: "Character",
     colPower: "Power",
     colCoins: "Coins",
+    colBalance: "Balance",
     colAttend: "Attend.",
     colWins: "Wins",
     colRole: "Role",
@@ -256,6 +257,9 @@ const TRANSLATIONS = {
     isbProgress: "ISB events",
     myPointsHistoryTitle: "My Points History — Private",
     myPointsHistoryDesc: "Attendance, bonuses, admin coin adjustments, auction wins, and weekly decay. Only you can see this record.",
+    adminPointsHistoryTitle: "Points History",
+    adminPointsHistoryDesc: "Attendance, bonuses, admin coin adjustments, auction wins, and weekly decay for this member.",
+    adminOnlyLabel: "Admin Only",
     noPointsHistory: "No points history recorded yet.",
     noEntriesFilter: "No entries match this filter.",
     globalPointsTitle: "Global Points History",
@@ -740,6 +744,7 @@ const TRANSLATIONS = {
     colCharacter: "角色",
     colPower: "战力",
     colCoins: "金币",
+    colBalance: "余额",
     colAttend: "出勤",
     colWins: "胜场",
     colRole: "职位",
@@ -814,6 +819,9 @@ const TRANSLATIONS = {
     isbProgress: "次跨服战",
     myPointsHistoryTitle: "我的积分历史 — 私密",
     myPointsHistoryDesc: "出勤、奖励、管理员金币调整、拍卖获胜以及每周衰减。仅您本人可见此记录。",
+    adminPointsHistoryTitle: "积分历史",
+    adminPointsHistoryDesc: "该成员的出勤、奖励、管理员金币调整、拍卖获胜以及每周衰减记录。",
+    adminOnlyLabel: "仅管理员可见",
     noPointsHistory: "暂无积分历史记录。",
     noEntriesFilter: "没有符合此筛选条件的记录。",
     globalPointsTitle: "全局积分历史",
@@ -1743,7 +1751,15 @@ async function placeBidAtomic(auctionId, bidder, amount, minIncrement = 5) {
       },
       body: JSON.stringify({ p_auction_id: String(auctionId), p_bidder: bidder, p_amount: amount, p_min_increment: minIncrement }),
     });
-    if (!res.ok) throw new Error(`place_bid_atomic failed: HTTP ${res.status}`);
+    if (!res.ok) {
+      // Surface PostgREST/Postgres's own error body (e.g. a SQL exception
+      // message) instead of discarding it — a bare "HTTP 400" here gives
+      // no way to tell a genuine outbid from a real server-side failure,
+      // which is exactly what made this bug (bids always rejected, even
+      // with zero competing bidders) invisible until logged properly.
+      const bodyText = await res.text().catch(() => "");
+      throw new Error(`place_bid_atomic failed: HTTP ${res.status} ${bodyText}`);
+    }
     return await res.json();
   } catch (e) {
     console.error(`placeBidAtomic(${auctionId}, ${bidder}, ${amount}) failed:`, e);
@@ -2558,6 +2574,47 @@ function typeLabel(type, t) {
   const key = TYPE_LABEL_KEYS[type];
   return key ? t(key) : type;
 }
+
+// Merges a member's attendLog/decayLog/txLog into one chronological points-
+// history feed. Shared by the self-view "My Points History" tab (Attendance)
+// and the admin-only points-history panel on PlayerInfo, so both always stay
+// in sync instead of maintaining two copies of this merge logic.
+function buildPointsHistoryEntries(member, t) {
+  const attendEntries = (member.attendLog||[]).map(l=>({
+    date:l.date, ts:l.ts, type:"Attendance",
+    details:`${l.event}${l.qualifier&&l.qualifier!=="full"?` — ${l.qualifier}`:""}`,
+    coins:l.coins,
+  }));
+  const decayEntries = (member.decayLog||[]).map(d=>({
+    date:d.date, ts:d.ts, type:"Weekly Decay",
+    details:t("weeklyDecayDetail"),
+    coins:d.amount,
+  }));
+  const adjustmentEntries = (member.txLog||[]).filter(entry=>entry.logType!=="Weekly Decay").map(entry=>({
+    date:entry.date, ts:entry.ts, type:entry.logType||"Admin Manual Add",
+    details:entry.reason||"—",
+    coins:entry.change,
+  }));
+  const sorted = [...attendEntries, ...decayEntries, ...adjustmentEntries]
+    .sort((a,b)=>logSortKey(b)-logSortKey(a));
+  // Running balance column: anchored to the member's actual current coin
+  // total (always correct for the newest row), then walked backwards
+  // subtracting each entry's own delta to reconstruct what the balance was
+  // right after it landed. This is only as accurate as the log itself —
+  // a manual DB correction that was never mirrored into attendLog/decayLog/
+  // txLog would shift every "Balance" value before that point, even though
+  // the current total (and the newest row) is always right.
+  let running = member.coins;
+  sorted.forEach(e => { e.balanceAfter = running; running -= e.coins; });
+  return sorted;
+}
+function pointsHistoryBadgeClass(e) {
+  return e.type==="Attendance"?"badge-blue":e.type==="Weekly Decay"?"badge-red":e.type==="Auction Win"?"badge-silver":e.coins>=0?"badge-gold":"badge-red";
+}
+// Shared page size for the full-width history tabs (My Points History,
+// Global Points History) — same idea as MEMBERS_PAGE_SIZE, so a long log
+// renders as pages instead of one ever-growing table.
+const HISTORY_TAB_PAGE_SIZE = 10;
 
 // Maps a stored rarity key (always lowercase English: epic/rare/kari/material/uncommon) to its
 // translated display label. The stored value never changes — only the
@@ -6214,6 +6271,7 @@ function AppInner({ onMusicTrackChange }) {
                     member={members.find(m => m.id === globalViewingProfile) || globalViewingProfile}
                     members={members}
                     onBack={() => setGlobalViewingProfile(null)}
+                    viewerIsAdmin={isAdmin}
                   />
                 </motion.div>
               ) : (
@@ -7251,7 +7309,7 @@ function Members({ ctx }) {
 
   if (viewingProfile) {
     const liveMember = members.find(m => m.id === viewingProfile) || viewingProfile;
-    return <PlayerInfo member={liveMember} members={members} onBack={()=>setViewingProfile(null)} />;
+    return <PlayerInfo member={liveMember} members={members} onBack={()=>setViewingProfile(null)} viewerIsAdmin={isAdmin} />;
   }
 
   return (
@@ -8218,6 +8276,8 @@ function Attendance({ ctx }) {
   const [tab, setTab] = useState("logs");
   const [bonusSearch, setBonusSearch] = useState("");
   const [historyFilter, setHistoryFilter] = useState("All");
+  const [historyPage, setHistoryPage] = useState(0);
+  const [globalLogPage, setGlobalLogPage] = useState(0);
   const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
   const isMaster = currentUser.role==="Master";
   const [logPage, setLogPage] = useState(0);
@@ -8581,43 +8641,23 @@ function Attendance({ ctx }) {
             <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>{t("myPointsHistoryDesc")}</div>
           </div>
           {(()=>{
-            // Attendance entries
-            const attendEntries = (currentUser.attendLog||[]).map(l=>({
-              date:l.date, ts:l.ts, type:"Attendance",
-              details:`${l.event}${l.qualifier&&l.qualifier!=="full"?` — ${l.qualifier}`:""}`,
-              coins:l.coins,
-            }));
-            // This member's own weekly decay deductions (kept separate from
-            // the single combined "All Members" announcement in the Global
-            // Points Log, so each person sees their own actual amount here)
-            const decayEntries = (currentUser.decayLog||[]).map(d=>({
-              date:d.date, ts:d.ts, type:"Weekly Decay",
-              details:t("weeklyDecayDetail"),
-              coins:d.amount,
-            }));
-            // Bonuses, admin manual adds/removes, Elder requests, auction wins —
-            // everything in txLog except the combined "All Members" decay
-            // announcement, which isn't this member's personal figure.
-            const adjustmentEntries = (currentUser.txLog||[]).filter(entry=>entry.logType!=="Weekly Decay").map(entry=>({
-              date:entry.date, ts:entry.ts, type:entry.logType||"Admin Manual Add",
-              details:entry.reason||"—",
-              coins:entry.change,
-            }));
-            const rawEntries = [...attendEntries, ...decayEntries, ...adjustmentEntries]
-              .sort((a,b)=>logSortKey(b)-logSortKey(a));
+            const rawEntries = buildPointsHistoryEntries(currentUser, t);
             // Build the filter options from whichever types actually appear,
             // preferring a sensible fixed order with anything unexpected tacked on.
             const PREFERRED_ORDER = ["Attendance","Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Bonus Points","Elder Request","Admin Manual Add","Auction Win","Weekly Decay"];
             const presentTypes = PREFERRED_ORDER.filter(type=>rawEntries.some(e=>e.type===type));
             rawEntries.forEach(e=>{ if(!presentTypes.includes(e.type)) presentTypes.push(e.type); });
-            const filteredEntries = (historyFilter==="All" ? rawEntries : rawEntries.filter(e=>e.type===historyFilter)).slice(0,40);
-            const badgeClass = (e) => e.type==="Attendance"?"badge-blue":e.type==="Weekly Decay"?"badge-red":e.type==="Auction Win"?"badge-silver":e.coins>=0?"badge-gold":"badge-red";
+            const filteredEntries = historyFilter==="All" ? rawEntries : rawEntries.filter(e=>e.type===historyFilter);
+            const totalPages = Math.max(1, Math.ceil(filteredEntries.length / HISTORY_TAB_PAGE_SIZE));
+            const safePage = Math.min(historyPage, totalPages-1);
+            const pagedEntries = filteredEntries.slice(safePage*HISTORY_TAB_PAGE_SIZE, (safePage+1)*HISTORY_TAB_PAGE_SIZE);
+            const badgeClass = pointsHistoryBadgeClass;
             return (
               <>
                 {presentTypes.length>0 && (
                   <div style={{display:"flex",gap:6,flexWrap:"wrap",padding:"12px 20px",borderBottom:"1px solid var(--border)"}}>
                     {["All",...presentTypes].map(filterType=>(
-                      <button key={filterType} className={`btn btn-sm ${historyFilter===filterType?"btn-gold":"btn-outline"}`} onClick={()=>setHistoryFilter(filterType)}>{filterType}</button>
+                      <button key={filterType} className={`btn btn-sm ${historyFilter===filterType?"btn-gold":"btn-outline"}`} onClick={()=>{setHistoryFilter(filterType);setHistoryPage(0);}}>{filterType}</button>
                     ))}
                   </div>
                 )}
@@ -8629,21 +8669,22 @@ function Attendance({ ctx }) {
                   <>
                   <div className="table-wrap attendance-table-view">
                     <table className="table-stack">
-                      <thead><tr><th>{t("colDateTime")}</th><th>{t("colType")}</th><th>{t("colDetails")}</th><th>{t("colCoins")}</th></tr></thead>
+                      <thead><tr><th>{t("colDateTime")}</th><th>{t("colType")}</th><th>{t("colDetails")}</th><th>{t("colCoins")}</th><th>{t("colBalance")}</th></tr></thead>
                       <tbody>
-                        {filteredEntries.map((e,i)=>(
+                        {pagedEntries.map((e,i)=>(
                           <tr key={i}>
                             <td data-label="Date & Time" style={{fontWeight:500,whiteSpace:"nowrap"}}>{formatLogDateTime(e)}</td>
                             <td data-label="Type"><span className={`badge ${badgeClass(e)}`}>{typeLabel(e.type,t)}</span></td>
                             <td data-label="Details" style={{fontFamily:"'Inter',sans-serif",fontWeight:600}}>{e.details}</td>
                             <td data-label="Coins" style={{fontFamily:"'Inter',sans-serif",fontWeight:800,color:e.coins>=0?"var(--gold-light)":"#e07070"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={22}/>{e.coins>0?`+${e.coins}`:e.coins}</span></td>
+                            <td data-label="Balance" style={{fontFamily:"'Inter',sans-serif",fontWeight:700,color:"var(--text-mid)"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={18}/>{fmt(e.balanceAfter)}</span></td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                   <div className="attendance-card-view" style={{padding:"4px 16px 16px"}}>
-                    {filteredEntries.map((e,i)=>(
+                    {pagedEntries.map((e,i)=>(
                       <div key={`card-${i}`} className="dash-subcard" style={{marginBottom:8,padding:"12px 14px"}}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:6}}>
                           <span className={`badge ${badgeClass(e)}`}>{typeLabel(e.type,t)}</span>
@@ -8653,9 +8694,23 @@ function Attendance({ ctx }) {
                           <span style={{fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:12,color:"var(--text-bright)",minWidth:0,overflow:"hidden",textOverflow:"ellipsis"}}>{e.details}</span>
                           <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:13,color:e.coins>=0?"var(--gold-light)":"#e07070",flexShrink:0,display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={18}/>{e.coins>0?`+${e.coins}`:e.coins}</span>
                         </div>
+                        <div style={{display:"flex",justifyContent:"flex-end",marginTop:4}}>
+                          <span style={{fontSize:10,color:"var(--text-dim)"}}>{t("colBalance")}: <span style={{color:"var(--text-mid)",fontWeight:700}}>{fmt(e.balanceAfter)}</span></span>
+                        </div>
                       </div>
                     ))}
                   </div>
+                  {totalPages>1 && (
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 20px",gap:8,borderTop:"1px solid var(--border)"}}>
+                      <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
+                        {safePage*HISTORY_TAB_PAGE_SIZE+1}&ndash;{Math.min((safePage+1)*HISTORY_TAB_PAGE_SIZE,filteredEntries.length)} {t("ofPagination")} {filteredEntries.length}
+                      </span>
+                      <div style={{display:"flex",gap:6}}>
+                        <button className="btn btn-outline btn-sm" disabled={safePage===0} onClick={()=>setHistoryPage(p=>p-1)} style={{opacity:safePage===0?0.4:1,fontSize:10,padding:"3px 10px"}}>{t("prevPage")}</button>
+                        <button className="btn btn-outline btn-sm" disabled={safePage>=totalPages-1} onClick={()=>setHistoryPage(p=>p+1)} style={{opacity:safePage>=totalPages-1?0.4:1,fontSize:10,padding:"3px 10px"}}>{t("nextPage")}</button>
+                      </div>
+                    </div>
+                  )}
                   </>
                 )}
               </>
@@ -8694,17 +8749,20 @@ function Attendance({ ctx }) {
               (m.txLog||[])
                 .filter(entry=>entry.logType==="Admin Manual Add" || BONUS_TYPES.has(entry.logType) || (!entry.logType && entry.addedBy && entry.addedBy!=="System"))
                 .map(entry=>({date:entry.date,ts:entry.ts,member:entry.logType==="Weekly Decay"?t("allMembersLabel"):m.name,type:entry.logType||"Admin Manual Add",amount:entry.change,addedBy:entry.addedBy||"—",reason:entry.reason||"—",cls:m.cls}))
-            ).concat(decayEntries).sort((a,b)=>logSortKey(b)-logSortKey(a)).slice(0,100);
+            ).concat(decayEntries).sort((a,b)=>logSortKey(b)-logSortKey(a));
             if (allEntries.length===0) return (
               <div style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noGlobalAdjustments")}</div>
             );
+            const totalPages = Math.max(1, Math.ceil(allEntries.length / HISTORY_TAB_PAGE_SIZE));
+            const safePage = Math.min(globalLogPage, totalPages-1);
+            const pagedEntries = allEntries.slice(safePage*HISTORY_TAB_PAGE_SIZE, (safePage+1)*HISTORY_TAB_PAGE_SIZE);
             return (
               <>
               <div className="table-wrap attendance-table-view">
                 <table className="table-stack">
                   <thead><tr><th>{t("colDateTime")}</th><th>{t("colMember")}</th><th>{t("colType")}</th><th>{t("colAmount")}</th><th>{t("colAddedBy")}</th><th>{t("colReason")}</th></tr></thead>
                   <tbody>
-                    {allEntries.map((entry,i)=>(
+                    {pagedEntries.map((entry,i)=>(
                       <tr key={i}>
                         <td data-label="Date & Time" style={{fontWeight:500,whiteSpace:"nowrap"}}>{formatLogDateTime(entry)}</td>
                         <td data-label="Member" style={{fontFamily:"'Inter',sans-serif",fontWeight:700,color:"var(--text-bright)"}}>{entry.member}</td>
@@ -8718,7 +8776,7 @@ function Attendance({ ctx }) {
                 </table>
               </div>
               <div className="attendance-card-view" style={{padding:"4px 16px 16px"}}>
-                {allEntries.map((entry,i)=>(
+                {pagedEntries.map((entry,i)=>(
                   <div key={`card-${i}`} className="dash-subcard" style={{marginBottom:8,padding:"12px 14px"}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:6}}>
                       <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:13,color:"var(--text-bright)"}}>{entry.member}</span>
@@ -8735,6 +8793,17 @@ function Attendance({ ctx }) {
                   </div>
                 ))}
               </div>
+              {totalPages>1 && (
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 20px",gap:8,borderTop:"1px solid var(--border)"}}>
+                  <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
+                    {safePage*HISTORY_TAB_PAGE_SIZE+1}&ndash;{Math.min((safePage+1)*HISTORY_TAB_PAGE_SIZE,allEntries.length)} {t("ofPagination")} {allEntries.length}
+                  </span>
+                  <div style={{display:"flex",gap:6}}>
+                    <button className="btn btn-outline btn-sm" disabled={safePage===0} onClick={()=>setGlobalLogPage(p=>p-1)} style={{opacity:safePage===0?0.4:1,fontSize:10,padding:"3px 10px"}}>{t("prevPage")}</button>
+                    <button className="btn btn-outline btn-sm" disabled={safePage>=totalPages-1} onClick={()=>setGlobalLogPage(p=>p+1)} style={{opacity:safePage>=totalPages-1?0.4:1,fontSize:10,padding:"3px 10px"}}>{t("nextPage")}</button>
+                  </div>
+                </div>
+              )}
               </>
             );
           })()}
@@ -10569,66 +10638,126 @@ function ProfileCard({ member, onClick, prestigeRank }) {
 // Browsers block autoplay-with-sound, but these clips have no audio track
 // (muted video), so autoplay works immediately with no unlock-on-click
 // step needed — unlike the background music elsewhere in the app.
-function RankOneVideoBackdrop({ assets }) {
+// Fallback height for the video's own "stage" inside the backdrop, used
+// only until PlayerInfo has measured the Overview tab's real rendered
+// height (see overviewHeight there) — matches rank1-hero-wrapper's
+// minHeight, the size this was originally tuned to look right at.
+const RANK1_HERO_HEIGHT = 640;
+// How tall the fade seam is where the video stage blends into the solid
+// black fill below it.
+const RANK1_FADE_HEIGHT = 160;
+function RankOneVideoBackdrop({ assets, stageHeight = RANK1_HERO_HEIGHT }) {
   const videoRef = useRef(null);
   const { phase, onEnded } = useIntroThenLoopVideo(videoRef, assets);
 
   // This outer div is sized to the ENTIRE outer .card (top:0/bottom:0),
-  // which includes the sidebar+stats AND the events/recent-activity
-  // section further down — intentional, so the bg still image bleeds
-  // through behind those lower cards too. The video is height:100% of
-  // that same full-card height too — it used to be capped shorter to
-  // stop it stretching to match the card, but once the card's overall
-  // height was brought back under control (rank1-hero-wrapper's
-  // minHeight reduced from 760 to 640, plus top-aligning instead of
-  // centering below), the mismatch that caused was the video visibly
-  // ending partway down the card, well before the events section, with
-  // nothing but the flat bg image behind the remaining space. Matching
-  // it back to 100% again removes that seam — the video now runs the
-  // full height of the card, same as the bg image already does.
+  // which includes the sidebar+stats AND the events/points-history
+  // section further down. It USED to stretch the video itself to that
+  // same full height (video height:100% of this div) so the video kept
+  // "bleeding through" no matter how tall that section grew — but that
+  // meant paging through a member's Points History (or just switching
+  // tabs) visibly resized/rescaled the video itself. Instead, the video
+  // now plays inside a FIXED-height stage (stageHeight — the Overview
+  // tab's own real rendered height, measured by PlayerInfo, since that's
+  // the size that already looked right and shouldn't move), and anything
+  // taller than that (i.e. only when Points History needs more room) is
+  // solid black with a soft fade seam instead of the video stretching.
   return (
     <div style={{
       position:"absolute", top:0, left:0, right:0, bottom:0,
       overflow:"hidden", borderRadius:8,
       pointerEvents:"none", zIndex:0,
       background:"var(--bg-void)",
-      display:"flex", justifyContent:"center", alignItems:"flex-start",
     }}>
-      <img src={assets.bg} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} />
-      <video
-        ref={videoRef}
-        autoPlay muted playsInline
-        loop={phase === "loop"}
-        onEnded={onEnded}
-        style={{
-          position:"relative",
-          top: assets.shiftY || 0,
-          height:"100%", width:"auto", aspectRatio:"1/1",
-          objectFit:"cover",
-          // Per-class zoom/reframe — each class's source video was shot
-          // with its own framing, so the character doesn't necessarily
-          // fill a 1:1 crop the same way Archer's does. scale zooms in
-          // (character reads larger). transformOrigin controls which edge
-          // the zoom expands FROM — default "center top" means the zoom
-          // grows downward from the top edge, keeping the head in frame
-          // (the overflow that used to clip it happened because scale()
-          // expands from the center by default, pushing the top out of
-          // the overflow:hidden container by just as much as the bottom).
-          // shiftY is a plain top offset (unaffected by scale/transform-
-          // origin math) for closing/opening a gap between the video's
-          // own top edge and the container's — negative pulls it up.
-          // All default to no-op values so Archer (already correct) is
-          // untouched.
-          transform: `scale(${assets.scale || 1})`,
-          transformOrigin: assets.focus || "center top",
-        }}
-      />
+      <div style={{
+        position:"absolute", top:0, left:0, right:0, height:stageHeight,
+        display:"flex", justifyContent:"center", alignItems:"flex-start",
+        overflow:"hidden",
+      }}>
+        <img src={assets.bg} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} />
+        <video
+          ref={videoRef}
+          autoPlay muted playsInline
+          loop={phase === "loop"}
+          onEnded={onEnded}
+          style={{
+            position:"relative",
+            top: assets.shiftY || 0,
+            height:"100%", width:"auto", aspectRatio:"1/1",
+            objectFit:"cover",
+            // Per-class zoom/reframe — each class's source video was shot
+            // with its own framing, so the character doesn't necessarily
+            // fill a 1:1 crop the same way Archer's does. scale zooms in
+            // (character reads larger). transformOrigin controls which edge
+            // the zoom expands FROM — default "center top" means the zoom
+            // grows downward from the top edge, keeping the head in frame
+            // (the overflow that used to clip it happened because scale()
+            // expands from the center by default, pushing the top out of
+            // the overflow:hidden container by just as much as the bottom).
+            // shiftY is a plain top offset (unaffected by scale/transform-
+            // origin math) for closing/opening a gap between the video's
+            // own top edge and the container's — negative pulls it up.
+            // All default to no-op values so Archer (already correct) is
+            // untouched.
+            transform: `scale(${assets.scale || 1})`,
+            transformOrigin: assets.focus || "center top",
+          }}
+        />
+      </div>
+      {/* Solid black fill for whatever extra height the card grows to
+          below the fixed video stage (e.g. a long Points History page),
+          instead of the video scaling to cover it. */}
+      <div style={{position:"absolute", top:stageHeight, left:0, right:0, bottom:0, background:"var(--bg-void)"}} />
+      {/* Fade seam blending the bottom of the video stage into that black
+          fill, so the cutoff reads as intentional instead of an abrupt edge. */}
+      <div style={{
+        position:"absolute", top:stageHeight-RANK1_FADE_HEIGHT, left:0, right:0, height:RANK1_FADE_HEIGHT,
+        background:"linear-gradient(to bottom, transparent 0%, var(--bg-void) 100%)",
+      }} />
       {/* Vignette anchored to the CONTAINER's own edges (not the video's
           rendered box) — fades in from each side of the whole backdrop
           toward transparent in the middle. */}
       <div style={{
         position:"absolute", inset:0, zIndex:1,
         background:"linear-gradient(90deg, rgba(0,0,0,0.9) 0%, transparent 48%, transparent 52%, rgba(0,0,0,0.9) 100%)",
+      }} />
+    </div>
+  );
+}
+
+// Same fixed-stage/black-fill/fade treatment as RankOneVideoBackdrop,
+// applied to the static class-photo background used for top-10-by-Power
+// members who don't have video assets yet — it was previously just a
+// plain CSS `background` on the outer .card (backgroundSize:cover), which
+// meant the same visual problem as the video: switching to Points History
+// (or any content-height change) re-cropped/re-zoomed the image instead of
+// leaving it alone. stageHeight is the same Overview-measured height
+// PlayerInfo passes to the video backdrop, so both stay in sync.
+function TopTenPowerBackdrop({ src, stageHeight = RANK1_HERO_HEIGHT }) {
+  return (
+    <div style={{
+      position:"absolute", top:0, left:0, right:0, bottom:0,
+      overflow:"hidden", borderRadius:8,
+      pointerEvents:"none", zIndex:0,
+      background:"var(--bg-void)",
+    }}>
+      <div style={{position:"absolute", top:0, left:0, right:0, height:stageHeight, overflow:"hidden"}}>
+        <img src={src} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",objectPosition:"center"}} />
+      </div>
+      {/* Solid black fill + fade seam below the fixed stage — identical
+          mechanism to RankOneVideoBackdrop, so a long Points History page
+          doesn't stretch/re-crop the class photo either. */}
+      <div style={{position:"absolute", top:stageHeight, left:0, right:0, bottom:0, background:"var(--bg-void)"}} />
+      <div style={{
+        position:"absolute", top:stageHeight-RANK1_FADE_HEIGHT, left:0, right:0, height:RANK1_FADE_HEIGHT,
+        background:"linear-gradient(to bottom, transparent 0%, var(--bg-void) 100%)",
+      }} />
+      {/* Same darkening gradient the old composited `background` shorthand
+          used, now a separate overlay spanning the whole card so it reads
+          identically regardless of the stage/black-fill split. */}
+      <div style={{
+        position:"absolute", inset:0,
+        background:"linear-gradient(180deg, rgba(10,8,6,0.5) 0%, rgba(10,8,6,0.8) 60%, rgba(10,8,6,0.95) 100%)",
       }} />
     </div>
   );
@@ -10812,8 +10941,128 @@ function BattleStreakBanner({ tier, rank, member, valueLabel, valueText }) {
   );
 }
 
+// ─── ADMIN POINTS HISTORY PANEL (PlayerInfo) ──────────────────────────────────
+// Same data/merge logic as the self-view "My Points History" tab in
+// Attendance (buildPointsHistoryEntries), but scoped to whichever member's
+// profile is being viewed rather than always currentUser — only ever
+// rendered for Elders/Masters (see viewerIsAdmin on PlayerInfo below), so a
+// regular member can never see another member's coin/tx history this way.
+// Fixed small page size (rather than the self-view's "last 40" cap) so this
+// panel's height never grows with a member's log length — on the
+// video-hero profile layout, an unbounded/tall table here was pushing on
+// the shared row and resizing the video backdrop next to it.
+const POINTS_HISTORY_PAGE_SIZE = 8;
+function PointsHistoryPanel({ member, t }) {
+  const [filter, setFilter] = useState("All");
+  const [page, setPage] = useState(0);
+  useEffect(() => { setFilter("All"); setPage(0); }, [member.id]);
+  const rawEntries = buildPointsHistoryEntries(member, t);
+  const PREFERRED_ORDER = ["Attendance","Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Bonus Points","Elder Request","Admin Manual Add","Auction Win","Weekly Decay"];
+  const presentTypes = PREFERRED_ORDER.filter(type=>rawEntries.some(e=>e.type===type));
+  rawEntries.forEach(e=>{ if(!presentTypes.includes(e.type)) presentTypes.push(e.type); });
+  const filteredEntries = filter==="All" ? rawEntries : rawEntries.filter(e=>e.type===filter);
+  const totalPages = Math.max(1, Math.ceil(filteredEntries.length / POINTS_HISTORY_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages-1);
+  const pagedEntries = filteredEntries.slice(safePage*POINTS_HISTORY_PAGE_SIZE, (safePage+1)*POINTS_HISTORY_PAGE_SIZE);
+  return (
+    <div style={{
+      background:"rgba(10,8,6,0.82)",
+      border:"1px solid var(--border)",
+      borderRadius:4,padding:"18px 20px",
+    }}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:4}}>
+        <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>{t("adminPointsHistoryTitle")}</div>
+        <span className="badge badge-red" style={{fontSize:8}}>{t("adminOnlyLabel")}</span>
+      </div>
+      <div style={{fontSize:10.5,color:"var(--text-dim)",marginBottom:14}}>{t("adminPointsHistoryDesc")}</div>
+      {presentTypes.length>0 && (
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+          {["All",...presentTypes].map(filterType=>(
+            <button key={filterType} className={`btn btn-sm ${filter===filterType?"btn-gold":"btn-outline"}`} onClick={()=>{setFilter(filterType);setPage(0);}}>{filterType}</button>
+          ))}
+        </div>
+      )}
+      {rawEntries.length===0 ? (
+        <div style={{fontSize:12,color:"var(--text-dim)"}}>{t("noPointsHistory")}</div>
+      ) : filteredEntries.length===0 ? (
+        <div style={{fontSize:12,color:"var(--text-dim)"}}>{t("noEntriesFilter")}</div>
+      ) : (
+        <>
+          <div className="table-wrap attendance-table-view">
+            <table className="table-stack">
+              <thead><tr><th>{t("colDateTime")}</th><th>{t("colType")}</th><th>{t("colDetails")}</th><th>{t("colCoins")}</th><th>{t("colBalance")}</th></tr></thead>
+              <tbody>
+                {pagedEntries.map((e,i)=>(
+                  <tr key={i}>
+                    <td data-label="Date & Time" style={{fontWeight:500,whiteSpace:"nowrap"}}>{formatLogDateTime(e)}</td>
+                    <td data-label="Type"><span className={`badge ${pointsHistoryBadgeClass(e)}`}>{typeLabel(e.type,t)}</span></td>
+                    <td data-label="Details" style={{fontFamily:"'Inter',sans-serif",fontWeight:600}}>{e.details}</td>
+                    <td data-label="Coins" style={{fontFamily:"'Inter',sans-serif",fontWeight:800,color:e.coins>=0?"var(--gold-light)":"#e07070"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={18}/>{e.coins>0?`+${e.coins}`:e.coins}</span></td>
+                    <td data-label="Balance" style={{fontFamily:"'Inter',sans-serif",fontWeight:700,color:"var(--text-mid)"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={16}/>{fmt(e.balanceAfter)}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="attendance-card-view">
+            {pagedEntries.map((e,i)=>(
+              <div key={`card-${i}`} className="dash-subcard" style={{marginBottom:8,padding:"12px 14px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:6}}>
+                  <span className={`badge ${pointsHistoryBadgeClass(e)}`}>{typeLabel(e.type,t)}</span>
+                  <span style={{fontSize:10,color:"var(--text-dim)",whiteSpace:"nowrap"}}>{formatLogDateTime(e)}</span>
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+                  <span style={{fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:12,color:"var(--text-bright)",minWidth:0,overflow:"hidden",textOverflow:"ellipsis"}}>{e.details}</span>
+                  <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:13,color:e.coins>=0?"var(--gold-light)":"#e07070",flexShrink:0,display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={16}/>{e.coins>0?`+${e.coins}`:e.coins}</span>
+                </div>
+                <div style={{display:"flex",justifyContent:"flex-end",marginTop:4}}>
+                  <span style={{fontSize:10,color:"var(--text-dim)"}}>{t("colBalance")}: <span style={{color:"var(--text-mid)",fontWeight:700}}>{fmt(e.balanceAfter)}</span></span>
+                </div>
+              </div>
+            ))}
+          </div>
+          {totalPages>1 && (
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 4px 0",gap:8}}>
+              <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>
+                {safePage*POINTS_HISTORY_PAGE_SIZE+1}&ndash;{Math.min((safePage+1)*POINTS_HISTORY_PAGE_SIZE,filteredEntries.length)} {t("ofPagination")} {filteredEntries.length}
+              </span>
+              <div style={{display:"flex",gap:6}}>
+                <button className="btn btn-outline btn-sm" disabled={safePage===0} onClick={()=>setPage(p=>p-1)} style={{opacity:safePage===0?0.4:1,fontSize:10,padding:"3px 10px"}}>{t("prevPage")}</button>
+                <button className="btn btn-outline btn-sm" disabled={safePage>=totalPages-1} onClick={()=>setPage(p=>p+1)} style={{opacity:safePage>=totalPages-1?0.4:1,fontSize:10,padding:"3px 10px"}}>{t("nextPage")}</button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── PLAYER INFO PAGE ───────────────────────────────────────────────────────────
-function PlayerInfo({ member, members, onBack }) {
+function PlayerInfo({ member, members, onBack, viewerIsAdmin }) {
+  const { t } = useLang();
+  // Admin-only second tab for Points History — kept as a separate tab
+  // (instead of appending the panel straight onto the page) so a member
+  // with a long log doesn't turn this page into an endless scroll; only
+  // Elders/Masters ever see the tab strip at all, since viewerIsAdmin is
+  // false for everyone else.
+  const [profileTab, setProfileTab] = useState("overview");
+  // The video backdrop must stay pinned at whatever height the Overview
+  // tab naturally renders at (that's the size that was already "perfect"),
+  // rather than resizing whenever Points History's own content is a
+  // different height. Measured directly off the real DOM instead of a
+  // guessed constant, since a hardcoded number doesn't necessarily match
+  // this member's actual Overview content height. Only updated while
+  // Overview is showing; switching to Points History leaves it at its
+  // last-measured value so the video never moves because of that tab.
+  const heroCardRef = useRef(null);
+  const [overviewHeight, setOverviewHeight] = useState(RANK1_HERO_HEIGHT);
+  useLayoutEffect(() => {
+    if (profileTab !== "overview") return;
+    const el = heroCardRef.current;
+    if (!el) return;
+    setOverviewHeight(el.getBoundingClientRect().height);
+  }, [profileTab, member.id]);
   const now = Date.now();
   const [monthStart] = getMonthBoundaryGmt8(now, 0);
   const eventMaxThisMonth = getEventMaxForMonth(...getMonthBoundaryGmt8(now, 0));
@@ -10958,6 +11207,16 @@ function PlayerInfo({ member, members, onBack }) {
     absent:       { label: "Absent",       color: "var(--text-dim)", bg: "rgba(110,88,64,0.1)" },
   }[activityStatus];
 
+  // Only rendered for admins — a regular member's own profile view (or
+  // viewing someone else's) never shows a tab strip, since there's nothing
+  // to switch to.
+  const profileTabBar = viewerIsAdmin && (
+    <div style={{display:"flex",gap:6,marginBottom:12}}>
+      <button className={`btn btn-sm ${profileTab==="overview"?"btn-gold":"btn-outline"}`} onClick={()=>setProfileTab("overview")}>Overview</button>
+      <button className={`btn btn-sm ${profileTab==="pointsHistory"?"btn-gold":"btn-outline"}`} onClick={()=>setProfileTab("pointsHistory")}>{t("adminPointsHistoryTitle")}</button>
+    </div>
+  );
+
   return (
     <div style={{position:"relative",paddingTop:prestige?16:0}}>
       {prestige && (
@@ -11011,13 +11270,9 @@ function PlayerInfo({ member, members, onBack }) {
       )}
       <button className="btn btn-outline btn-sm" style={{marginBottom:16}} onClick={onBack}>Back</button>
 
-      <div className="card" style={{
+      <div ref={heroCardRef} className="card" style={{
         padding:24, marginBottom:20, position:"relative", overflow:"hidden",
-        background: rank1VideoAssets
-          ? "rgba(10,8,6,0.35)"
-          : isTop10Power
-          ? `linear-gradient(180deg, rgba(10,8,6,0.5) 0%, rgba(10,8,6,0.8) 60%, rgba(10,8,6,0.95) 100%), url(${PROFILE_CLASS_BG[member.cls]})`
-          : undefined,
+        background: rank1VideoAssets ? "rgba(10,8,6,0.35)" : undefined,
         backgroundSize:"cover", backgroundPosition:"center",
       }}>
         {/* Mounted at the OUTER card level (not scoped to just the hero
@@ -11037,8 +11292,16 @@ function PlayerInfo({ member, members, onBack }) {
             handles narrow screens instead. */}
         {rank1VideoAssets && (
           <div className="rank1-desktop-backdrop">
-            <RankOneVideoBackdrop assets={rank1VideoAssets} />
+            <RankOneVideoBackdrop assets={rank1VideoAssets} stageHeight={overviewHeight} />
           </div>
+        )}
+        {/* Same fixed-stage treatment for ranks 4-10 (or 1-3 without video
+            assets yet), who get the static class photo instead of a video —
+            used to be a plain CSS background on this card (backgroundSize:
+            cover), which re-cropped/zoomed the photo any time the card's
+            height changed (e.g. switching to Points History). */}
+        {isTop10Power && !rank1VideoAssets && (
+          <TopTenPowerBackdrop src={PROFILE_CLASS_BG[member.cls]} stageHeight={overviewHeight} />
         )}
         {/* Mobile-only: a plain, full-width video band sitting above the
             normal stacked layout, instead of trying to force the
@@ -11074,7 +11337,7 @@ function PlayerInfo({ member, members, onBack }) {
             )}
           </div>
         )}
-        <div className="rank1-hero-wrapper" style={{position:"relative", minHeight: rank1VideoAssets ? 640 : undefined}}>
+        <div className="rank1-hero-wrapper" style={{position:"relative", minHeight: rank1VideoAssets ? RANK1_HERO_HEIGHT : undefined}}>
         {rank1VideoAssets && rank1Tagline && (
           <div className="rank1-video-caption" style={{
             // Back to the original absolute positioning — the banners
@@ -11198,55 +11461,62 @@ function PlayerInfo({ member, members, onBack }) {
 
           {!rank1VideoAssets && (
             <div className="player-info-main">
-              <div style={{
-                background: prestige?`${prestige.gradient[2]}30`:"rgba(255,255,255,0.02)",
-                border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
-                borderRadius:4,padding:"18px 20px",
-              }}>
-                <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:16}}>This Month's Events</div>
-                <div style={{display:"flex",flexDirection:"column",gap:14}}>
-                  {eventStats.map(s => (
-                    <div key={s.id} style={{display:"flex",alignItems:"center",gap:12}}>
-                      <div style={{color:"var(--gold)",flexShrink:0,width:16}}><s.icon size={15} /></div>
-                      <div style={{width:72,fontSize:10,color:"var(--text-dim)",flexShrink:0,lineHeight:1.2}}>{s.label}</div>
-                      <div style={{flex:1,height:8,background:"var(--border)",borderRadius:4,overflow:"hidden",minWidth:30}}>
-                        <div style={{
-                          width:`${Math.min(100,(s.attended/Math.max(1,s.max))*100)}%`,height:"100%",
-                          background:"linear-gradient(90deg, var(--gold-dim), var(--gold-bright))",
-                        }}/>
-                      </div>
-                      <div style={{width:40,fontSize:11,fontWeight:800,color:"var(--text-bright)",textAlign:"right",flexShrink:0}}>{s.attended}/{s.max}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{
-                background: prestige?`${prestige.gradient[2]}30`:"rgba(255,255,255,0.02)",
-                border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
-                borderRadius:4,padding:"18px 20px",marginTop:16,
-              }}>
-                <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:14}}>Recent Activity</div>
-                {recentActivity.length === 0 ? (
-                  <div style={{fontSize:12,color:"var(--text-dim)"}}>No attendance recorded yet.</div>
-                ) : (
-                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                    {recentActivity.map((entry, i) => (
-                      <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,paddingBottom:8,borderBottom:i<recentActivity.length-1?"1px solid var(--border)":"none"}}>
-                        <div>
-                          <div style={{fontSize:12,color:"var(--text-bright)",fontWeight:600}}>{entry.event}</div>
-                          <div style={{fontSize:10,color:"var(--text-dim)"}}>{entry.date}</div>
+              {profileTabBar}
+              {profileTab==="pointsHistory" ? (
+                <PointsHistoryPanel member={member} t={t} />
+              ) : (
+                <>
+                  <div style={{
+                    background: prestige?`${prestige.gradient[2]}30`:"rgba(255,255,255,0.02)",
+                    border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
+                    borderRadius:4,padding:"18px 20px",
+                  }}>
+                    <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:16}}>This Month's Events</div>
+                    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                      {eventStats.map(s => (
+                        <div key={s.id} style={{display:"flex",alignItems:"center",gap:12}}>
+                          <div style={{color:"var(--gold)",flexShrink:0,width:16}}><s.icon size={15} /></div>
+                          <div style={{width:72,fontSize:10,color:"var(--text-dim)",flexShrink:0,lineHeight:1.2}}>{s.label}</div>
+                          <div style={{flex:1,height:8,background:"var(--border)",borderRadius:4,overflow:"hidden",minWidth:30}}>
+                            <div style={{
+                              width:`${Math.min(100,(s.attended/Math.max(1,s.max))*100)}%`,height:"100%",
+                              background:"linear-gradient(90deg, var(--gold-dim), var(--gold-bright))",
+                            }}/>
+                          </div>
+                          <div style={{width:40,fontSize:11,fontWeight:800,color:"var(--text-bright)",textAlign:"right",flexShrink:0}}>{s.attended}/{s.max}</div>
                         </div>
-                        {entry.qualifier === "afk" ? (
-                          <span style={{fontSize:10,color:"var(--text-dim)",flexShrink:0,fontStyle:"italic"}}>AFK</span>
-                        ) : (
-                          <span style={{fontSize:12,fontWeight:700,color:"var(--gold-bright)",flexShrink:0}}>+{fmt(entry.coins||0)}</span>
-                        )}
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                )}
-              </div>
+
+                  <div style={{
+                    background: prestige?`${prestige.gradient[2]}30`:"rgba(255,255,255,0.02)",
+                    border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
+                    borderRadius:4,padding:"18px 20px",marginTop:16,
+                  }}>
+                    <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:14}}>Recent Activity</div>
+                    {recentActivity.length === 0 ? (
+                      <div style={{fontSize:12,color:"var(--text-dim)"}}>No attendance recorded yet.</div>
+                    ) : (
+                      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                        {recentActivity.map((entry, i) => (
+                          <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,paddingBottom:8,borderBottom:i<recentActivity.length-1?"1px solid var(--border)":"none"}}>
+                            <div>
+                              <div style={{fontSize:12,color:"var(--text-bright)",fontWeight:600}}>{entry.event}</div>
+                              <div style={{fontSize:10,color:"var(--text-dim)"}}>{entry.date}</div>
+                            </div>
+                            {entry.qualifier === "afk" ? (
+                              <span style={{fontSize:10,color:"var(--text-dim)",flexShrink:0,fontStyle:"italic"}}>AFK</span>
+                            ) : (
+                              <span style={{fontSize:12,fontWeight:700,color:"var(--gold-bright)",flexShrink:0}}>+{fmt(entry.coins||0)}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -11319,58 +11589,65 @@ function PlayerInfo({ member, members, onBack }) {
             below the wrapper entirely, there's no shared ancestor for the
             backdrop to bleed into. */}
         {rank1VideoAssets ? (
-          <div style={{position:"relative",zIndex:1,display:"flex",gap:16,flexWrap:"wrap",marginTop:16}}>
-            <div style={{
-              flex:"1 1 300px",
-              background:"rgba(10,8,6,0.82)",
-              border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
-              borderRadius:4,padding:"18px 20px",
-            }}>
-              <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:16}}>This Month's Events</div>
-              <div style={{display:"flex",flexDirection:"column",gap:14}}>
-                {eventStats.map(s => (
-                  <div key={s.id} style={{display:"flex",alignItems:"center",gap:12}}>
-                    <div style={{color:"var(--gold)",flexShrink:0,width:16}}><s.icon size={15} /></div>
-                    <div style={{width:72,fontSize:10,color:"var(--text-dim)",flexShrink:0,lineHeight:1.2}}>{s.label}</div>
-                    <div style={{flex:1,height:8,background:"var(--border)",borderRadius:4,overflow:"hidden",minWidth:30}}>
-                      <div style={{
-                        width:`${Math.min(100,(s.attended/Math.max(1,s.max))*100)}%`,height:"100%",
-                        background:"linear-gradient(90deg, var(--gold-dim), var(--gold-bright))",
-                      }}/>
-                    </div>
-                    <div style={{width:40,fontSize:11,fontWeight:800,color:"var(--text-bright)",textAlign:"right",flexShrink:0}}>{s.attended}/{s.max}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div style={{
-              flex:"1 1 300px",
-              background:"rgba(10,8,6,0.82)",
-              border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
-              borderRadius:4,padding:"18px 20px",
-            }}>
-              <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:14}}>Recent Activity</div>
-              {recentActivity.length === 0 ? (
-                <div style={{fontSize:12,color:"var(--text-dim)"}}>No attendance recorded yet.</div>
-              ) : (
-                <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                  {recentActivity.map((entry, i) => (
-                    <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,paddingBottom:8,borderBottom:i<recentActivity.length-1?"1px solid var(--border)":"none"}}>
-                      <div>
-                        <div style={{fontSize:12,color:"var(--text-bright)",fontWeight:600}}>{entry.event}</div>
-                        <div style={{fontSize:10,color:"var(--text-dim)"}}>{entry.date}</div>
+          <div style={{position:"relative",zIndex:1,marginTop:16}}>
+            {profileTabBar}
+            {profileTab==="pointsHistory" ? (
+              <PointsHistoryPanel member={member} t={t} />
+            ) : (
+              <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
+                <div style={{
+                  flex:"1 1 300px",
+                  background:"rgba(10,8,6,0.82)",
+                  border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
+                  borderRadius:4,padding:"18px 20px",
+                }}>
+                  <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:16}}>This Month's Events</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                    {eventStats.map(s => (
+                      <div key={s.id} style={{display:"flex",alignItems:"center",gap:12}}>
+                        <div style={{color:"var(--gold)",flexShrink:0,width:16}}><s.icon size={15} /></div>
+                        <div style={{width:72,fontSize:10,color:"var(--text-dim)",flexShrink:0,lineHeight:1.2}}>{s.label}</div>
+                        <div style={{flex:1,height:8,background:"var(--border)",borderRadius:4,overflow:"hidden",minWidth:30}}>
+                          <div style={{
+                            width:`${Math.min(100,(s.attended/Math.max(1,s.max))*100)}%`,height:"100%",
+                            background:"linear-gradient(90deg, var(--gold-dim), var(--gold-bright))",
+                          }}/>
+                        </div>
+                        <div style={{width:40,fontSize:11,fontWeight:800,color:"var(--text-bright)",textAlign:"right",flexShrink:0}}>{s.attended}/{s.max}</div>
                       </div>
-                      {entry.qualifier === "afk" ? (
-                        <span style={{fontSize:10,color:"var(--text-dim)",flexShrink:0,fontStyle:"italic"}}>AFK</span>
-                      ) : (
-                        <span style={{fontSize:12,fontWeight:700,color:"var(--gold-bright)",flexShrink:0}}>+{fmt(entry.coins||0)}</span>
-                      )}
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              )}
-            </div>
+
+                <div style={{
+                  flex:"1 1 300px",
+                  background:"rgba(10,8,6,0.82)",
+                  border:prestige?`1px solid ${prestige.gradient[1]}50`:"1px solid var(--border)",
+                  borderRadius:4,padding:"18px 20px",
+                }}>
+                  <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:14}}>Recent Activity</div>
+                  {recentActivity.length === 0 ? (
+                    <div style={{fontSize:12,color:"var(--text-dim)"}}>No attendance recorded yet.</div>
+                  ) : (
+                    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                      {recentActivity.map((entry, i) => (
+                        <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,paddingBottom:8,borderBottom:i<recentActivity.length-1?"1px solid var(--border)":"none"}}>
+                          <div>
+                            <div style={{fontSize:12,color:"var(--text-bright)",fontWeight:600}}>{entry.event}</div>
+                            <div style={{fontSize:10,color:"var(--text-dim)"}}>{entry.date}</div>
+                          </div>
+                          {entry.qualifier === "afk" ? (
+                            <span style={{fontSize:10,color:"var(--text-dim)",flexShrink:0,fontStyle:"italic"}}>AFK</span>
+                          ) : (
+                            <span style={{fontSize:12,fontWeight:700,color:"var(--gold-bright)",flexShrink:0}}>+{fmt(entry.coins||0)}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         ) : null}
       </div>
