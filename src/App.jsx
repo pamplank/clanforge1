@@ -8270,8 +8270,16 @@ function performAttendancePayout(members, { ev, date, ts, present, qualifierMap 
       bonusToasts.push({name:m.name,bonus:"Major Events",coins:300});
     }
     // ── ISB Veteran bonus (+500) ──
-    const isbCountNew = newAttendLog.filter(e=>e.event==="Inter-Server Battle"&&e.qualifier!=="afk").length;
-    const isbCountOld = (m.attendLog||[]).filter(e=>e.event==="Inter-Server Battle"&&e.qualifier!=="afk").length;
+    // ROOT CAUSE of "0/10 ISB events" for everyone despite real ISB
+    // attendance: this filtered on the literal string "Inter-Server
+    // Battle" (hyphenated), but attend_log entries are actually written
+    // with "Inter Server Battle" (space) -- see EVENT_NAME_TO_ID's own
+    // comment, which already exists specifically to paper over this exact
+    // naming inconsistency elsewhere in the app. Using that shared mapping
+    // here (like countEventAttendance already does) instead of a hardcoded
+    // spelling fixes it for both variants, present or future.
+    const isbCountNew = newAttendLog.filter(e=>EVENT_NAME_TO_ID[e.event]==="ISB"&&e.qualifier!=="afk").length;
+    const isbCountOld = (m.attendLog||[]).filter(e=>EVENT_NAME_TO_ID[e.event]==="ISB"&&e.qualifier!=="afk").length;
     if(isbCountNew>=10 && isbCountOld<10 && !alreadyReceivedThisWeek(m.txLog,"ISB Veteran Bonus")) {
       bonusCoins += 500;
       newTxLog.push({change:500,reason:"Reached 10 ISB events (ISB Veteran)",date,logType:"ISB Veteran Bonus",addedBy:"System",ts});
@@ -8493,8 +8501,9 @@ function Attendance({ ctx }) {
     });
     const stiQualWeeks = Object.values(stiByWeek).filter(c=>c>=2).length;
     const sindriVet = stiQualWeeks>=5;
-    // ISB Veteran: all-time ISB count
-    const isbCount = log.filter(e=>e.event==="Inter-Server Battle"&&e.qualifier!=="afk").length;
+    // ISB Veteran: all-time ISB count (see EVENT_NAME_TO_ID -- attend_log
+    // stores "Inter Server Battle", not the hyphenated schedule name)
+    const isbCount = log.filter(e=>EVENT_NAME_TO_ID[e.event]==="ISB"&&e.qualifier!=="afk").length;
     const isbVet = isbCount>=10;
     return {attendedAll,sindriVet,stiQualWeeks,isbVet,isbCount,recentEvents,totalEvents,attendedNames:attendedIds};
   }
