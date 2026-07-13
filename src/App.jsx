@@ -561,6 +561,7 @@ const TRANSLATIONS = {
     closeBtn: "Close",
     // ChangePasswordModal
     currentPasswordIncorrect: "Current password is incorrect.",
+    passwordChangeFailed: "Couldn't save your new password — please try again.",
     newPasswordEmpty: "New password cannot be empty.",
     passwordsNoMatch: "Passwords do not match.",
     passwordChangedSuccess: "Password changed successfully.",
@@ -1112,6 +1113,7 @@ const TRANSLATIONS = {
     rejectBtn: "✕ 拒绝",
     closeBtn: "关闭",
     currentPasswordIncorrect: "当前密码不正确。",
+    passwordChangeFailed: "保存新密码失败，请重试。",
     newPasswordEmpty: "新密码不能为空。",
     passwordsNoMatch: "两次输入的密码不一致。",
     passwordChangedSuccess: "密码已成功修改。",
@@ -1370,6 +1372,35 @@ async function verifyLogin(username, password) {
     console.error("verifyLogin failed:", e);
     return null;
   }
+}
+// Sets a member's password server-side via a SECURITY DEFINER RPC (see
+// scripts/set_member_password.sql) instead of ever putting `password` in a
+// generic members upsert payload — PostgreSQL requires SELECT on any
+// column an ON CONFLICT DO UPDATE writes to, which anon no longer has for
+// password (see MEMBER_ALL_COLS_NO_PASSWORD). Returns true on confirmed
+// success, false otherwise — callers should treat false as "the password
+// was NOT changed," not assume it landed.
+async function setMemberPasswordAtomic(memberId, newPassword, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetchWithTimeout(`${SUPA_URL}/rest/v1/rpc/set_member_password`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPA_KEY,
+          "Authorization": `Bearer ${SUPA_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ p_member_id: String(memberId), p_new_password: newPassword }),
+      });
+      if (!res.ok) throw new Error(`set_member_password failed: HTTP ${res.status}`);
+      return true;
+    } catch (e) {
+      if (attempt < retries) { await new Promise(r => setTimeout(r, 600 * (attempt + 1))); continue; }
+      console.error(`setMemberPasswordAtomic(${memberId}) failed after retries:`, e);
+      return false;
+    }
+  }
+  return false;
 }
 // auctions.image_data stores base64 image blobs that can be large enough
 // to cause "select=*" to hit the statement timeout. List/poll queries
@@ -5105,12 +5136,16 @@ function AppInner({ onMusicTrackChange }) {
         const seedFlag = "cf_seed_in_progress";
         if (!localStorage.getItem(seedFlag)) {
           localStorage.setItem(seedFlag, "1");
+          // password set via the dedicated RPC below, not in this upsert
+          // payload -- see set_member_password.sql for why including it
+          // here would 401 the whole seed write.
           await Promise.all(SEED_MEMBERS.map(m => dbUpsert("members", {
-            id: String(m.id), name: m.name, username: m.username, password: m.password,
+            id: String(m.id), name: m.name, username: m.username,
             role: m.role, cls: m.cls, power: m.power, coins: m.coins,
             attendance: m.attendance, join_date: m.joinDate, auction_wins: m.auctionWins,
             decay_log: "[]", tx_log: "[]", attend_log: "[]", discord: m.discord || "",
           })));
+          await Promise.all(SEED_MEMBERS.map(m => setMemberPasswordAtomic(String(m.id), m.password)));
         }
       } else {
         // mRows is null: the request failed/errored (e.g. Supabase project
@@ -5278,7 +5313,17 @@ function AppInner({ onMusicTrackChange }) {
       const next = typeof updater === "function" ? updater(prev) : updater;
       next.forEach(m => {
         const row = {
-          id: String(m.id), name: m.name, username: m.username, password: m.password,
+          // password deliberately NOT included here -- see set_member_password.sql:
+          // PostgreSQL's ON CONFLICT DO UPDATE (what this upsert becomes)
+          // requires SELECT on any column it SETs, which anon no longer
+          // has for password. Every write through this function used to
+          // send whatever this browser's local copy of m.password
+          // happened to be (usually undefined anyway, dropped by
+          // JSON.stringify, since password isn't loaded client-side
+          // anymore either) -- including it here at all would 401 the
+          // ENTIRE row's write the moment it was ever a real value.
+          // Password changes go through setMemberPasswordAtomic instead.
+          id: String(m.id), name: m.name, username: m.username,
           role: m.role, cls: m.cls, power: m.power,
           attendance: m.attendance, join_date: m.joinDate || m.join_date,
           auction_wins: m.auctionWins,
@@ -12219,10 +12264,27 @@ function AddMemberModal({ ctx }) {
   const { setModal, setMembers, addToast } = ctx;
   const { t } = useLang();
   const [form, setForm] = useState({name:"",username:"",password:"member123",cls:"Berserker",power:10000,role:"Member"});
-  function submit() {
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  async function submit() {
+    if (submittingRef.current) return;
     if(!form.name||!form.username){addToast(t("nameUsernameRequired"),"red",t("errorLabel"));return;}
-    const newM={id:Date.now(),name:form.name,username:form.username,password:form.password,cls:form.cls,power:parseInt(form.power)||10000,role:form.role,coins:0,attendance:0,auctionWins:0,joinDate:new Date().toLocaleDateString(),decayLog:[],txLog:[],attendLog:[],powerLog:[],discord:""};
+    submittingRef.current = true;
+    setSubmitting(true);
+    const newM={id:Date.now(),name:form.name,username:form.username,cls:form.cls,power:parseInt(form.power)||10000,role:form.role,coins:0,attendance:0,auctionWins:0,joinDate:new Date().toLocaleDateString(),decayLog:[],txLog:[],attendLog:[],powerLog:[],discord:""};
     setMembers(ms=>[...ms,newM]);
+    // Set the initial password via the dedicated RPC (see
+    // setMemberPasswordAtomic's own comment) — the row above was created
+    // WITHOUT a password at all, so without this the new member couldn't
+    // log in until someone manually set one.
+    const ok = await setMemberPasswordAtomic(newM.id, form.password);
+    submittingRef.current = false;
+    setSubmitting(false);
+    if (!ok) {
+      addToast(`${form.name} ${t("addedToClan")}, but the initial password couldn't be saved — set it manually.`, "red", t("errorLabel"));
+      setModal(null);
+      return;
+    }
     addToast(`${form.name} ${t("addedToClan")}`,"gold",t("memberAddedTitle"));
     setModal(null);
   }
@@ -12238,7 +12300,7 @@ function AddMemberModal({ ctx }) {
           <div className="form-group"><label className="form-label">{t("powerLevelLabel")}</label><input className="input" type="number" value={form.power} onChange={e=>setForm(p=>({...p,power:e.target.value}))} /></div>
           <div className="form-group"><label className="form-label">{t("roleLabel")}</label><select className="select" value={form.role} onChange={e=>setForm(p=>({...p,role:e.target.value}))}><option>Member</option><option>Elder</option></select></div>
         </div>
-        <div className="modal-footer"><button className="btn btn-outline" onClick={()=>setModal(null)}>{t("cancel")}</button><button className="btn btn-gold" onClick={submit}>{t("addMemberTitle")}</button></div>
+        <div className="modal-footer"><button className="btn btn-outline" onClick={()=>setModal(null)} disabled={submitting}>{t("cancel")}</button><button className="btn btn-gold" onClick={submit} disabled={submitting}>{submitting ? "…" : t("addMemberTitle")}</button></div>
       </div>
     </div>
   );
@@ -12363,7 +12425,7 @@ function PendingRequestsModal({ ctx }) {
 
 // ─── CHANGE PASSWORD MODAL ────────────────────────────────────────────────────
 function ChangePasswordModal({ ctx }) {
-  const { modal, setModal, setMembers, setCurrentUser, addToast, currentUser } = ctx;
+  const { modal, setModal, addToast } = ctx;
   const { t } = useLang();
   const target = modal.data;
   const [cur, setCur] = useState("");
@@ -12392,11 +12454,17 @@ function ChangePasswordModal({ ctx }) {
     }
     if (!pw) { submittingRef.current = false; setSubmitting(false); setErr(t("newPasswordEmpty")); return; }
     if (pw !== conf) { submittingRef.current = false; setSubmitting(false); setErr(t("passwordsNoMatch")); return; }
-    setMembers(ms => ms.map(m => m.id === target.id ? {...m, password: pw} : m));
-    if (currentUser.id === target.id) setCurrentUser(u => ({...u, password: pw}));
-    addToast(t("passwordChangedSuccess"), "gold", t("passwordUpdatedTitle"));
+    // Actually persists the new password — see setMemberPasswordAtomic's
+    // own comment for why this can no longer go through setMembers (which
+    // no longer writes password at all).
+    const ok = await setMemberPasswordAtomic(target.id, pw);
     submittingRef.current = false;
     setSubmitting(false);
+    if (!ok) {
+      setErr(t("passwordChangeFailed"));
+      return;
+    }
+    addToast(t("passwordChangedSuccess"), "gold", t("passwordUpdatedTitle"));
     setModal(null);
   }
 
