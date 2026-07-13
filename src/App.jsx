@@ -1278,9 +1278,22 @@ const supa = {
         return json;
       },
       async upsert(data) {
+        // members specifically needs return=minimal now: return=representation
+        // asks PostgREST to SELECT the row back after writing it, and since
+        // anon no longer has SELECT on members.password (see
+        // scripts/lock_down_password_column_v2.sql), that implicit
+        // select-back was failing with 42501 even on a fully successful
+        // write — confirmed live, this broke every member upsert (new
+        // members, password changes, coin/log syncs, everything) the
+        // instant the password column got locked down. No caller anywhere
+        // in this file actually uses the returned row data (checked before
+        // making this change), so return=minimal is a pure fix, not a
+        // behavior trade-off. Scoped to just "members" — every other table
+        // still gets the row back as before.
+        const preferReturn = table === "members" ? "return=minimal" : "return=representation";
         const res = await fetchWithTimeout(base, {
           method: "POST",
-          headers: { ...headers, "Prefer": "resolution=merge-duplicates,return=representation" },
+          headers: { ...headers, "Prefer": `resolution=merge-duplicates,${preferReturn}` },
           body: JSON.stringify(Array.isArray(data) ? data : [data]),
         });
         const json = await res.json().catch(() => null);
@@ -1331,6 +1344,33 @@ const supa = {
 async function dbLoad(table, columns="*") {
   try { const t = await supa.from(table); return await t.select(columns); } catch (e) { console.error(`dbLoad(${table}) failed:`, e); return null; }
 }
+// Checks a username/password against members.password SERVER-SIDE, via a
+// SECURITY DEFINER Postgres function (see scripts/verify_login.sql) that
+// can read the password column even though the anon key itself no longer
+// can (see MEMBER_ALL_COLS_NO_PASSWORD above for why that column got
+// locked down). Returns the matching member's id (string) on success, or
+// null on a bad username/password or any request failure — callers should
+// treat null as "not authenticated," not distinguish it from a network
+// error, so a transient failure never gets treated as a valid login.
+async function verifyLogin(username, password) {
+  try {
+    const res = await fetchWithTimeout(`${SUPA_URL}/rest/v1/rpc/verify_login`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPA_KEY,
+        "Authorization": `Bearer ${SUPA_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ p_username: username, p_password: password }),
+    });
+    if (!res.ok) throw new Error(`verify_login failed: HTTP ${res.status}`);
+    const matchedId = await res.json();
+    return typeof matchedId === "string" && matchedId ? matchedId : null;
+  } catch (e) {
+    console.error("verifyLogin failed:", e);
+    return null;
+  }
+}
 // auctions.image_data stores base64 image blobs that can be large enough
 // to cause "select=*" to hit the statement timeout. List/poll queries
 // fetch everything except image_data; fetch it separately per-item only
@@ -1347,6 +1387,15 @@ const AUCTION_LIST_COLS = "id,name,description,rarity,status,ends_at,started_at,
 // stay live (coins, power, etc.) are fetched on the fast 5s cycle below;
 // the full logs are fetched separately on a much slower cycle instead.
 const MEMBER_LIVE_COLS = "id,name,username,role,cls,power,coins,attendance,join_date,auction_wins,discord,profile_rarity,awakening_level,last_login_ts";
+// Every members column EXCEPT password — see verifyLogin/verify_login.sql:
+// the app used to fetch every member's plaintext password into every
+// visitor's browser (before anyone even logged in) just so LoginScreen
+// could compare it locally. That's also what made the password readable
+// to anyone who copied the public anon key out of the site's own JS
+// bundle and queried the table directly. Login/password-change now go
+// through the verify_login RPC (checks server-side, never returns the
+// password), so nothing client-side needs this column anymore.
+const MEMBER_ALL_COLS_NO_PASSWORD = "id,name,username,role,cls,power,coins,attendance,join_date,auction_wins,discord,profile_rarity,awakening_level,last_login_ts,decay_log,tx_log,attend_log,power_log";
 async function dbLoadAuctionImage(id) {
   try {
     const t = await supa.from("auctions");
@@ -4155,10 +4204,27 @@ function LoginScreen({ members, onLogin }) {
   const { t } = useLang();
   const [form, setForm] = useState({ username:"", password:"" });
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  // Plain state (submitting) re-renders too slowly to block a fast
+  // double-click/double-Enter before the button actually disables — same
+  // gap already found and fixed elsewhere in this app (AdjustCoinsModal,
+  // placeBid) via a synchronous ref instead.
+  const submittingRef = useRef(false);
 
-  function doLogin() {
+  async function doLogin() {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitting(true);
     setError("");
-    const m = members.find(m => m.username === form.username && m.password === form.password);
+    // Checked server-side now (see verifyLogin/verify_login.sql) instead
+    // of comparing against a locally-loaded members array — the anon key
+    // no longer has read access to the password column at all, since that
+    // column used to be readable by anyone who copied the public anon key
+    // out of the site's own JS bundle.
+    const matchedId = await verifyLogin(form.username, form.password);
+    const m = matchedId ? members.find(m => String(m.id) === matchedId) : null;
+    submittingRef.current = false;
+    setSubmitting(false);
     if (!m) { setError(t("invalidLogin")); return; }
     onLogin(m);
   }
@@ -4231,13 +4297,13 @@ function LoginScreen({ members, onLogin }) {
           {error && <div className="login-error">{error}</div>}
           <div className="form-group">
             <label className="form-label">{t("username")}</label>
-            <input className="input" placeholder={t("enterUsername")} value={form.username} onChange={e=>setForm(p=>({...p,username:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doLogin()} autoComplete="username" />
+            <input className="input" placeholder={t("enterUsername")} value={form.username} onChange={e=>setForm(p=>({...p,username:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doLogin()} autoComplete="username" disabled={submitting} />
           </div>
           <div className="form-group">
             <label className="form-label">{t("password")}</label>
-            <input className="input" type="password" placeholder={t("enterPassword")} value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doLogin()} autoComplete="current-password" />
+            <input className="input" type="password" placeholder={t("enterPassword")} value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doLogin()} autoComplete="current-password" disabled={submitting} />
           </div>
-          <button className="btn btn-gold" style={{width:"100%",justifyContent:"center",padding:"12px 20px"}} onClick={doLogin}>{t("enter")}</button>
+          <button className="btn btn-gold" style={{width:"100%",justifyContent:"center",padding:"12px 20px"}} onClick={doLogin} disabled={submitting}>{submitting ? "…" : t("enter")}</button>
         </div>
 
         {/* Addition 3 — Reigning Champion tag: current #1 by Power, name
@@ -4981,7 +5047,7 @@ function AppInner({ onMusicTrackChange }) {
     async function loadAll() {
     try {
       const [mRows, aRows, lRows, cRows, rRows, evRows, asRows] = await Promise.all([
-        dbLoad("members"),
+        dbLoad("members", MEMBER_ALL_COLS_NO_PASSWORD),
         // Deliberately NOT ",image_data" here — this fetches EVERY auction
         // row ever created (all-time history, no status/date filter), and
         // image_data can be a large base64 blob on older pre-bucket-storage
@@ -5474,7 +5540,7 @@ function AppInner({ onMusicTrackChange }) {
   // union-merge logic. 60s interval dramatically reduces egress from
   // the log arrays while still keeping history synced across tabs.
   useJitteredInterval(async () => {
-      const mRows = await dbLoad("members");
+      const mRows = await dbLoad("members", MEMBER_ALL_COLS_NO_PASSWORD);
       if (!Array.isArray(mRows) || mRows.length === 0) return;
       const safeJson = (v) => {
         if (Array.isArray(v)) return v;
@@ -12295,15 +12361,33 @@ function ChangePasswordModal({ ctx }) {
   const [pw, setPw] = useState("");
   const [conf, setConf] = useState("");
   const [err, setErr] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
-  function submit() {
+  async function submit() {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitting(true);
     setErr("");
-    if (cur !== target.password) { setErr(t("currentPasswordIncorrect")); return; }
-    if (!pw) { setErr(t("newPasswordEmpty")); return; }
-    if (pw !== conf) { setErr(t("passwordsNoMatch")); return; }
+    // This modal is always self-service (target === currentUser — see its
+    // only two call sites), so checking "does cur match MY password" is
+    // the same as verifying cur against target/currentUser's own login.
+    // Done server-side via verify_login now, same reason as LoginScreen:
+    // target.password no longer exists client-side at all.
+    const matchedId = await verifyLogin(target.username, cur);
+    if (matchedId !== String(target.id)) {
+      submittingRef.current = false;
+      setSubmitting(false);
+      setErr(t("currentPasswordIncorrect"));
+      return;
+    }
+    if (!pw) { submittingRef.current = false; setSubmitting(false); setErr(t("newPasswordEmpty")); return; }
+    if (pw !== conf) { submittingRef.current = false; setSubmitting(false); setErr(t("passwordsNoMatch")); return; }
     setMembers(ms => ms.map(m => m.id === target.id ? {...m, password: pw} : m));
     if (currentUser.id === target.id) setCurrentUser(u => ({...u, password: pw}));
     addToast(t("passwordChangedSuccess"), "gold", t("passwordUpdatedTitle"));
+    submittingRef.current = false;
+    setSubmitting(false);
     setModal(null);
   }
 
@@ -12318,20 +12402,20 @@ function ChangePasswordModal({ ctx }) {
           {err && <div className="login-error" style={{marginBottom:14}}>{err}</div>}
           <div className="form-group">
             <label className="form-label">{t("currentPasswordLabel")}</label>
-            <input className="input" type="password" placeholder={t("currentPasswordPlaceholder")} value={cur} onChange={e=>setCur(e.target.value)} />
+            <input className="input" type="password" placeholder={t("currentPasswordPlaceholder")} value={cur} onChange={e=>setCur(e.target.value)} disabled={submitting} />
           </div>
           <div className="form-group">
             <label className="form-label">{t("newPasswordLabel")}</label>
-            <input className="input" type="password" placeholder={t("newPasswordPlaceholder")} value={pw} onChange={e=>setPw(e.target.value)} />
+            <input className="input" type="password" placeholder={t("newPasswordPlaceholder")} value={pw} onChange={e=>setPw(e.target.value)} disabled={submitting} />
           </div>
           <div className="form-group">
             <label className="form-label">{t("confirmNewPasswordLabel")}</label>
-            <input className="input" type="password" placeholder={t("repeatPasswordPlaceholder")} value={conf} onChange={e=>setConf(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} />
+            <input className="input" type="password" placeholder={t("repeatPasswordPlaceholder")} value={conf} onChange={e=>setConf(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} disabled={submitting} />
           </div>
         </div>
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={()=>setModal(null)}>{t("cancel")}</button>
-          <button className="btn btn-gold" onClick={submit}>{t("savePasswordBtn")}</button>
+          <button className="btn btn-outline" onClick={()=>setModal(null)} disabled={submitting}>{t("cancel")}</button>
+          <button className="btn btn-gold" onClick={submit} disabled={submitting}>{submitting ? "…" : t("savePasswordBtn")}</button>
         </div>
       </div>
     </div>
