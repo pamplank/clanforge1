@@ -340,6 +340,7 @@ const TRANSLATIONS = {
     invalidBid: "Invalid Bid",
     insufficientCoins: "Insufficient coins.",
     noFunds: "No Funds",
+    coinSyncFailed: "Bid confirmed, but your coin balance couldn't be updated — it will be corrected shortly.",
     alreadyHighestBid: "You already hold the highest bid.",
     alreadyWinning: "Already Winning",
     auctionEnded: "This auction has ended.",
@@ -900,6 +901,7 @@ const TRANSLATIONS = {
     invalidBid: "出价无效",
     insufficientCoins: "金币不足。",
     noFunds: "金币不足",
+    coinSyncFailed: "出价已确认，但金币余额更新失败，稍后将自动更正。",
     alreadyHighestBid: "您已是最高出价者。",
     alreadyWinning: "已是领先者",
     auctionEnded: "此拍卖已结束。",
@@ -1679,24 +1681,83 @@ async function sendPushNotification(memberName, title, body, url, tag) {
 // Returns the member's new balance on success, or null on failure (caller
 // should treat null as "couldn't confirm — fall back / let the next poll
 // reconcile local state from the DB" rather than assuming the write happened).
-async function adjustMemberCoinsAtomic(memberName, delta) {
-  try {
-    const res = await fetchWithTimeout(`${SUPA_URL}/rest/v1/rpc/adjust_member_coins`, {
-      method: "POST",
-      headers: {
-        "apikey": SUPA_KEY,
-        "Authorization": `Bearer ${SUPA_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ member_name: memberName, delta }),
-    });
-    if (!res.ok) throw new Error(`adjust_member_coins failed: HTTP ${res.status}`);
-    const newBalance = await res.json();
-    return typeof newBalance === "number" ? newBalance : null;
-  } catch (e) {
-    console.error(`adjustMemberCoinsAtomic(${memberName}, ${delta}) failed:`, e);
-    return null;
+//
+// ROOT CAUSE of Points History silently drifting from members' real coins
+// (found while investigating EKUPMANN and 10 other currently-active
+// bidders all showing a coins-vs-history gap): placeBid used to call this
+// with zero retries AND without awaiting the result at all, then write the
+// "Bid Placed"/"Outbid Refund" tx_log entry unconditionally regardless of
+// whether this RPC actually succeeded. A single transient failure here
+// (network blip, Supabase hiccup) meant the log claimed a coin change that
+// never actually landed — in either direction, since this same call
+// handles both the bidder's deduction and the outbid party's refund.
+// Retrying here (same pattern as incrementAuctionWinAtomic above) closes
+// most of that gap; placeBid below now also awaits this and only logs the
+// side(s) that actually confirmed success.
+async function adjustMemberCoinsAtomic(memberName, delta, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetchWithTimeout(`${SUPA_URL}/rest/v1/rpc/adjust_member_coins`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPA_KEY,
+          "Authorization": `Bearer ${SUPA_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ member_name: memberName, delta }),
+      });
+      if (!res.ok) throw new Error(`adjust_member_coins failed: HTTP ${res.status}`);
+      const newBalance = await res.json();
+      return typeof newBalance === "number" ? newBalance : null;
+    } catch (e) {
+      if (attempt < retries) { await new Promise(r => setTimeout(r, 600 * (attempt + 1))); continue; }
+      console.error(`adjustMemberCoinsAtomic(${memberName}, ${delta}) failed after retries:`, e);
+      return null;
+    }
   }
+  return null;
+}
+// Same atomic pattern as adjustMemberCoinsAtomic above, but also appends
+// the matching tx_log entry in the SAME single UPDATE (see
+// scripts/adjust_member_coins_and_log.sql) instead of leaving the log
+// write to setMembers.
+//
+// ROOT CAUSE this closes (found by actually driving competing bids through
+// the app while verifying the fix above): even after adjustMemberCoinsAtomic
+// was awaited/retried, placeBid still persisted its "Bid Placed"/"Outbid
+// Refund" entry via setMembers, which writes this browser's ENTIRE locally-
+// cached tx_log array for the target member — not an atomic append. That's
+// exactly the same class of lost-update race incrementAuctionWinAtomic was
+// built to avoid for auction_wins (see claimAuctionWinAndLog): outbidding
+// someone from a SECOND browser writes that browser's stale local copy of
+// the outbid member's tx_log back to the database, silently discarding
+// whatever entry the outbid member's OWN browser had just appended (their
+// "Bid Placed" entry vanishing the instant they're refunded). `coins`
+// itself was never at risk either way — only the log. Returns the
+// member's new balance on success, or null on failure (same contract as
+// adjustMemberCoinsAtomic).
+async function adjustMemberCoinsAndLogAtomic(memberName, delta, txEntry, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetchWithTimeout(`${SUPA_URL}/rest/v1/rpc/adjust_member_coins_and_log`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPA_KEY,
+          "Authorization": `Bearer ${SUPA_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ p_member_name: memberName, p_delta: delta, p_tx_entry: txEntry }),
+      });
+      if (!res.ok) throw new Error(`adjust_member_coins_and_log failed: HTTP ${res.status}`);
+      const newBalance = await res.json();
+      return typeof newBalance === "number" ? newBalance : null;
+    } catch (e) {
+      if (attempt < retries) { await new Promise(r => setTimeout(r, 600 * (attempt + 1))); continue; }
+      console.error(`adjustMemberCoinsAndLogAtomic(${memberName}, ${delta}) failed after retries:`, e);
+      return null;
+    }
+  }
+  return null;
 }
 // Same atomic-single-UPDATE pattern as adjustMemberCoinsAtomic above (see
 // increment_auction_win in scripts/increment_auction_win.sql) — replaces
@@ -5971,7 +6032,7 @@ function AppInner({ onMusicTrackChange }) {
   }
 
 
-  const ctx = { members, setMembers, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
+  const ctx = { members, setMembers, setMembersRaw, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
     currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion, decayRate, setDecayRate, loginAnnouncements, setLoginAnnouncements, featuredAuctionId, setFeaturedAuctionId, decayAnnouncements };
 
   const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings"),"record-attendance":t("tabRecordAttendance"),"create-auction":t("tabCreateAuction")};
@@ -9378,7 +9439,7 @@ function FeaturedAuctionSpotlight({ a, isWinning, minBid, t, bidAmounts, setBidA
 }
 
 function Auctions({ ctx }) {
-  const { auctions, setAuctions, members, setMembers, currentUser, addToast, fireCoinBurst, fireBalancePopup, tick, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, loginAnnouncements, setLoginAnnouncements, featuredAuctionId, setFeaturedAuctionId } = ctx;
+  const { auctions, setAuctions, members, setMembers, setMembersRaw, currentUser, addToast, fireCoinBurst, fireBalancePopup, tick, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, loginAnnouncements, setLoginAnnouncements, featuredAuctionId, setFeaturedAuctionId } = ctx;
   const { t } = useLang();
   const [tab, setTab] = useState("active");
   const [bidAmounts, setBidAmounts] = useState({});
@@ -9507,16 +9568,18 @@ function Auctions({ ctx }) {
     const prevBidder = result.prev_bidder || null;
     const prevRefund = prevBidder ? (Number(result.prev_amount) || 0) : 0;
 
-    // Apply both coin changes as ATOMIC database operations (see
-    // adjustMemberCoinsAtomic above for why this matters) — this is the
-    // actual source of truth. Local state below is just an optimistic
-    // preview for instant UI feedback; the next poll cycle reconciles it
-    // with whatever the database actually ended up with regardless.
-    adjustMemberCoinsAtomic(currentUser.name, -amount);
-    if (prevBidder && prevRefund > 0) {
-      adjustMemberCoinsAtomic(prevBidder, prevRefund);
-    }
-
+    // Apply both coin changes AND their matching Points History entries as
+    // ATOMIC database operations (see adjustMemberCoinsAndLogAtomic above
+    // for the incident this fixes) — this is the actual source of truth.
+    // Local state below (via the bare setMembersRaw, no DB side effects —
+    // same pattern claimAuctionWinAndLog uses for auction_wins) is just an
+    // optimistic preview for instant UI feedback; the next poll cycle
+    // reconciles it with whatever the database actually ended up with
+    // regardless. Deliberately NOT going through setMembers here: that
+    // wrapper persists this browser's entire locally-cached tx_log array
+    // for the target member on every call, which is exactly the lost-
+    // update race this fix closes — see the RPC's own SQL comment.
+    //
     // Log each side of this individually, not just the eventual winning
     // total — Points History previously only ever showed a single lump
     // "Auction Win" entry with no visibility into the actual bidding war
@@ -9529,14 +9592,23 @@ function Auctions({ ctx }) {
     // carry the amount (it would double-count this "Bid Placed" entry).
     const bidLogTs = Date.now();
     const bidTxEntry = {change:-amount, reason:`Bid on ${a.name}`, date:new Date().toLocaleDateString(), ts:bidLogTs, logType:"Bid Placed", addedBy:"System", auctionId:auctionId};
-    const refundTxEntry = (prevBidder && prevRefund>0) ? {change:prevRefund, reason:`Outbid on ${a.name}`, date:new Date().toLocaleDateString(), ts:bidLogTs, logType:"Outbid Refund", addedBy:"System", auctionId:auctionId} : null;
-    setMembers(ms=>ms.map(m=>{
-      if(m.name===currentUser.name) return {...m,coins:m.coins-amount,txLog:[...(m.txLog||[]),bidTxEntry]};
-      if(refundTxEntry&&m.name===prevBidder){
-        return {...m,coins:m.coins+prevRefund,txLog:[...(m.txLog||[]),refundTxEntry]};
+    const newBidderBalance = await adjustMemberCoinsAndLogAtomic(currentUser.name, -amount, bidTxEntry);
+    const deductionOk = newBidderBalance !== null;
+    if (!deductionOk) {
+      addToast(t("coinSyncFailed"), "red", t("errorLabel"));
+    } else {
+      setMembersRaw(ms=>ms.map(m=>m.name===currentUser.name ? {...m,coins:newBidderBalance,txLog:[...(m.txLog||[]),bidTxEntry]} : m));
+    }
+
+    if (prevBidder && prevRefund > 0) {
+      const refundTxEntry = {change:prevRefund, reason:`Outbid on ${a.name}`, date:new Date().toLocaleDateString(), ts:bidLogTs, logType:"Outbid Refund", addedBy:"System", auctionId:auctionId};
+      const newPrevBidderBalance = await adjustMemberCoinsAndLogAtomic(prevBidder, prevRefund, refundTxEntry);
+      if (newPrevBidderBalance === null) {
+        console.error(`placeBid: outbid refund of ${prevRefund} to ${prevBidder} failed after retries — their coins were not credited, no log entry written.`);
+      } else {
+        setMembersRaw(ms=>ms.map(m=>m.name===prevBidder ? {...m,coins:newPrevBidderBalance,txLog:[...(m.txLog||[]),refundTxEntry]} : m));
       }
-      return m;
-    }), true);
+    }
     // SNIPE PROTECTION: if a bid lands in the last 60s, extend the auction by
     // 60s so no one can snipe in the final moment. This also helps with the
     // race where a bid is placed while another client's clock is closing it.
