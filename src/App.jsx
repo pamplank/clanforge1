@@ -259,7 +259,6 @@ const TRANSLATIONS = {
     myPointsHistoryDesc: "Attendance, bonuses, admin coin adjustments, auction wins, and weekly decay. Only you can see this record.",
     adminPointsHistoryTitle: "Points History",
     adminPointsHistoryDesc: "Attendance, bonuses, admin coin adjustments, auction wins, and weekly decay for this member.",
-    adminOnlyLabel: "Admin Only",
     noPointsHistory: "No points history recorded yet.",
     noEntriesFilter: "No entries match this filter.",
     globalPointsTitle: "Global Points History",
@@ -289,8 +288,11 @@ const TRANSLATIONS = {
     type_BonusPoints: "Bonus Points",
     type_ElderRequest: "Elder Request",
     type_AdminManualAdd: "Admin Manual Add",
+    type_BidPlaced: "Bid Placed",
+    type_OutbidRefund: "Outbid Refund",
     type_AuctionWin: "Auction Win",
     type_WeeklyDecay: "Weekly Decay",
+    type_BalanceCorrection: "Balance Correction",
     allMembersLabel: "All Members",
     fileDownloaded: "downloaded!",
     exportLabel: "Export",
@@ -821,7 +823,6 @@ const TRANSLATIONS = {
     myPointsHistoryDesc: "出勤、奖励、管理员金币调整、拍卖获胜以及每周衰减。仅您本人可见此记录。",
     adminPointsHistoryTitle: "积分历史",
     adminPointsHistoryDesc: "该成员的出勤、奖励、管理员金币调整、拍卖获胜以及每周衰减记录。",
-    adminOnlyLabel: "仅管理员可见",
     noPointsHistory: "暂无积分历史记录。",
     noEntriesFilter: "没有符合此筛选条件的记录。",
     globalPointsTitle: "全局积分历史",
@@ -849,8 +850,11 @@ const TRANSLATIONS = {
     type_BonusPoints: "奖励积分",
     type_ElderRequest: "长老申请",
     type_AdminManualAdd: "管理员手动添加",
+    type_BidPlaced: "出价",
+    type_OutbidRefund: "被超越退款",
     type_AuctionWin: "拍卖获胜",
     type_WeeklyDecay: "每周衰减",
+    type_BalanceCorrection: "余额调整",
     allMembersLabel: "全体成员",
     fileDownloaded: "已下载！",
     exportLabel: "导出",
@@ -1435,7 +1439,15 @@ async function claimAuctionWin(auctionId, claimedBy, retries = 2) {
 async function claimAuctionWinAndLog(auction, setMembersRaw) {
   const won = await claimAuctionWin(auction.id, auction.topBidder);
   if (!won) return; // someone/something else already claimed this exact auction
-  const txEntry = {change:-auction.currentBid, reason:`Won auction: ${auction.name}`, date:new Date().toLocaleDateString(), ts:Date.now(), logType:"Auction Win", addedBy:"System", auctionId:auction.id};
+  // change:0 — the actual coin deduction already happened (and is already
+  // logged as its own "Bid Placed" entry) the moment this member placed
+  // their winning bid, in placeBid below. Logging -auction.currentBid
+  // AGAIN here would double-count the same money: once as this member's
+  // "Bid Placed" entry, once more as this "Auction Win" entry. This entry
+  // is purely a confirmation marker ("you won, no further charge") now
+  // that Points History shows the individual bid instead of only the
+  // final winning total.
+  const txEntry = {change:0, reason:`Won auction: ${auction.name}`, date:new Date().toLocaleDateString(), ts:Date.now(), logType:"Auction Win", addedBy:"System", auctionId:auction.id};
   const newWins = await incrementAuctionWinAtomic(auction.topBidder, txEntry);
   if (newWins === null) return; // RPC failed — DB write didn't happen, so don't desync local state from it
   setMembersRaw(ms => ms.map(m => {
@@ -2567,8 +2579,11 @@ const TYPE_LABEL_KEYS = {
   "Bonus Points": "type_BonusPoints",
   "Elder Request": "type_ElderRequest",
   "Admin Manual Add": "type_AdminManualAdd",
+  "Bid Placed": "type_BidPlaced",
+  "Outbid Refund": "type_OutbidRefund",
   "Auction Win": "type_AuctionWin",
   "Weekly Decay": "type_WeeklyDecay",
+  "Balance Correction": "type_BalanceCorrection",
 };
 function typeLabel(type, t) {
   const key = TYPE_LABEL_KEYS[type];
@@ -6271,7 +6286,6 @@ function AppInner({ onMusicTrackChange }) {
                     member={members.find(m => m.id === globalViewingProfile) || globalViewingProfile}
                     members={members}
                     onBack={() => setGlobalViewingProfile(null)}
-                    viewerIsAdmin={isAdmin}
                   />
                 </motion.div>
               ) : (
@@ -7309,7 +7323,7 @@ function Members({ ctx }) {
 
   if (viewingProfile) {
     const liveMember = members.find(m => m.id === viewingProfile) || viewingProfile;
-    return <PlayerInfo member={liveMember} members={members} onBack={()=>setViewingProfile(null)} viewerIsAdmin={isAdmin} />;
+    return <PlayerInfo member={liveMember} members={members} onBack={()=>setViewingProfile(null)} />;
   }
 
   return (
@@ -8644,7 +8658,7 @@ function Attendance({ ctx }) {
             const rawEntries = buildPointsHistoryEntries(currentUser, t);
             // Build the filter options from whichever types actually appear,
             // preferring a sensible fixed order with anything unexpected tacked on.
-            const PREFERRED_ORDER = ["Attendance","Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Bonus Points","Elder Request","Admin Manual Add","Auction Win","Weekly Decay"];
+            const PREFERRED_ORDER = ["Attendance","Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Bonus Points","Elder Request","Admin Manual Add","Bid Placed","Outbid Refund","Auction Win","Weekly Decay","Balance Correction"];
             const presentTypes = PREFERRED_ORDER.filter(type=>rawEntries.some(e=>e.type===type));
             rawEntries.forEach(e=>{ if(!presentTypes.includes(e.type)) presentTypes.push(e.type); });
             const filteredEntries = historyFilter==="All" ? rawEntries : rawEntries.filter(e=>e.type===historyFilter);
@@ -9503,10 +9517,23 @@ function Auctions({ ctx }) {
       adjustMemberCoinsAtomic(prevBidder, prevRefund);
     }
 
+    // Log each side of this individually, not just the eventual winning
+    // total — Points History previously only ever showed a single lump
+    // "Auction Win" entry with no visibility into the actual bidding war
+    // that led there. Every bid gets its own "Bid Placed" entry; whoever
+    // it just outbid gets a matching "Outbid Refund" entry for the exact
+    // amount handed back. These two always net to zero for anyone who
+    // doesn't end up winning, and the running balance still comes out
+    // correct for the eventual winner too — see the change:0 comment on
+    // claimAuctionWinAndLog's own entry for why that one doesn't also
+    // carry the amount (it would double-count this "Bid Placed" entry).
+    const bidLogTs = Date.now();
+    const bidTxEntry = {change:-amount, reason:`Bid on ${a.name}`, date:new Date().toLocaleDateString(), ts:bidLogTs, logType:"Bid Placed", addedBy:"System", auctionId:auctionId};
+    const refundTxEntry = (prevBidder && prevRefund>0) ? {change:prevRefund, reason:`Outbid on ${a.name}`, date:new Date().toLocaleDateString(), ts:bidLogTs, logType:"Outbid Refund", addedBy:"System", auctionId:auctionId} : null;
     setMembers(ms=>ms.map(m=>{
-      if(m.name===currentUser.name) return {...m,coins:m.coins-amount};
-      if(prevBidder&&m.name===prevBidder&&prevRefund>0){
-        return {...m,coins:m.coins+prevRefund};
+      if(m.name===currentUser.name) return {...m,coins:m.coins-amount,txLog:[...(m.txLog||[]),bidTxEntry]};
+      if(refundTxEntry&&m.name===prevBidder){
+        return {...m,coins:m.coins+prevRefund,txLog:[...(m.txLog||[]),refundTxEntry]};
       }
       return m;
     }), true);
@@ -10941,12 +10968,12 @@ function BattleStreakBanner({ tier, rank, member, valueLabel, valueText }) {
   );
 }
 
-// ─── ADMIN POINTS HISTORY PANEL (PlayerInfo) ──────────────────────────────────
+// ─── POINTS HISTORY PANEL (PlayerInfo) ──────────────────────────────────────
 // Same data/merge logic as the self-view "My Points History" tab in
 // Attendance (buildPointsHistoryEntries), but scoped to whichever member's
-// profile is being viewed rather than always currentUser — only ever
-// rendered for Elders/Masters (see viewerIsAdmin on PlayerInfo below), so a
-// regular member can never see another member's coin/tx history this way.
+// profile is being viewed rather than always currentUser — every member can
+// see every other member's points history this way, same as the clan-wide
+// Global Points Log already surfaces manual adjustments/bonuses for everyone.
 // Fixed small page size (rather than the self-view's "last 40" cap) so this
 // panel's height never grows with a member's log length — on the
 // video-hero profile layout, an unbounded/tall table here was pushing on
@@ -10957,7 +10984,7 @@ function PointsHistoryPanel({ member, t }) {
   const [page, setPage] = useState(0);
   useEffect(() => { setFilter("All"); setPage(0); }, [member.id]);
   const rawEntries = buildPointsHistoryEntries(member, t);
-  const PREFERRED_ORDER = ["Attendance","Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Bonus Points","Elder Request","Admin Manual Add","Auction Win","Weekly Decay"];
+  const PREFERRED_ORDER = ["Attendance","Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Bonus Points","Elder Request","Admin Manual Add","Bid Placed","Outbid Refund","Auction Win","Weekly Decay","Balance Correction"];
   const presentTypes = PREFERRED_ORDER.filter(type=>rawEntries.some(e=>e.type===type));
   rawEntries.forEach(e=>{ if(!presentTypes.includes(e.type)) presentTypes.push(e.type); });
   const filteredEntries = filter==="All" ? rawEntries : rawEntries.filter(e=>e.type===filter);
@@ -10970,10 +10997,7 @@ function PointsHistoryPanel({ member, t }) {
       border:"1px solid var(--border)",
       borderRadius:4,padding:"18px 20px",
     }}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:4}}>
-        <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>{t("adminPointsHistoryTitle")}</div>
-        <span className="badge badge-red" style={{fontSize:8}}>{t("adminOnlyLabel")}</span>
-      </div>
+      <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:4}}>{t("adminPointsHistoryTitle")}</div>
       <div style={{fontSize:10.5,color:"var(--text-dim)",marginBottom:14}}>{t("adminPointsHistoryDesc")}</div>
       {presentTypes.length>0 && (
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
@@ -11039,13 +11063,13 @@ function PointsHistoryPanel({ member, t }) {
 }
 
 // ─── PLAYER INFO PAGE ───────────────────────────────────────────────────────────
-function PlayerInfo({ member, members, onBack, viewerIsAdmin }) {
+function PlayerInfo({ member, members, onBack }) {
   const { t } = useLang();
-  // Admin-only second tab for Points History — kept as a separate tab
-  // (instead of appending the panel straight onto the page) so a member
-  // with a long log doesn't turn this page into an endless scroll; only
-  // Elders/Masters ever see the tab strip at all, since viewerIsAdmin is
-  // false for everyone else.
+  // Second tab for Points History — kept as a separate tab (instead of
+  // appending the panel straight onto the page) so a member with a long
+  // log doesn't turn this page into an endless scroll. Any viewer can
+  // switch to it for any member, same as Global Points Log already being
+  // visible clan-wide.
   const [profileTab, setProfileTab] = useState("overview");
   // The video backdrop must stay pinned at whatever height the Overview
   // tab naturally renders at (that's the size that was already "perfect"),
@@ -11207,10 +11231,7 @@ function PlayerInfo({ member, members, onBack, viewerIsAdmin }) {
     absent:       { label: "Absent",       color: "var(--text-dim)", bg: "rgba(110,88,64,0.1)" },
   }[activityStatus];
 
-  // Only rendered for admins — a regular member's own profile view (or
-  // viewing someone else's) never shows a tab strip, since there's nothing
-  // to switch to.
-  const profileTabBar = viewerIsAdmin && (
+  const profileTabBar = (
     <div style={{display:"flex",gap:6,marginBottom:12}}>
       <button className={`btn btn-sm ${profileTab==="overview"?"btn-gold":"btn-outline"}`} onClick={()=>setProfileTab("overview")}>Overview</button>
       <button className={`btn btn-sm ${profileTab==="pointsHistory"?"btn-gold":"btn-outline"}`} onClick={()=>setProfileTab("pointsHistory")}>{t("adminPointsHistoryTitle")}</button>
@@ -12084,6 +12105,17 @@ function AdjustCoinsModal({ ctx }) {
   const [amount, setAmount] = useState(0);
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // The Master branch below is fully synchronous (no await) and ends by
+  // closing the modal — but React doesn't actually remove the button from
+  // the DOM until the next render, which lands a beat after this function
+  // returns. A fast double-click fires submit() twice before that removal,
+  // and `submitting` (plain React state) updates too slowly to block the
+  // second call either — it hasn't re-rendered into the DOM's `disabled`
+  // attribute yet. A plain ref is checked/set synchronously, so it blocks
+  // a same-tick second call regardless of render timing. This is what was
+  // producing duplicate "Admin Manual Add" entries in a member's history
+  // from a single intended click.
+  const submittingRef = useRef(false);
   const isMaster = currentUser.role==="Master";
   const isElder = currentUser.role==="Elder";
   // ROOT CAUSE FIX: this used to call submitCoinRequest then immediately
@@ -12099,12 +12131,15 @@ function AdjustCoinsModal({ ctx }) {
   // the real result comes back, so there's no ambiguous window where the
   // Elder doesn't know whether to retry.
   async function submit(type) {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     const val=parseInt(amount)||0;
-    if (val<=0) { addToast(t("enterValidAmount"), "red", t("errorLabel")); return; }
+    if (val<=0) { addToast(t("enterValidAmount"), "red", t("errorLabel")); submittingRef.current = false; return; }
     if (isElder && !isMaster) {
       setSubmitting(true);
       const ok = await submitCoinRequest(member.id, val, type, reason);
       setSubmitting(false);
+      submittingRef.current = false;
       if (ok) setModal(null); // only close on confirmed success — a failure leaves the modal open with the amount/reason intact, so retrying doesn't mean re-typing anything, and there's no doubt about whether the click "did something"
       return;
     }
@@ -12112,6 +12147,7 @@ function AdjustCoinsModal({ ctx }) {
     const logType=reason.toLowerCase().includes("bonus")?"Bonus Points":"Admin Manual Add";
     setMembers(ms=>ms.map(m=>m.id===member.id?{...m,coins:m.coins+change,txLog:[...(m.txLog||[]),{change,reason:reason||"—",date:new Date().toLocaleDateString(),logType,addedBy:currentUser.name,ts:Date.now()}]}:m));
     addToast(`${type==="add"?t("addedCoinsToast"):t("removedCoinsToast")} ${fmt(val)} ${type==="add"?t("coinsToLabel"):t("coinsFromLabel")} ${member.name}.`,type==="add"?"gold":"red",t("coinsAdjustedTitle"));
+    submittingRef.current = false;
     setModal(null);
   }
   return (
