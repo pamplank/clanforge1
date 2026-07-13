@@ -239,12 +239,18 @@ const TRANSLATIONS = {
     noWarriorMatch: "No warrior matches your search.",
     bonusRules: "Bonus Rules",
     bonusRuleMajor: "Major Events — attend all 8 event types this week: ISB (×1), CA (×2), STI (×2), CS (×1), and all 4 World Bosses (×2 each):",
-    bonusCoins300: "+300 Coins",
-    bonusRuleSindri: "Sindri Veteran — attend 2× Sindri's Treasure Island per week for 5 weeks:",
-    bonusCoins400: "+400 Coins",
+    bonusRuleSindri: "Sindri Veteran — attend 2× Sindri's Treasure Island per week for {n} weeks:",
     bonusOneTime: "(one-time)",
-    bonusRuleISB: "ISB Veteran — participate in 10 Inter-Server Battles (lifetime):",
-    bonusCoins500: "+500 Coins",
+    bonusRuleISB: "ISB Veteran — participate in {n} Inter-Server Battles (lifetime):",
+    bonusSettingsTitle: "Bonus Settings",
+    bonusSettingsDesc: "Edit the coin amounts and thresholds for the attendance bonuses below. Changes apply immediately to both new bonus payouts and everyone's progress display.",
+    bonusSettingsSaved: "Bonus settings saved.",
+    updatedTitle: "Updated",
+    majorEventsBonusLabel: "Major Events bonus:",
+    sindriVeteranBonusLabel: "Sindri Veteran bonus:",
+    sindriVeteranThresholdLabel: "Sindri Veteran weeks required:",
+    isbVeteranBonusLabel: "ISB Veteran bonus:",
+    isbVeteranThresholdLabel: "ISB Veteran events required:",
     decayWarningPrefix: "Unused coins decay",
     decayWarningSuffix: "every Tuesday. Stay active!",
     decayBadgeSuffix: "week",
@@ -805,12 +811,18 @@ const TRANSLATIONS = {
     noWarriorMatch: "没有符合搜索条件的勇士。",
     bonusRules: "奖励规则",
     bonusRuleMajor: "重大活动 — 本周参加全部8种活动类型：ISB(×1)、CA(×2)、STI(×2)、CS(×1)、4只世界首领各(×2)：",
-    bonusCoins300: "+300 金币",
-    bonusRuleSindri: "辛德里老兵 — 每周参加2次辛德里的宝藏岛，连续5周：",
-    bonusCoins400: "+400 金币",
+    bonusRuleSindri: "辛德里老兵 — 每周参加2次辛德里的宝藏岛，连续{n}周：",
     bonusOneTime: "（一次性）",
-    bonusRuleISB: "ISB老兵 — 参加10次跨服战（终身累计）：",
-    bonusCoins500: "+500 金币",
+    bonusRuleISB: "ISB老兵 — 参加{n}次跨服战（终身累计）：",
+    bonusSettingsTitle: "奖励设置",
+    bonusSettingsDesc: "编辑下方出勤奖励的金币数额与达成条件。更改将立即应用于新发放的奖励以及所有人的进度显示。",
+    bonusSettingsSaved: "奖励设置已保存。",
+    updatedTitle: "已更新",
+    majorEventsBonusLabel: "重大活动奖励：",
+    sindriVeteranBonusLabel: "辛德里老兵奖励：",
+    sindriVeteranThresholdLabel: "辛德里老兵所需周数：",
+    isbVeteranBonusLabel: "ISB老兵奖励：",
+    isbVeteranThresholdLabel: "ISB老兵所需次数：",
     decayWarningPrefix: "未使用的金币每周二衰减",
     decayWarningSuffix: "。请保持活跃！",
     decayBadgeSuffix: "周",
@@ -5050,6 +5062,13 @@ function AppInner({ onMusicTrackChange }) {
   // its own copy from the same app_state row, since that file runs
   // independently and can't share React state with this one.
   const [decayRate, setDecayRate] = useState(0.05);
+  // Major Events / ISB Veteran / Sindri Veteran bonus amounts + thresholds
+  // — loaded from app_state below (key "bonus_config"), defaulting to
+  // DEFAULT_BONUS_CONFIG if nothing's been saved yet. Editable in Settings
+  // (BonusConfigEditor); performAttendancePayout (awarding) and
+  // Attendance's computeBonuses (progress display) both read from this
+  // same state so they can never drift out of sync with each other.
+  const [bonusConfig, setBonusConfig] = useState(DEFAULT_BONUS_CONFIG);
   // Admin-authored announcements shown at the top of the login summary
   // popup (e.g. "an item is up for auction") — stored in app_state under
   // key "login_announcements" (plural — this used to be a single object
@@ -5227,6 +5246,16 @@ function AppInner({ onMusicTrackChange }) {
         const rateRow = asRows.find(r => r.key === "decay_rate");
         const parsedRate = rateRow ? parseFloat(rateRow.value) : NaN;
         if (Number.isFinite(parsedRate) && parsedRate >= 0) setDecayRate(parsedRate);
+        const bonusConfigRow = asRows.find(r => r.key === "bonus_config");
+        if (bonusConfigRow) {
+          try {
+            const parsed = JSON.parse(bonusConfigRow.value);
+            // Merge over the defaults rather than replacing outright, so an
+            // older saved row (before a new field existed) still gets a
+            // sane value for that field instead of undefined/NaN.
+            setBonusConfig(prev => ({ ...prev, ...parsed }));
+          } catch {}
+        }
         const announcementsRow = asRows.find(r => r.key === "login_announcements");
         if (announcementsRow) {
           try {
@@ -6144,7 +6173,7 @@ function AppInner({ onMusicTrackChange }) {
 
 
   const ctx = { members, setMembers, setMembersRaw, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
-    currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion, decayRate, setDecayRate, loginAnnouncements, setLoginAnnouncements, featuredAuctionId, setFeaturedAuctionId, decayAnnouncements };
+    currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion, decayRate, setDecayRate, bonusConfig, setBonusConfig, loginAnnouncements, setLoginAnnouncements, featuredAuctionId, setFeaturedAuctionId, decayAnnouncements };
 
   const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings"),"record-attendance":t("tabRecordAttendance"),"create-auction":t("tabCreateAuction")};
 
@@ -8267,11 +8296,26 @@ function getWeekStartFor(refDate) {
 // distribute coins rather than record-only). Keeping this in one place means
 // the backfill path can never drift out of sync with the real payout math.
 //
+// Default values for the 3 configurable attendance bonuses — overridden by
+// whatever's saved in app_state under key "bonus_config" (see
+// BonusConfigEditor in Settings). Centralized here so this function
+// (awarding) and Attendance's computeBonuses (progress display) both read
+// from the same object instead of each hardcoding their own copy of the
+// numbers, which is exactly how the ISB "0/10" display bug happened to
+// drift out of sync with the real 10-event award threshold.
+const DEFAULT_BONUS_CONFIG = {
+  majorEventsBonusAmount: 300,
+  isbVeteranBonusAmount: 500,
+  isbVeteranThreshold: 10,
+  sindriVeteranBonusAmount: 400,
+  sindriVeteranWeeksThreshold: 5,
+};
 // params: { ev: EVENTS entry, date: locale date string, ts: ms timestamp,
 //           present: [memberId], qualifierMap: {memberId: "full"|"late"|"afk"} }
+// bonusConfig: see DEFAULT_BONUS_CONFIG above.
 // Returns { updatedMembers, bonusToasts, presentNames } — caller is
 // responsible for calling setMembers(updatedMembers) and showing toasts.
-function performAttendancePayout(members, { ev, date, ts, present, qualifierMap }) {
+function performAttendancePayout(members, { ev, date, ts, present, qualifierMap }, bonusConfig = DEFAULT_BONUS_CONFIG) {
   const weekStart = getWeekStartFor(date);
   const EVENT_REQUIRED = { CA: 2, STI: 2, CWTD: 2, CN1F: 2, COR: 2, F5F: 2 };
   const totalEvents = EVENTS.length;
@@ -8306,15 +8350,15 @@ function performAttendancePayout(members, { ev, date, ts, present, qualifierMap 
     const newAttendLog=[...(m.attendLog||[]),{event:ev.name,coins:earned,date,qualifier:q,ts}];
     let bonusCoins = 0;
     const newTxLog = [...(m.txLog||[])];
-    // ── Major Events bonus (+300) ──
+    // ── Major Events bonus ──
     const prevAttended = getAttendedIds(m.attendLog||[]);
     const newAttended  = getAttendedIds(newAttendLog);
     if(newAttended.size>=totalEvents && prevAttended.size<totalEvents && !alreadyReceivedThisWeek(m.txLog,"Major Events Bonus")) {
-      bonusCoins += 300;
-      newTxLog.push({change:300,reason:"Attended all major events this week",date,logType:"Major Events Bonus",addedBy:"System",ts});
-      bonusToasts.push({name:m.name,bonus:"Major Events",coins:300});
+      bonusCoins += bonusConfig.majorEventsBonusAmount;
+      newTxLog.push({change:bonusConfig.majorEventsBonusAmount,reason:"Attended all major events this week",date,logType:"Major Events Bonus",addedBy:"System",ts});
+      bonusToasts.push({name:m.name,bonus:"Major Events",coins:bonusConfig.majorEventsBonusAmount});
     }
-    // ── ISB Veteran bonus (+500) ──
+    // ── ISB Veteran bonus ──
     // ROOT CAUSE of "0/10 ISB events" for everyone despite real ISB
     // attendance: this filtered on the literal string "Inter-Server
     // Battle" (hyphenated), but attend_log entries are actually written
@@ -8325,12 +8369,12 @@ function performAttendancePayout(members, { ev, date, ts, present, qualifierMap 
     // spelling fixes it for both variants, present or future.
     const isbCountNew = newAttendLog.filter(e=>EVENT_NAME_TO_ID[e.event]==="ISB"&&e.qualifier!=="afk").length;
     const isbCountOld = (m.attendLog||[]).filter(e=>EVENT_NAME_TO_ID[e.event]==="ISB"&&e.qualifier!=="afk").length;
-    if(isbCountNew>=10 && isbCountOld<10 && !alreadyReceivedThisWeek(m.txLog,"ISB Veteran Bonus")) {
-      bonusCoins += 500;
-      newTxLog.push({change:500,reason:"Reached 10 ISB events (ISB Veteran)",date,logType:"ISB Veteran Bonus",addedBy:"System",ts});
-      bonusToasts.push({name:m.name,bonus:"ISB Veteran",coins:500});
+    if(isbCountNew>=bonusConfig.isbVeteranThreshold && isbCountOld<bonusConfig.isbVeteranThreshold && !alreadyReceivedThisWeek(m.txLog,"ISB Veteran Bonus")) {
+      bonusCoins += bonusConfig.isbVeteranBonusAmount;
+      newTxLog.push({change:bonusConfig.isbVeteranBonusAmount,reason:`Reached ${bonusConfig.isbVeteranThreshold} ISB events (ISB Veteran)`,date,logType:"ISB Veteran Bonus",addedBy:"System",ts});
+      bonusToasts.push({name:m.name,bonus:"ISB Veteran",coins:bonusConfig.isbVeteranBonusAmount});
     }
-    // ── Sindri Veteran bonus (+400) — 2 STI/week for 5 weeks ──
+    // ── Sindri Veteran bonus — 2 STI/week for N weeks ──
     function getISOWeekSV(dateStr) {
       const d = new Date(dateStr); if(isNaN(d)) return null;
       const thu = new Date(d); thu.setDate(d.getDate() - ((d.getDay()+6)%7) + 3);
@@ -8346,10 +8390,10 @@ function performAttendancePayout(members, { ev, date, ts, present, qualifierMap 
     }
     const stiWeeksOld = countStiQualWeeks(m.attendLog||[]);
     const stiWeeksNew = countStiQualWeeks(newAttendLog);
-    if(stiWeeksNew>=5 && stiWeeksOld<5 && !(m.txLog||[]).some(tx=>tx.logType==="Sindri Veteran Bonus")) {
-      bonusCoins += 400;
-      newTxLog.push({change:400,reason:"Attended 2 Sindri's per week for 5 weeks",date,logType:"Sindri Veteran Bonus",addedBy:"System",ts});
-      bonusToasts.push({name:m.name,bonus:"Sindri Veteran",coins:400});
+    if(stiWeeksNew>=bonusConfig.sindriVeteranWeeksThreshold && stiWeeksOld<bonusConfig.sindriVeteranWeeksThreshold && !(m.txLog||[]).some(tx=>tx.logType==="Sindri Veteran Bonus")) {
+      bonusCoins += bonusConfig.sindriVeteranBonusAmount;
+      newTxLog.push({change:bonusConfig.sindriVeteranBonusAmount,reason:`Attended 2 Sindri's per week for ${bonusConfig.sindriVeteranWeeksThreshold} weeks`,date,logType:"Sindri Veteran Bonus",addedBy:"System",ts});
+      bonusToasts.push({name:m.name,bonus:"Sindri Veteran",coins:bonusConfig.sindriVeteranBonusAmount});
     }
     return{...m,coins:m.coins+earned+bonusCoins,attendance:m.attendance+(q!=="afk"?1:0),
       attendLog:newAttendLog,txLog:newTxLog};
@@ -8366,7 +8410,7 @@ function performAttendancePayout(members, { ev, date, ts, present, qualifierMap 
 // now, so regular members land on the actually-useful History tab instead.
 function RecordAttendancePanel({ ctx }) {
   const { t } = useLang();
-  const { members, setMembers, addToast, currentUser, setAttendanceLogs } = ctx;
+  const { members, setMembers, addToast, currentUser, setAttendanceLogs, bonusConfig } = ctx;
   const [memberSearch, setMemberSearch] = useState("");
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectedMembers, setSelectedMembers] = useState({});
@@ -8394,7 +8438,7 @@ function RecordAttendancePanel({ ctx }) {
       return {name:m?.name, qualifier:q, earned};
     });
     setMembers(ms => {
-      const { updatedMembers, bonusToasts } = performAttendancePayout(ms, { ev, date: today, ts: nowTs, present, qualifierMap });
+      const { updatedMembers, bonusToasts } = performAttendancePayout(ms, { ev, date: today, ts: nowTs, present, qualifierMap }, bonusConfig);
       setTimeout(()=>{
         bonusToasts.forEach(bonus=>addToast(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><TrophyIcon size={14}/>{bonus.name} {t("earnedBonusText")} +{bonus.coins} {t("coinsText")} — {bonus.bonus} {t("bonusText")}</span>,"gold",t("bonusAwarded")));
       }, 200);
@@ -8466,7 +8510,7 @@ function RecordAttendancePanel({ ctx }) {
 
 function Attendance({ ctx }) {
   const { t } = useLang();
-  const { members, addToast, currentUser, attendanceLogs, setAttendanceLogs, setModal, decayRate, decayAnnouncements } = ctx;
+  const { members, addToast, currentUser, attendanceLogs, setAttendanceLogs, setModal, decayRate, decayAnnouncements, bonusConfig } = ctx;
   const [tab, setTab] = useState("logs");
   const [bonusSearch, setBonusSearch] = useState("");
   const [historyFilter, setHistoryFilter] = useState("All");
@@ -8545,11 +8589,11 @@ function Attendance({ ctx }) {
       const wk=getISOWeek(e.date); if(wk){ stiByWeek[wk]=(stiByWeek[wk]||0)+1; }
     });
     const stiQualWeeks = Object.values(stiByWeek).filter(c=>c>=2).length;
-    const sindriVet = stiQualWeeks>=5;
+    const sindriVet = stiQualWeeks>=bonusConfig.sindriVeteranWeeksThreshold;
     // ISB Veteran: all-time ISB count (see EVENT_NAME_TO_ID -- attend_log
     // stores "Inter Server Battle", not the hyphenated schedule name)
     const isbCount = log.filter(e=>EVENT_NAME_TO_ID[e.event]==="ISB"&&e.qualifier!=="afk").length;
-    const isbVet = isbCount>=10;
+    const isbVet = isbCount>=bonusConfig.isbVeteranThreshold;
     return {attendedAll,sindriVet,stiQualWeeks,isbVet,isbCount,recentEvents,totalEvents,attendedNames:attendedIds};
   }
 
@@ -8756,7 +8800,7 @@ function Attendance({ ctx }) {
                   <div style={{marginBottom:10}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                       <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:b.attendedAll?"var(--gold-light)":"var(--text-dim)"}}>{t("majorEvents")}</span>
-                      {b.attendedAll?<span className="badge badge-gold">+300</span>:<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{b.attendedNames.size}/{b.totalEvents}</span>}
+                      {b.attendedAll?<span className="badge badge-gold">+{bonusConfig.majorEventsBonusAmount}</span>:<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{b.attendedNames.size}/{b.totalEvents}</span>}
                     </div>
                     <div style={{height:4,background:"rgba(255,255,255,0.07)",borderRadius:2}}>
                       <div style={{height:4,borderRadius:2,background:"linear-gradient(90deg,var(--gold-dim),var(--gold-light))",width:`${Math.min(100,(b.attendedNames.size/b.totalEvents)*100)}%`,transition:"width 0.4s"}} />
@@ -8767,23 +8811,23 @@ function Attendance({ ctx }) {
                   <div style={{marginBottom:10}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                       <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:b.sindriVet?"var(--gold-light)":"var(--text-dim)"}}>{t("sindriVeteran")}</span>
-                      {b.sindriVet?<span className="badge badge-gold">{t("earned")}</span>:<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{b.stiQualWeeks}/5 {t("weeksLabel")}</span>}
+                      {b.sindriVet?<span className="badge badge-gold">{t("earned")}</span>:<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{b.stiQualWeeks}/{bonusConfig.sindriVeteranWeeksThreshold} {t("weeksLabel")}</span>}
                     </div>
                     <div style={{height:4,background:"rgba(255,255,255,0.07)",borderRadius:2}}>
-                      <div style={{height:4,borderRadius:2,background:"linear-gradient(90deg,#6c1e6c,#9b59b6)",width:`${Math.min(100,(b.stiQualWeeks/5)*100)}%`,transition:"width 0.4s"}} />
+                      <div style={{height:4,borderRadius:2,background:"linear-gradient(90deg,#6c1e6c,#9b59b6)",width:`${Math.min(100,(b.stiQualWeeks/bonusConfig.sindriVeteranWeeksThreshold)*100)}%`,transition:"width 0.4s"}} />
                     </div>
-                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>{b.stiQualWeeks}/5 {t("sindriProgress")}</div>
+                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>{b.stiQualWeeks}/{bonusConfig.sindriVeteranWeeksThreshold} {t("sindriProgress")}</div>
                   </div>
                   {/* ISB Veteran */}
                   <div>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                       <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:b.isbVet?"var(--gold-light)":"var(--text-dim)"}}>{t("isbVeteran")}</span>
-                      {b.isbVet && <span className="badge badge-gold">+500</span>}
+                      {b.isbVet && <span className="badge badge-gold">+{bonusConfig.isbVeteranBonusAmount}</span>}
                     </div>
                     <div style={{height:4,background:"rgba(255,255,255,0.07)",borderRadius:2}}>
-                      <div style={{height:4,borderRadius:2,background:"linear-gradient(90deg,#6c1e6c,#8e44ad)",width:`${Math.min(100,(b.isbCount/10)*100)}%`,transition:"width 0.4s"}} />
+                      <div style={{height:4,borderRadius:2,background:"linear-gradient(90deg,#6c1e6c,#8e44ad)",width:`${Math.min(100,(b.isbCount/bonusConfig.isbVeteranThreshold)*100)}%`,transition:"width 0.4s"}} />
                     </div>
-                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>{b.isbCount}/10 {t("isbProgress")}</div>
+                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>{b.isbCount}/{bonusConfig.isbVeteranThreshold} {t("isbProgress")}</div>
                   </div>
                 </div>
               );
@@ -8805,9 +8849,9 @@ function Attendance({ ctx }) {
             <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.4}/>
             <div style={{fontSize:10,letterSpacing:3,textTransform:"uppercase",color:"rgba(200,146,42,0.7)",fontWeight:700,marginBottom:4,fontFamily:"'Inter',sans-serif"}}>{t("bonusRules")}</div>
             <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:10}}>
-              <div style={{fontSize:12,color:"var(--text-dim)"}}>{t("bonusRuleMajor")} <strong style={{color:"var(--gold)"}}>{t("bonusCoins300")}</strong></div>
-              <div style={{fontSize:12,color:"var(--text-dim)"}}>{t("bonusRuleSindri")} <strong style={{color:"var(--gold)"}}>{t("bonusCoins400")}</strong> {t("bonusOneTime")}</div>
-              <div style={{fontSize:12,color:"var(--text-dim)"}}>{t("bonusRuleISB")} <strong style={{color:"var(--gold)"}}>{t("bonusCoins500")}</strong> {t("bonusOneTime")}</div>
+              <div style={{fontSize:12,color:"var(--text-dim)"}}>{t("bonusRuleMajor")} <strong style={{color:"var(--gold)"}}>+{bonusConfig.majorEventsBonusAmount} {t("coinsText")}</strong></div>
+              <div style={{fontSize:12,color:"var(--text-dim)"}}>{t("bonusRuleSindri").replace("{n}",bonusConfig.sindriVeteranWeeksThreshold)} <strong style={{color:"var(--gold)"}}>+{bonusConfig.sindriVeteranBonusAmount} {t("coinsText")}</strong> {t("bonusOneTime")}</div>
+              <div style={{fontSize:12,color:"var(--text-dim)"}}>{t("bonusRuleISB").replace("{n}",bonusConfig.isbVeteranThreshold)} <strong style={{color:"var(--gold)"}}>+{bonusConfig.isbVeteranBonusAmount} {t("coinsText")}</strong> {t("bonusOneTime")}</div>
             </div>
           </div>
           <div className="dash-panel" style={{
@@ -12015,6 +12059,100 @@ function DecayRateEditor({ decayRate, setDecayRate, addToast, t }) {
   );
 }
 
+// ─── BONUS CONFIG (editable) ──────────────────────────────────────────────────
+// Saved to app_state under key "bonus_config" as one JSON object — same
+// table/row pattern as decay_rate above, just one row holding all 5 values
+// instead of a single scalar. performAttendancePayout (awarding) and
+// Attendance's computeBonuses (progress display) both read the SAME
+// bonusConfig from ctx, so they can never drift out of sync with each
+// other again the way the ISB "0/10" bug did when the threshold was
+// hardcoded separately in two places.
+function BonusConfigEditor({ bonusConfig, setBonusConfig, addToast, t }) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState(bonusConfig);
+
+  function startEdit() {
+    setDraft(bonusConfig);
+    setEditing(true);
+  }
+
+  async function save() {
+    const fields = ["majorEventsBonusAmount","isbVeteranBonusAmount","isbVeteranThreshold","sindriVeteranBonusAmount","sindriVeteranWeeksThreshold"];
+    const parsed = {};
+    for (const f of fields) {
+      const n = parseInt(draft[f], 10);
+      if (!Number.isFinite(n) || n < 0) {
+        addToast(t("enterValidAmount"), "red", t("errorLabel"));
+        return;
+      }
+      parsed[f] = n;
+    }
+    setSaving(true);
+    const ok = await dbUpsertReliable("app_state", { key: "bonus_config", value: JSON.stringify(parsed), updated_at: Date.now() });
+    setSaving(false);
+    if (ok) {
+      setBonusConfig(parsed);
+      setEditing(false);
+      addToast(t("bonusSettingsSaved"), "gold", t("updatedTitle"));
+    } else {
+      addToast(
+        <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't save — please try again.</span>,
+        "red", "Save Failed"
+      );
+    }
+  }
+
+  const ROWS = [
+    { key:"majorEventsBonusAmount", label:t("majorEventsBonusLabel"), suffix:t("coinsText") },
+    { key:"sindriVeteranBonusAmount", label:t("sindriVeteranBonusLabel"), suffix:t("coinsText") },
+    { key:"sindriVeteranWeeksThreshold", label:t("sindriVeteranThresholdLabel"), suffix:t("weeksLabel") },
+    { key:"isbVeteranBonusAmount", label:t("isbVeteranBonusLabel"), suffix:t("coinsText") },
+    { key:"isbVeteranThreshold", label:t("isbVeteranThresholdLabel"), suffix:t("isbProgress") },
+  ];
+
+  if (!editing) {
+    return (
+      <div>
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:12}}>
+          {ROWS.map(r => (
+            <div key={r.key} style={{display:"flex",justifyContent:"space-between",fontSize:13,color:"var(--text)"}}>
+              <span style={{color:"var(--text-dim)"}}>{r.label}</span>
+              <strong style={{color:"var(--gold)"}}>{bonusConfig[r.key]} {r.suffix}</strong>
+            </div>
+          ))}
+        </div>
+        <button className="btn btn-outline btn-sm" onClick={startEdit}>{t("editBtn")}</button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
+        {ROWS.map(r => (
+          <div key={r.key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,fontSize:13}}>
+            <span style={{color:"var(--text-dim)"}}>{r.label}</span>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <input
+                type="number" min="0" step="1" value={draft[r.key]}
+                onChange={e=>setDraft(d=>({...d,[r.key]:e.target.value}))}
+                onKeyDown={e=>{ if(e.key==="Enter") save(); if(e.key==="Escape") setEditing(false); }}
+                style={{width:70,background:"rgba(10,8,6,0.85)",border:"1px solid var(--gold)",color:"var(--gold-light)",borderRadius:4,padding:"4px 8px",fontFamily:"'Inter',sans-serif",fontWeight:700}}
+              />
+              <span style={{fontSize:12,color:"var(--text-dim)"}}>{r.suffix}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        <button className="btn btn-gold btn-sm" disabled={saving} onClick={save}>{saving ? "…" : t("saveBtn")}</button>
+        <button className="btn btn-outline btn-sm" onClick={()=>setEditing(false)}>{t("cancelBtn")}</button>
+      </div>
+    </div>
+  );
+}
+
 function LoginAnnouncementEditor({ loginAnnouncements, setLoginAnnouncements, addToast, t }) {
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -12085,7 +12223,7 @@ function LoginAnnouncementEditor({ loginAnnouncements, setLoginAnnouncements, ad
 }
 
 function Settings({ ctx }) {
-  const { currentUser, members, setMembers, addToast, eventsVersion, setEventsVersion, decayRate, setDecayRate, loginAnnouncements, setLoginAnnouncements } = ctx;
+  const { currentUser, members, setMembers, addToast, eventsVersion, setEventsVersion, decayRate, setDecayRate, bonusConfig, setBonusConfig, loginAnnouncements, setLoginAnnouncements } = ctx;
   const { t } = useLang();
   const isMaster = currentUser.role==="Master";
   // ── Auto-decay: every Wednesday at 7:00 AM, fixed to GMT+8 ───────────────
@@ -12235,6 +12373,11 @@ function Settings({ ctx }) {
       <div className="card" style={{marginTop:20}}>
         <SectionTitle>{t("eventCoinValues")}</SectionTitle>
         <EventCoinValuesTable isMaster={isMaster} addToast={addToast} eventsVersion={eventsVersion} setEventsVersion={setEventsVersion} t={t} />
+      </div>
+      <div className="card" style={{marginTop:20}}>
+        <SectionTitle>{t("bonusSettingsTitle")}</SectionTitle>
+        <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12,lineHeight:1.7}}>{t("bonusSettingsDesc")}</div>
+        <BonusConfigEditor bonusConfig={bonusConfig} setBonusConfig={setBonusConfig} addToast={addToast} t={t} />
       </div>
       <div className="card" style={{marginTop:20}}>
         <SectionTitle><span style={{display:"inline-flex",alignItems:"center",gap:6}}><GearIcon size={13}/>{t("elderManagement")}</span></SectionTitle>
@@ -12648,7 +12791,7 @@ function DeleteAttendanceModal({ ctx }) {
 // members, coins, attendLog, or txLog in any way, so it can never cause a
 // double-payout — it just fixes the record to match what already happened.
 function AddMissingAttendanceModal({ ctx }) {
-  const { setModal, members, setMembers, addToast, setAttendanceLogs, currentUser } = ctx;
+  const { setModal, members, setMembers, addToast, setAttendanceLogs, currentUser, bonusConfig } = ctx;
   const { t } = useLang();
   const [eventName, setEventName] = useState(EVENTS[0]?.name || "");
   const [whenLocal, setWhenLocal] = useState(() => {
@@ -12696,7 +12839,7 @@ function AddMissingAttendanceModal({ ctx }) {
         return {name:m?.name, qualifier:q, earned};
       });
       setMembers(ms => {
-        const { updatedMembers, bonusToasts } = performAttendancePayout(ms, { ev, date, ts, present, qualifierMap });
+        const { updatedMembers, bonusToasts } = performAttendancePayout(ms, { ev, date, ts, present, qualifierMap }, bonusConfig);
         setTimeout(()=>{
           bonusToasts.forEach(bonus=>addToast(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><TrophyIcon size={14}/>{bonus.name} {t("earnedBonusText")} +{bonus.coins} {t("coinsText")} — {bonus.bonus} {t("bonusText")}</span>,"gold",t("bonusAwarded")));
         }, 200);
