@@ -242,6 +242,7 @@ const TRANSLATIONS = {
     bonusRuleSindri: "Sindri Veteran — attend 2× Sindri's Treasure Island per week for {n} weeks:",
     bonusOneTime: "(one-time)",
     bonusRuleISB: "ISB Veteran — participate in {n} Inter-Server Battles (lifetime):",
+    bonusRuleIron: "Iron Streak — attend all major events {n} weeks running (lifetime):",
     bonusSettingsTitle: "Bonus Settings",
     bonusSettingsDesc: "Edit the coin amounts and thresholds for the attendance bonuses below. Changes apply immediately to both new bonus payouts and everyone's progress display.",
     bonusSettingsSaved: "Bonus settings saved.",
@@ -251,6 +252,8 @@ const TRANSLATIONS = {
     sindriVeteranThresholdLabel: "Sindri Veteran weeks required:",
     isbVeteranBonusLabel: "ISB Veteran bonus:",
     isbVeteranThresholdLabel: "ISB Veteran events required:",
+    ironStreakBonusLabel: "Iron Streak bonus:",
+    ironStreakThresholdLabel: "Iron Streak weeks required:",
     decayWarningPrefix: "Unused coins decay",
     decayWarningSuffix: "every Tuesday. Stay active!",
     decayBadgeSuffix: "week",
@@ -261,6 +264,8 @@ const TRANSLATIONS = {
     sindriProgress: "weeks with 2× Sindri's",
     isbVeteran: "ISB Veteran",
     isbProgress: "ISB events",
+    ironStreak: "Iron Streak",
+    ironStreakProgress: "weeks running",
     myPointsHistoryTitle: "My Points History — Private",
     myPointsHistoryDesc: "Attendance, bonuses, admin coin adjustments, auction wins, and weekly decay. Only you can see this record.",
     adminPointsHistoryTitle: "Points History",
@@ -814,6 +819,7 @@ const TRANSLATIONS = {
     bonusRuleSindri: "辛德里老兵 — 每周参加2次辛德里的宝藏岛，连续{n}周：",
     bonusOneTime: "（一次性）",
     bonusRuleISB: "ISB老兵 — 参加{n}次跨服战（终身累计）：",
+    bonusRuleIron: "钢铁连胜 — 连续{n}周参加全部重大活动（终身累计）：",
     bonusSettingsTitle: "奖励设置",
     bonusSettingsDesc: "编辑下方出勤奖励的金币数额与达成条件。更改将立即应用于新发放的奖励以及所有人的进度显示。",
     bonusSettingsSaved: "奖励设置已保存。",
@@ -823,6 +829,8 @@ const TRANSLATIONS = {
     sindriVeteranThresholdLabel: "辛德里老兵所需周数：",
     isbVeteranBonusLabel: "ISB老兵奖励：",
     isbVeteranThresholdLabel: "ISB老兵所需次数：",
+    ironStreakBonusLabel: "钢铁连胜奖励：",
+    ironStreakThresholdLabel: "钢铁连胜所需周数：",
     decayWarningPrefix: "未使用的金币每周二衰减",
     decayWarningSuffix: "。请保持活跃！",
     decayBadgeSuffix: "周",
@@ -833,6 +841,8 @@ const TRANSLATIONS = {
     sindriProgress: "周（每周2次辛德里）",
     isbVeteran: "ISB老兵",
     isbProgress: "次跨服战",
+    ironStreak: "钢铁连胜",
+    ironStreakProgress: "周连续",
     myPointsHistoryTitle: "我的积分历史 — 私密",
     myPointsHistoryDesc: "出勤、奖励、管理员金币调整、拍卖获胜以及每周衰减。仅您本人可见此记录。",
     adminPointsHistoryTitle: "积分历史",
@@ -8309,6 +8319,8 @@ const DEFAULT_BONUS_CONFIG = {
   isbVeteranThreshold: 10,
   sindriVeteranBonusAmount: 400,
   sindriVeteranWeeksThreshold: 5,
+  ironStreakBonusAmount: 300,
+  ironStreakWeeksThreshold: 4,
 };
 // params: { ev: EVENTS entry, date: locale date string, ts: ms timestamp,
 //           present: [memberId], qualifierMap: {memberId: "full"|"late"|"afk"} }
@@ -8394,6 +8406,47 @@ function performAttendancePayout(members, { ev, date, ts, present, qualifierMap 
       bonusCoins += bonusConfig.sindriVeteranBonusAmount;
       newTxLog.push({change:bonusConfig.sindriVeteranBonusAmount,reason:`Attended 2 Sindri's per week for ${bonusConfig.sindriVeteranWeeksThreshold} weeks`,date,logType:"Sindri Veteran Bonus",addedBy:"System",ts});
       bonusToasts.push({name:m.name,bonus:"Sindri Veteran",coins:bonusConfig.sindriVeteranBonusAmount});
+    }
+    // ── Iron Streak bonus — Major Events completed N consecutive weeks
+    // running (unlike Sindri Veteran above, which only needs N total
+    // qualifying weeks, not consecutive ones). Reuses the same
+    // EVENT_REQUIRED/totalEvents completeness check getAttendedIds uses,
+    // just bucketed per calendar week instead of only the current one.
+    // "Streak" here means the run of consecutive completed weeks ending at
+    // the most recent completed week — the moment that run first reaches
+    // the threshold is a permanent achievement (guarded by the txLog
+    // check below), even if the streak later breaks.
+    function countMajorEventsStreak(log) {
+      const weekCounts = {};
+      log.filter(e=>e.qualifier!=="afk").forEach(e=>{
+        const d = new Date(e.date); if(isNaN(d)) return;
+        const evObj = EVENTS.find(x=>x.name===e.event); if(!evObj?.id) return;
+        const wsTs = getWeekStartFor(e.date).getTime();
+        if(!weekCounts[wsTs]) weekCounts[wsTs] = {};
+        weekCounts[wsTs][evObj.id] = (weekCounts[wsTs][evObj.id]||0) + 1;
+      });
+      const completedWeeks = Object.entries(weekCounts)
+        .filter(([, counts]) => {
+          const ids = new Set();
+          Object.entries(counts).forEach(([id,count])=>{ if(count>=(EVENT_REQUIRED[id]||1)) ids.add(id); });
+          return ids.size >= totalEvents;
+        })
+        .map(([ws]) => Number(ws))
+        .sort((a,b)=>b-a);
+      if (completedWeeks.length === 0) return 0;
+      let streak = 1;
+      for (let i=1; i<completedWeeks.length; i++) {
+        if (completedWeeks[i-1] - completedWeeks[i] === 7*24*60*60*1000) streak++;
+        else break;
+      }
+      return streak;
+    }
+    const ironStreakOld = countMajorEventsStreak(m.attendLog||[]);
+    const ironStreakNew = countMajorEventsStreak(newAttendLog);
+    if(ironStreakNew>=bonusConfig.ironStreakWeeksThreshold && ironStreakOld<bonusConfig.ironStreakWeeksThreshold && !(m.txLog||[]).some(tx=>tx.logType==="Iron Streak Bonus")) {
+      bonusCoins += bonusConfig.ironStreakBonusAmount;
+      newTxLog.push({change:bonusConfig.ironStreakBonusAmount,reason:`Attended all major events ${bonusConfig.ironStreakWeeksThreshold} weeks running (Iron Streak)`,date,logType:"Iron Streak Bonus",addedBy:"System",ts});
+      bonusToasts.push({name:m.name,bonus:"Iron Streak",coins:bonusConfig.ironStreakBonusAmount});
     }
     return{...m,coins:m.coins+earned+bonusCoins,attendance:m.attendance+(q!=="afk"?1:0),
       attendLog:newAttendLog,txLog:newTxLog};
@@ -8594,7 +8647,37 @@ function Attendance({ ctx }) {
     // stores "Inter Server Battle", not the hyphenated schedule name)
     const isbCount = log.filter(e=>EVENT_NAME_TO_ID[e.event]==="ISB"&&e.qualifier!=="afk").length;
     const isbVet = isbCount>=bonusConfig.isbVeteranThreshold;
-    return {attendedAll,sindriVet,stiQualWeeks,isbVet,isbCount,recentEvents,totalEvents,attendedNames:attendedIds};
+    // Iron Streak: consecutive weeks (not just total, unlike Sindri Veteran
+    // above) with all major events completed — same completeness rule as
+    // attendedAll, bucketed per calendar week instead of only this one.
+    // Mirrors performAttendancePayout's countMajorEventsStreak exactly, so
+    // this progress display can never drift from what actually pays out.
+    const ironWeekCounts = {};
+    log.filter(e=>e.qualifier!=="afk").forEach(e=>{
+      const d = new Date(e.date); if(isNaN(d)) return;
+      const evObj = EVENTS.find(x=>x.name===e.event); if(!evObj?.id) return;
+      const wsTs = getWeekStartFor(e.date).getTime();
+      if(!ironWeekCounts[wsTs]) ironWeekCounts[wsTs] = {};
+      ironWeekCounts[wsTs][evObj.id] = (ironWeekCounts[wsTs][evObj.id]||0) + 1;
+    });
+    const ironCompletedWeeks = Object.entries(ironWeekCounts)
+      .filter(([, counts]) => {
+        const ids = new Set();
+        Object.entries(counts).forEach(([id,count])=>{ if(count>=(EVENT_REQUIRED[id]||1)) ids.add(id); });
+        return ids.size >= totalEvents;
+      })
+      .map(([ws]) => Number(ws))
+      .sort((a,b)=>b-a);
+    let ironStreak = 0;
+    if (ironCompletedWeeks.length > 0) {
+      ironStreak = 1;
+      for (let i=1; i<ironCompletedWeeks.length; i++) {
+        if (ironCompletedWeeks[i-1] - ironCompletedWeeks[i] === 7*24*60*60*1000) ironStreak++;
+        else break;
+      }
+    }
+    const ironVet = ironStreak>=bonusConfig.ironStreakWeeksThreshold;
+    return {attendedAll,sindriVet,stiQualWeeks,isbVet,isbCount,ironVet,ironStreak,recentEvents,totalEvents,attendedNames:attendedIds};
   }
 
   const pagedLogs = attendanceLogs.slice(logPage*PAGE_SIZE, (logPage+1)*PAGE_SIZE);
@@ -8819,7 +8902,7 @@ function Attendance({ ctx }) {
                     <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>{b.stiQualWeeks}/{bonusConfig.sindriVeteranWeeksThreshold} {t("sindriProgress")}</div>
                   </div>
                   {/* ISB Veteran */}
-                  <div>
+                  <div style={{marginBottom:10}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                       <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:b.isbVet?"var(--gold-light)":"var(--text-dim)"}}>{t("isbVeteran")}</span>
                       {b.isbVet && <span className="badge badge-gold">+{bonusConfig.isbVeteranBonusAmount}</span>}
@@ -8828,6 +8911,17 @@ function Attendance({ ctx }) {
                       <div style={{height:4,borderRadius:2,background:"linear-gradient(90deg,#6c1e6c,#8e44ad)",width:`${Math.min(100,(b.isbCount/bonusConfig.isbVeteranThreshold)*100)}%`,transition:"width 0.4s"}} />
                     </div>
                     <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>{b.isbCount}/{bonusConfig.isbVeteranThreshold} {t("isbProgress")}</div>
+                  </div>
+                  {/* Iron Streak */}
+                  <div>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                      <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:b.ironVet?"var(--gold-light)":"var(--text-dim)"}}>{t("ironStreak")}</span>
+                      {b.ironVet && <span className="badge badge-gold">+{bonusConfig.ironStreakBonusAmount}</span>}
+                    </div>
+                    <div style={{height:4,background:"rgba(255,255,255,0.07)",borderRadius:2}}>
+                      <div style={{height:4,borderRadius:2,background:"linear-gradient(90deg,#6c3a1e,#d47a2e)",width:`${Math.min(100,(b.ironStreak/bonusConfig.ironStreakWeeksThreshold)*100)}%`,transition:"width 0.4s"}} />
+                    </div>
+                    <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>{b.ironStreak}/{bonusConfig.ironStreakWeeksThreshold} {t("ironStreakProgress")}</div>
                   </div>
                 </div>
               );
@@ -8852,6 +8946,7 @@ function Attendance({ ctx }) {
               <div style={{fontSize:12,color:"var(--text-dim)"}}>{t("bonusRuleMajor")} <strong style={{color:"var(--gold)"}}>+{bonusConfig.majorEventsBonusAmount} {t("coinsText")}</strong></div>
               <div style={{fontSize:12,color:"var(--text-dim)"}}>{t("bonusRuleSindri").replace("{n}",bonusConfig.sindriVeteranWeeksThreshold)} <strong style={{color:"var(--gold)"}}>+{bonusConfig.sindriVeteranBonusAmount} {t("coinsText")}</strong> {t("bonusOneTime")}</div>
               <div style={{fontSize:12,color:"var(--text-dim)"}}>{t("bonusRuleISB").replace("{n}",bonusConfig.isbVeteranThreshold)} <strong style={{color:"var(--gold)"}}>+{bonusConfig.isbVeteranBonusAmount} {t("coinsText")}</strong> {t("bonusOneTime")}</div>
+              <div style={{fontSize:12,color:"var(--text-dim)"}}>{t("bonusRuleIron").replace("{n}",bonusConfig.ironStreakWeeksThreshold)} <strong style={{color:"var(--gold)"}}>+{bonusConfig.ironStreakBonusAmount} {t("coinsText")}</strong> {t("bonusOneTime")}</div>
             </div>
           </div>
           <div className="dash-panel" style={{
@@ -8883,7 +8978,7 @@ function Attendance({ ctx }) {
             const rawEntries = buildPointsHistoryEntries(currentUser, t);
             // Build the filter options from whichever types actually appear,
             // preferring a sensible fixed order with anything unexpected tacked on.
-            const PREFERRED_ORDER = ["Attendance","Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Bonus Points","Elder Request","Admin Manual Add","Bid Placed","Outbid Refund","Auction Win","Weekly Decay","Balance Correction"];
+            const PREFERRED_ORDER = ["Attendance","Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Iron Streak Bonus","Bonus Points","Elder Request","Admin Manual Add","Bid Placed","Outbid Refund","Auction Win","Weekly Decay","Balance Correction"];
             const presentTypes = PREFERRED_ORDER.filter(type=>rawEntries.some(e=>e.type===type));
             rawEntries.forEach(e=>{ if(!presentTypes.includes(e.type)) presentTypes.push(e.type); });
             const filteredEntries = historyFilter==="All" ? rawEntries : rawEntries.filter(e=>e.type===historyFilter);
@@ -8971,7 +9066,7 @@ function Attendance({ ctx }) {
           </div>
           {(()=>{
             // Show admin manual adds and all bonus entries
-            const BONUS_TYPES = new Set(["Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Bonus Points","Elder Request","Weekly Decay"]);
+            const BONUS_TYPES = new Set(["Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Iron Streak Bonus","Bonus Points","Elder Request","Weekly Decay"]);
             // Weekly decay's clan-wide summary lives in app_state
             // (decayAnnouncements), not in any one member's tx_log — see
             // the decayAnnouncements state comment. Older entries from
@@ -11220,7 +11315,7 @@ function PointsHistoryPanel({ member, t }) {
   const [page, setPage] = useState(0);
   useEffect(() => { setFilter("All"); setPage(0); }, [member.id]);
   const rawEntries = buildPointsHistoryEntries(member, t);
-  const PREFERRED_ORDER = ["Attendance","Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Bonus Points","Elder Request","Admin Manual Add","Bid Placed","Outbid Refund","Auction Win","Weekly Decay","Balance Correction"];
+  const PREFERRED_ORDER = ["Attendance","Major Events Bonus","ISB Veteran Bonus","Sindri Veteran Bonus","Iron Streak Bonus","Bonus Points","Elder Request","Admin Manual Add","Bid Placed","Outbid Refund","Auction Win","Weekly Decay","Balance Correction"];
   const presentTypes = PREFERRED_ORDER.filter(type=>rawEntries.some(e=>e.type===type));
   rawEntries.forEach(e=>{ if(!presentTypes.includes(e.type)) presentTypes.push(e.type); });
   const filteredEntries = filter==="All" ? rawEntries : rawEntries.filter(e=>e.type===filter);
@@ -12078,7 +12173,7 @@ function BonusConfigEditor({ bonusConfig, setBonusConfig, addToast, t }) {
   }
 
   async function save() {
-    const fields = ["majorEventsBonusAmount","isbVeteranBonusAmount","isbVeteranThreshold","sindriVeteranBonusAmount","sindriVeteranWeeksThreshold"];
+    const fields = ["majorEventsBonusAmount","isbVeteranBonusAmount","isbVeteranThreshold","sindriVeteranBonusAmount","sindriVeteranWeeksThreshold","ironStreakBonusAmount","ironStreakWeeksThreshold"];
     const parsed = {};
     for (const f of fields) {
       const n = parseInt(draft[f], 10);
@@ -12109,6 +12204,8 @@ function BonusConfigEditor({ bonusConfig, setBonusConfig, addToast, t }) {
     { key:"sindriVeteranWeeksThreshold", label:t("sindriVeteranThresholdLabel"), suffix:t("weeksLabel") },
     { key:"isbVeteranBonusAmount", label:t("isbVeteranBonusLabel"), suffix:t("coinsText") },
     { key:"isbVeteranThreshold", label:t("isbVeteranThresholdLabel"), suffix:t("isbProgress") },
+    { key:"ironStreakBonusAmount", label:t("ironStreakBonusLabel"), suffix:t("coinsText") },
+    { key:"ironStreakWeeksThreshold", label:t("ironStreakThresholdLabel"), suffix:t("weeksLabel") },
   ];
 
   if (!editing) {
