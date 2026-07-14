@@ -6115,11 +6115,31 @@ function AppInner({ onMusicTrackChange }) {
     }
     return ok;
   }
-  function approveCoinRequest(reqId) {
+  // ROOT CAUSE of GinisangOtin's coins silently drifting -705 from her own
+  // Points History (found while investigating a report of drift right
+  // after a duplicate-log-entry cleanup — the cleanup was fine, this was
+  // the real cause): this used to compute the new balance from THIS
+  // browser's locally-cached m.coins and overwrite the whole member row
+  // via setMembers, in one indivisible database write bundled with the
+  // rest of that row's fields. Exactly the same lost-update race already
+  // found and fixed for bidding (see adjustMemberCoinsAndLogAtomic above)
+  // — if this browser's local snapshot was stale, or another write to the
+  // same member landed around the same time, the log entry could get
+  // written while the real coins change it describes silently didn't.
+  async function approveCoinRequest(reqId) {
     const req = pendingCoinRequests.find(r=>r.id===reqId);
     if (!req) return;
     const change = req.type==="add" ? req.amount : -req.amount;
-    setMembers(ms=>ms.map(m=>m.id===req.memberId?{...m,coins:m.coins+change,txLog:[...(m.txLog||[]),{change,reason:req.reason,date:new Date().toLocaleDateString(),logType:"Elder Request",addedBy:req.requestedBy,ts:Date.now()}]}:m));
+    const txEntry = {change,reason:req.reason,date:new Date().toLocaleDateString(),logType:"Elder Request",addedBy:req.requestedBy,ts:Date.now()};
+    const newBalance = await adjustMemberCoinsAndLogAtomic(req.memberName, change, txEntry);
+    if (newBalance === null) {
+      addToast(
+        <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't approve "{req.memberName}"'s request — please try again.</span>,
+        "red", "Approval Failed"
+      );
+      return;
+    }
+    setMembersRaw(ms=>ms.map(m=>m.id===req.memberId?{...m,coins:newBalance,txLog:[...(m.txLog||[]),txEntry]}:m));
     setPendingCoinRequests(prev=>prev.filter(r=>r.id!==reqId));
     deletedCoinReqIds.current.add(String(reqId));
     // If this delete fails, the request could reappear on the next poll and
@@ -12627,7 +12647,7 @@ function AddMemberModal({ ctx }) {
 
 // ─── ADJUST COINS MODAL ───────────────────────────────────────────────────────
 function AdjustCoinsModal({ ctx }) {
-  const { modal, setModal, setMembers, addToast, currentUser, submitCoinRequest } = ctx;
+  const { modal, setModal, setMembersRaw, addToast, currentUser, submitCoinRequest } = ctx;
   const { t } = useLang();
   const member = modal.data;
   const [amount, setAmount] = useState(0);
@@ -12673,9 +12693,30 @@ function AdjustCoinsModal({ ctx }) {
     }
     const change=type==="add"?val:-val;
     const logType=reason.toLowerCase().includes("bonus")?"Bonus Points":"Admin Manual Add";
-    setMembers(ms=>ms.map(m=>m.id===member.id?{...m,coins:m.coins+change,txLog:[...(m.txLog||[]),{change,reason:reason||"—",date:new Date().toLocaleDateString(),logType,addedBy:currentUser.name,ts:Date.now()}]}:m));
-    addToast(`${type==="add"?t("addedCoinsToast"):t("removedCoinsToast")} ${fmt(val)} ${type==="add"?t("coinsToLabel"):t("coinsFromLabel")} ${member.name}.`,type==="add"?"gold":"red",t("coinsAdjustedTitle"));
+    const txEntry = {change,reason:reason||"—",date:new Date().toLocaleDateString(),logType,addedBy:currentUser.name,ts:Date.now()};
+    // ROOT CAUSE of a real incident (GinisangOtin's coins silently
+    // drifting -705 from her own Points History): this used to compute
+    // the new balance from THIS browser's locally-cached member.coins and
+    // overwrite the whole row via setMembers, in one indivisible database
+    // write bundled with the rest of that row's fields — the exact same
+    // lost-update race already found and fixed for bidding (see
+    // adjustMemberCoinsAndLogAtomic above). If this browser's snapshot
+    // was stale, or another write to the same member landed around the
+    // same time, the log entry could get written while the real coins
+    // change it describes silently didn't.
+    setSubmitting(true);
+    const newBalance = await adjustMemberCoinsAndLogAtomic(member.name, change, txEntry);
+    setSubmitting(false);
     submittingRef.current = false;
+    if (newBalance === null) {
+      addToast(
+        <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't save — please try again.</span>,
+        "red", "Save Failed"
+      );
+      return;
+    }
+    setMembersRaw(ms=>ms.map(m=>m.id===member.id?{...m,coins:newBalance,txLog:[...(m.txLog||[]),txEntry]}:m));
+    addToast(`${type==="add"?t("addedCoinsToast"):t("removedCoinsToast")} ${fmt(val)} ${type==="add"?t("coinsToLabel"):t("coinsFromLabel")} ${member.name}.`,type==="add"?"gold":"red",t("coinsAdjustedTitle"));
     setModal(null);
   }
   return (
