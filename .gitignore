@@ -18,6 +18,9 @@ dist-ssr
 !.env.example
 .mcp.json
 
+# Generated knowledge-graph cache (regenerate with `graphify update .`)
+graphify-out/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
