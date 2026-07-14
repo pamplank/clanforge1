@@ -63,6 +63,9 @@ const TRANSLATIONS = {
     enterUsername: "Enter username…",
     enterPassword: "Enter password…",
     enter: "Enter",
+    continueAsGuest: "Continue as Guest — view without logging in",
+    logIn: "Log In",
+    guestModeLabel: "Guest — Read Only",
     invalidLogin: "Invalid username or password.",
     contactMaster: "Contact your Master to get access.",
     // Nav
@@ -336,6 +339,7 @@ const TRANSLATIONS = {
     noActiveAuctionsNow: "No active auctions right now.",
     noBidsYet: "No bids yet",
     bidButton: "Bid",
+    logInToBid: "Log in to bid",
     removeTitle: "Remove",
     currentBidLabel: "Current Bid",
     bidsLabel: "Bids",
@@ -640,6 +644,9 @@ const TRANSLATIONS = {
     enterUsername: "请输入用户名…",
     enterPassword: "请输入密码…",
     enter: "进入",
+    continueAsGuest: "以访客身份继续 — 无需登录即可查看",
+    logIn: "登录",
+    guestModeLabel: "访客 — 仅供查看",
     invalidLogin: "用户名或密码无效。",
     contactMaster: "请联系您的盟主以获取访问权限。",
     // Nav
@@ -910,6 +917,7 @@ const TRANSLATIONS = {
     noActiveAuctionsNow: "目前没有进行中的拍卖。",
     noBidsYet: "暂无出价",
     bidButton: "出价",
+    logInToBid: "登录后即可出价",
     removeTitle: "移除",
     currentBidLabel: "当前出价",
     bidsLabel: "出价数",
@@ -4253,7 +4261,7 @@ function ItemImagePicker({ value, onChange, library, addImage }) {
 }
 
 // ─── LOGIN ────────────────────────────────────────────────────────────────────
-function LoginScreen({ members, onLogin }) {
+function LoginScreen({ members, onLogin, onGuest }) {
   const { t } = useLang();
   const [form, setForm] = useState({ username:"", password:"" });
   const [error, setError] = useState("");
@@ -4357,6 +4365,14 @@ function LoginScreen({ members, onLogin }) {
             <input className="input" type="password" placeholder={t("enterPassword")} value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doLogin()} autoComplete="current-password" disabled={submitting} />
           </div>
           <button className="btn btn-gold" style={{width:"100%",justifyContent:"center",padding:"12px 20px"}} onClick={doLogin} disabled={submitting}>{submitting ? "…" : t("enter")}</button>
+          {onGuest && (
+            <div
+              onClick={submitting ? undefined : onGuest}
+              style={{textAlign:"center",marginTop:12,fontSize:12,color:"var(--text-dim)",cursor:submitting?"default":"pointer",textDecoration:"underline",textUnderlineOffset:3}}
+            >
+              {t("continueAsGuest")}
+            </div>
+          )}
         </div>
 
         {/* Addition 3 — Reigning Champion tag: current #1 by Power, name
@@ -4567,7 +4583,7 @@ function AdjustPowerModal({ member, onSave, onClose }) {
 // ─── LOOT ROULETTE ────────────────────────────────────────────────────────────
 function LootRoulette({ ctx }) {
   const { members, addToast, currentUser } = ctx;
-  const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
+  const isAdmin = !!currentUser && (currentUser.role==="Elder"||currentUser.role==="Master");
 
   // attendees
   const [memberSearch, setMemberSearch] = useState("");
@@ -5010,6 +5026,24 @@ function AppInner({ onMusicTrackChange }) {
   const [auctions, setAuctionsRaw] = useState(SEED_AUCTIONS);
   const [attendanceLogs, setAttendanceLogsRaw] = useState([]);
   const [loggedIn, setLoggedIn] = useState(false);
+  // Lets a non-member browse a trimmed, read-only slice of the site
+  // (Dashboard/Auctions/Leaderboard, no financial detail, no write
+  // actions) without logging in — see the login gate below. Deliberately
+  // NOT persisted to localStorage the way cf_user_id is for real logins:
+  // a refresh should land back on the real login screen, not silently
+  // re-enter guest mode. currentUser stays null for guests rather than a
+  // synthesized fake member object, so any place that forgets to guard
+  // against a null currentUser crashes loudly during testing instead of
+  // silently sending a bad write to Supabase.
+  const [isGuest, setIsGuest] = useState(false);
+  // Lets a public ?guest=1 link drop a visitor straight into guest mode
+  // without them needing to find/click the "Continue as Guest" link —
+  // never overrides an already-logged-in session.
+  useEffect(() => {
+    if (!loggedIn && new URLSearchParams(window.location.search).get("guest") === "1") {
+      setIsGuest(true);
+    }
+  }, []);
   // Set once on login to {since, until} — the window the post-login
   // "what's new" popup summarizes over. null means no popup should show
   // (e.g. first-ever login, or already dismissed this session).
@@ -5025,10 +5059,10 @@ function AppInner({ onMusicTrackChange }) {
   // any — should be playing for the current screen.
   useEffect(() => {
     if (!onMusicTrackChange) return;
-    if (!loggedIn) onMusicTrackChange("login");
+    if (!loggedIn && !isGuest) onMusicTrackChange("login");
     else if (page === "leaderboard") onMusicTrackChange("leaderboard");
     else onMusicTrackChange(null);
-  }, [loggedIn, page, onMusicTrackChange]);
+  }, [loggedIn, isGuest, page, onMusicTrackChange]);
   const [showEntrance, setShowEntrance] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   // Mirrors currentUser into a ref so callbacks captured once (e.g. the
@@ -6183,7 +6217,7 @@ function AppInner({ onMusicTrackChange }) {
 
 
   const ctx = { members, setMembers, setMembersRaw, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
-    currentUser, setCurrentUser, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion, decayRate, setDecayRate, bonusConfig, setBonusConfig, loginAnnouncements, setLoginAnnouncements, featuredAuctionId, setFeaturedAuctionId, decayAnnouncements };
+    currentUser, setCurrentUser, isGuest, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion, decayRate, setDecayRate, bonusConfig, setBonusConfig, loginAnnouncements, setLoginAnnouncements, featuredAuctionId, setFeaturedAuctionId, decayAnnouncements };
 
   const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings"),"record-attendance":t("tabRecordAttendance"),"create-auction":t("tabCreateAuction")};
 
@@ -6229,21 +6263,21 @@ function AppInner({ onMusicTrackChange }) {
     </>
   );
 
-  if (!loggedIn) return (
+  if (!loggedIn && !isGuest) return (
     <>
       <style>{GLOBAL_CSS}</style>
-      <LoginScreen members={members} onLogin={handleLogin} />
+      <LoginScreen members={members} onLogin={handleLogin} onGuest={()=>setIsGuest(true)} />
       <Toast toasts={toasts} remove={removeToast} />
     </>
   );
 
-  const _isLeader = currentUser.role==="Leader";
-  const _isElder  = currentUser.role==="Elder";
-  const _isMaster = currentUser.role==="Master";
+  const _isLeader = !!currentUser && currentUser.role==="Leader";
+  const _isElder  = !!currentUser && currentUser.role==="Elder";
+  const _isMaster = !!currentUser && currentUser.role==="Master";
   const _reportPages = [];
   if (_isLeader || _isElder || _isMaster) _reportPages.push({id:"export",label:t("pageTitle_export")});
   if (_isLeader || _isMaster) _reportPages.push({id:"settings",label:t("pageTitle_settings")});
-  const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
+  const isAdmin = !!currentUser && (currentUser.role==="Elder"||currentUser.role==="Master");
   // Two-tier nav: "My Clan" is always shown (every member's own stats/
   // actions); "Admin Tools" is Elder/Master-only and visually separated
   // (own section + collapse toggle) rather than admin controls being
@@ -6257,8 +6291,10 @@ function AppInner({ onMusicTrackChange }) {
     { section:t("navSection_myClan"), items:[
         {id:"dashboard",icon:<StatIcon src={WARRIORS_ICON} size={16}/>,label:t("pageTitle_dashboard")},
         {id:"leaderboard",icon:<LBIcon src={LEADERBOARD_ICON} size={14}/>,label:t("leaderboards")},
-        {id:"members",icon:<StatIcon src={WARRIORS_ICON} size={16}/>,label:t("members")},
-        {id:"attendance",icon:<StatIcon src={ATTENDANCE_ICON} size={16}/>,label:t("attendance")},
+        ...(!isGuest ? [
+          {id:"members",icon:<StatIcon src={WARRIORS_ICON} size={16}/>,label:t("members")},
+          {id:"attendance",icon:<StatIcon src={ATTENDANCE_ICON} size={16}/>,label:t("attendance")},
+        ] : []),
         {id:"auctions",icon:<StatIcon src={AUCTION_ICON} size={16}/>,label:t("auctions")},
       ]},
   ];
@@ -6334,7 +6370,7 @@ function AppInner({ onMusicTrackChange }) {
       <div className="app-shell">
         <div className="nav-wrapper">
         <nav className="sidebar">
-          <div className="sidebar-logo" onClick={()=>setGlobalViewingProfile(currentUser.id)} style={{cursor:"pointer"}} title="View your profile">
+          <div className="sidebar-logo" onClick={currentUser ? ()=>setGlobalViewingProfile(currentUser.id) : undefined} style={{cursor:currentUser?"pointer":"default"}} title={currentUser ? "View your profile" : undefined}>
             <img src="/images/ymir-logo-gold.png" alt="" className="sidebar-logo-mark" />
           </div>
           {(() => {
@@ -6388,6 +6424,7 @@ function AppInner({ onMusicTrackChange }) {
           })()}
           <div className="topnav-icons">
           <LangSwitcher />
+          {currentUser ? (
           <div className={`user-menu${openUserMenu?" dd-open":""}`} onMouseLeave={()=>setOpenUserMenu(false)}>
             <div
               className="profile-chip"
@@ -6424,6 +6461,9 @@ function AppInner({ onMusicTrackChange }) {
               </div>
             </div>
           </div>
+          ) : (
+            <button className="btn btn-outline btn-sm" onClick={()=>setIsGuest(false)}>{t("logIn")}</button>
+          )}
           </div>
           {/* Hamburger — mobile only */}
           <button className="hamburger" onClick={()=>setDrawerOpen(true)} aria-label="Open menu">
@@ -6440,6 +6480,7 @@ function AppInner({ onMusicTrackChange }) {
               <button className="drawer-close" onClick={()=>setDrawerOpen(false)}>✕</button>
             </div>
             {navContent}
+            {currentUser ? (
             <div className="drawer-user">
               <div className="drawer-user-row">
                 <div className="user-avatar"><ClassIcon cls={currentUser.cls} size={22}/></div>
@@ -6465,6 +6506,11 @@ function AppInner({ onMusicTrackChange }) {
                 <button className="btn btn-ghost btn-sm" onClick={handleLogout}>{t("logOut")}</button>
               </div>
             </div>
+            ) : (
+              <div className="drawer-user">
+                <button className="btn btn-gold btn-sm" style={{width:"100%",justifyContent:"center"}} onClick={()=>{setIsGuest(false);setDrawerOpen(false);}}>{t("logIn")}</button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -6472,7 +6518,7 @@ function AppInner({ onMusicTrackChange }) {
           <div className="topbar">
             <div>
               <div className="page-title">{PAGE_TITLES[page]||page}</div>
-              <div className="page-sub">{currentUser.name} · {currentUser.role}</div>
+              <div className="page-sub">{currentUser ? `${currentUser.name} · ${currentUser.role}` : t("guestModeLabel")}</div>
             </div>
             <div className="topbar-actions">
               {/* Add Member / Approvals live in the top nav's Admin Tools
@@ -6502,16 +6548,17 @@ function AppInner({ onMusicTrackChange }) {
               ) : (
                 <motion.div key="page" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={{duration:0.25}}>
                   {page==="dashboard"   && <Dashboard ctx={ctx} setPage={navigateToPage} />}
-                  {page==="members"     && <Members ctx={ctx} />}
-                  {page==="attendance"  && <Attendance ctx={ctx} />}
+                  {page==="members"     && !isGuest && <Members ctx={ctx} />}
+                  {page==="attendance"  && !isGuest && <Attendance ctx={ctx} />}
                   {page==="auctions"    && <Auctions ctx={ctx} />}
                   {page==="leaderboard" && <Leaderboard ctx={ctx} />}
-                  {page==="export"      && <Export ctx={ctx} />}
-                  {page==="settings"    && <Settings ctx={ctx} />}
                   {/* Admin-only pages — gated here too (not just hidden from
                       nav) as defense-in-depth, matching how Reports/Settings
                       already gate by role rather than relying solely on the
-                      sidebar not showing a link. */}
+                      sidebar not showing a link. isAdmin is already false for
+                      guests (currentUser is null), so this also covers them. */}
+                  {page==="export"      && isAdmin && <Export ctx={ctx} />}
+                  {page==="settings"    && isAdmin && <Settings ctx={ctx} />}
                   {page==="record-attendance" && isAdmin && <RecordAttendancePanel ctx={ctx} />}
                   {page==="create-auction"    && isAdmin && <CreateAuctionPanel ctx={ctx} />}
                 </motion.div>
@@ -7018,7 +7065,7 @@ const UPDATE_NOTES = [
 
 function UpdateNotes({ ctx }) {
   const { currentUser, addToast } = ctx;
-  const isAdmin = currentUser.role === "Elder" || currentUser.role === "Master";
+  const isAdmin = !!currentUser && (currentUser.role === "Elder" || currentUser.role === "Master");
   const [expanded, setExpanded] = React.useState(null);
   const [showAll, setShowAll] = React.useState(false);
   const [posting, setPosting] = React.useState(false);
@@ -7188,14 +7235,14 @@ function CornerBrackets({ size = 18, thickness = 2, inset = 6, opacity = 0.4 }) 
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function Dashboard({ ctx, setPage }) {
-  const { members, auctions, currentUser } = ctx;
+  const { members, auctions, currentUser, isGuest } = ctx;
   const { t } = useLang();
   const [wtMode, setWtMode] = useState("attendance");
   const activeAuctions = auctions.filter(a=>a.status==="active");
   const recentWinners = auctions.filter(a=>a.status==="ended"&&a.topBidder).slice(0,3);
 
   const ROLE_COLOR = { Master:"#c8922a", Elder:"#e07070", Member:"#7098c8" };
-  const roleColor = ROLE_COLOR[currentUser.role] || "#9c8c7c";
+  const roleColor = ROLE_COLOR[currentUser?.role] || "#9c8c7c";
 
   // ── Clan Power & Class Composition (derived live from members, no extra
   // data needed — recomputed on every render since `members` already
@@ -7263,6 +7310,8 @@ function Dashboard({ ctx, setPage }) {
                   borderRadius:20,padding:"3px 12px",color:"var(--gold-light)"
                 }}><span style={{display:"inline-flex",alignItems:"center",gap:5}}><ColumnIcon size={11}/>{auctions.filter(a=>a.status==="active").length} {t("liveAuctions")}</span></span>
               </div>
+              {currentUser && (
+              <>
               {/* Divider */}
               <div style={{height:1,background:"linear-gradient(90deg,rgba(200,146,42,0.25),transparent)",marginBottom:16,width:"80%"}} />
               {/* Greeter */}
@@ -7283,6 +7332,8 @@ function Dashboard({ ctx, setPage }) {
                   </div>
                 </div>
               </div>
+              </>
+              )}
             </div>
 
             {/* Right — Total Power + Class Composition, folded into the hero
@@ -7298,6 +7349,7 @@ function Dashboard({ ctx, setPage }) {
               }}>{fmt(totalPower)}</div>
               <div style={{fontSize:11,color:"#7c6d58",marginBottom:16,fontFamily:"'Inter',sans-serif"}}>{t("acrossWarriors").replace("{count}", members.length)}</div>
 
+              {currentUser && (
               <div style={{display:"flex",gap:24,marginBottom:18}}>
                 <div>
                   <div style={{fontSize:10,letterSpacing:1.5,textTransform:"uppercase",color:"#7c6d58",marginBottom:4,fontFamily:"'Inter',sans-serif"}}>{t("yourPower")}</div>
@@ -7308,6 +7360,7 @@ function Dashboard({ ctx, setPage }) {
                   <div style={{fontSize:15,fontWeight:800,color:"var(--gold-light)",fontFamily:"'Inter',sans-serif",display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={22}/>{fmt(currentUser.coins)}</div>
                 </div>
               </div>
+              )}
 
               {/* Class Composition — condensed to the top 3 classes as
                   slim glowing bars, rather than the full bar-chart the
@@ -7389,7 +7442,7 @@ function Dashboard({ ctx, setPage }) {
         }}>
           <CornerBrackets size={11} thickness={1.5} inset={7} opacity={0.35}/>
           {(()=>{
-            const WT_MODES=[{id:"attendance",label:t("topAttendance")},{id:"power",label:t("topPower")},{id:"coins",label:t("richest")}];
+            const WT_MODES=[{id:"attendance",label:t("topAttendance")},{id:"power",label:t("topPower")},...(!isGuest?[{id:"coins",label:t("richest")}]:[])];
             const sorted=[...members].sort((a,b)=>b[wtMode]-a[wtMode]).slice(0,5);
             const valFn=m=>wtMode==="attendance"?`${m.attendance} att`:wtMode==="power"?fmt(m.power):fmt(m.coins);
             const valColor=wtMode==="attendance"?"#60aadd":wtMode==="power"?"#a8b8c8":"var(--gold-light)";
@@ -7410,7 +7463,7 @@ function Dashboard({ ctx, setPage }) {
                   </div>
                   <div style={{textAlign:"right",flexShrink:0}}>
                     <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:14,color:valColor}}>{valFn(m)}</div>
-                    {wtMode!=="coins"&&<div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:11,color:"var(--gold-light)",display:"inline-flex",alignItems:"center",gap:3}}><StatIcon src={COINS_ICON} size={20}/>{fmt(m.coins)}</div>}
+                    {wtMode!=="coins"&&!isGuest&&<div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:11,color:"var(--gold-light)",display:"inline-flex",alignItems:"center",gap:3}}><StatIcon src={COINS_ICON} size={20}/>{fmt(m.coins)}</div>}
                   </div>
                 </div>
               ))}
@@ -7474,7 +7527,7 @@ function Members({ ctx }) {
   const [selectedMember, setSelectedMember] = useState(null);
   const [viewingProfile, setViewingProfile] = useState(null);
   const [page, setPage] = useState(0);
-  const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
+  const isAdmin = !!currentUser && (currentUser.role==="Elder"||currentUser.role==="Master");
 
   // Power rank computed independent of the table's current sort/search/
   // filter, so the tier accent stripe always reflects a member's real
@@ -8569,8 +8622,8 @@ function Attendance({ ctx }) {
   const [historyFilter, setHistoryFilter] = useState("All");
   const [historyPage, setHistoryPage] = useState(0);
   const [globalLogPage, setGlobalLogPage] = useState(0);
-  const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
-  const isMaster = currentUser.role==="Master";
+  const isAdmin = !!currentUser && (currentUser.role==="Elder"||currentUser.role==="Master");
+  const isMaster = !!currentUser && currentUser.role==="Master";
   const [logPage, setLogPage] = useState(0);
   const [expandedLog, setExpandedLog] = useState(null);
   const PAGE_SIZE = 10;
@@ -9469,7 +9522,7 @@ async function setFeaturedAuction(auctionId, ctx) {
 // blurred (backdrop-filter still sampling) on any card with bid history,
 // even at rest. onHoverStart/onHoverEnd + a plain boolean + explicit
 // animate={...} is the reliable version of the same interaction. ───
-function AuctionGridCard({ a, isWinning, minBid, rc2, t, bidAmounts, setBidAmounts, bidSubmitting, placeBid, isAdmin, isMaster, isAuctionInNews, removeAuctionFromNews, postAuctionToNews, ctx, removeAuction, isHoverCapable }) {
+function AuctionGridCard({ a, isWinning, minBid, rc2, t, bidAmounts, setBidAmounts, bidSubmitting, placeBid, isAdmin, isMaster, isGuest, isAuctionInNews, removeAuctionFromNews, postAuctionToNews, ctx, removeAuction, isHoverCapable }) {
   const [imgHovered, setImgHovered] = useState(false);
   const recentBids = [...(a.bids||[])].reverse().slice(0,2);
   const hasRevealContent = !!a.desc || recentBids.length>0 || !!a.topBidder;
@@ -9542,10 +9595,14 @@ function AuctionGridCard({ a, isWinning, minBid, rc2, t, bidAmounts, setBidAmoun
             <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:20,color:"#a8b8c8"}}>{(a.bids||[]).length || (a.topBidder ? 1 : 0)}</div>
           </div>
         </div>
+        {isGuest ? (
+          <div style={{marginTop:12,fontSize:11,color:"var(--text-dim)",fontStyle:"italic",textAlign:"center"}}>{t("logInToBid")}</div>
+        ) : (
         <div style={{marginTop:12,display:"flex",gap:8}}>
           <input className="input" type="number" min={minBid} placeholder={`${t("minBidPlaceholder")} ${fmt(minBid)}`} value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p,[a.id]:e.target.value}))} style={{flex:1}} />
           <button className="btn btn-gold" onClick={(e)=>placeBid(a.id,e)} disabled={!!bidSubmitting[a.id]}>{bidSubmitting[a.id]?"…":t("bidButton")}</button>
         </div>
+        )}
 
         {isAdmin&&<button className="btn btn-outline btn-sm" style={{width:"100%",marginTop:6}} onClick={()=>setFeaturedAuction(a.id, ctx)}>Feature at top</button>}
         {isAdmin&&<button className={isAuctionInNews(a.id)?"btn btn-gold btn-sm":"btn btn-outline btn-sm"} style={{width:"100%",marginTop:6,display:"flex",alignItems:"center",justifyContent:"center",gap:6}} onClick={()=>isAuctionInNews(a.id)?removeAuctionFromNews(a.id):postAuctionToNews(a, ctx)}><BellIcon size={13}/>{isAuctionInNews(a.id)?t("removeFromNewsBtn"):t("putInNewsBtn")}</button>}
@@ -9576,7 +9633,7 @@ function AuctionGridCard({ a, isWinning, minBid, rc2, t, bidAmounts, setBidAmoun
 // warm spotlight glow behind the item and a heavy vignette (the "B4"
 // treatment), rather than another grid card. Still fully biddable from
 // here; it just isn't shown a second time in the grid below.
-function FeaturedAuctionSpotlight({ a, isWinning, minBid, t, bidAmounts, setBidAmounts, bidSubmitting, placeBid, isAdmin, ctx }) {
+function FeaturedAuctionSpotlight({ a, isWinning, minBid, t, bidAmounts, setBidAmounts, bidSubmitting, placeBid, isAdmin, isGuest, ctx }) {
   // Same rarity color map AuctionGridCard uses — the spotlight was
   // shipping with a fixed gold border and no rarity badge at all,
   // dropping the one visual signal (rarity color) that's meaningful and
@@ -9678,6 +9735,8 @@ function FeaturedAuctionSpotlight({ a, isWinning, minBid, t, bidAmounts, setBidA
           </div>
           {isWinning ? (
             <div style={{fontSize:12, fontWeight:800, color:"#7ddc7d"}}>You're winning this!</div>
+          ) : isGuest ? (
+            <div style={{fontSize:12, color:"var(--text-mid)", fontStyle:"italic"}}>{t("logInToBid")}</div>
           ) : (
             <div style={{display:"flex", gap:8}}>
               <input
@@ -9698,7 +9757,7 @@ function FeaturedAuctionSpotlight({ a, isWinning, minBid, t, bidAmounts, setBidA
 }
 
 function Auctions({ ctx }) {
-  const { auctions, setAuctions, members, setMembers, setMembersRaw, currentUser, addToast, fireCoinBurst, fireBalancePopup, tick, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, loginAnnouncements, setLoginAnnouncements, featuredAuctionId, setFeaturedAuctionId } = ctx;
+  const { auctions, setAuctions, members, setMembers, setMembersRaw, currentUser, isGuest, addToast, fireCoinBurst, fireBalancePopup, tick, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, loginAnnouncements, setLoginAnnouncements, featuredAuctionId, setFeaturedAuctionId } = ctx;
   const { t } = useLang();
   const [tab, setTab] = useState("active");
   const [bidAmounts, setBidAmounts] = useState({});
@@ -9706,8 +9765,8 @@ function Auctions({ ctx }) {
   const [sortBy, setSortBy] = useState("default");
   const [viewMode, setViewMode] = useState("grid");
   const [historyPage, setHistoryPage] = useState(0);
-  const isAdmin = currentUser.role==="Elder"||currentUser.role==="Master";
-  const isMaster = currentUser.role==="Master";
+  const isAdmin = !!currentUser && (currentUser.role==="Elder"||currentUser.role==="Master");
+  const isMaster = !!currentUser && currentUser.role==="Master";
   // Real mouse/trackpad hover only — excludes touchscreens. The auction
   // card's hover-reveal (description + recent bids sliding up over the
   // art on hover) is a desktop-only enhancement; touch devices have no
@@ -9764,6 +9823,13 @@ function Auctions({ ctx }) {
   const gridAuctions = featuredAuction ? active.filter(a => a.id !== featuredAuction.id) : active;
 
   async function placeBid(auctionId, clickEvent) {
+    // Defense-in-depth: the bid input/button are already hidden for
+    // guests in every place that renders them (AuctionGridCard,
+    // FeaturedAuctionSpotlight, the compact view below), so this should
+    // never actually be reachable without a real currentUser — but this
+    // function reads currentUser.name unconditionally below, so bail
+    // loudly rather than let a null currentUser crash mid-bid.
+    if (!currentUser) return;
     // Grab the button's screen position synchronously — React's synthetic
     // event won't reliably survive across the awaits below, so capture
     // coordinates now, before any async work begins.
@@ -10122,7 +10188,7 @@ function Auctions({ ctx }) {
       <div className="dash-tabs">
         <div className={`dash-tab${tab==="active"?" active":""}`} onClick={()=>setTab("active")}>{t("tabLiveAuctions")} ({active.length})</div>
         <div className={`dash-tab${tab==="ended"?" active":""}`} onClick={()=>setTab("ended")}>{t("tabAuctionHistory")}</div>
-        <div className={`dash-tab${tab==="roulette"?" active":""}`} onClick={()=>setTab("roulette")}>{t("tabLootRoulette")}</div>
+        {!isGuest && <div className={`dash-tab${tab==="roulette"?" active":""}`} onClick={()=>setTab("roulette")}>{t("tabLootRoulette")}</div>}
       </div>
 
       <BidMarquee feed={bidFeed} auctions={auctions} />
@@ -10160,9 +10226,9 @@ function Auctions({ ctx }) {
 
       {tab==="active" && featuredAuction && (
         <FeaturedAuctionSpotlight
-          a={featuredAuction} isWinning={featuredAuction.topBidder===currentUser.name} minBid={featuredAuction.currentBid+5}
+          a={featuredAuction} isWinning={featuredAuction.topBidder===currentUser?.name} minBid={featuredAuction.currentBid+5}
           t={t} bidAmounts={bidAmounts} setBidAmounts={setBidAmounts} bidSubmitting={bidSubmitting} placeBid={placeBid}
-          isAdmin={isAdmin} ctx={ctx}
+          isAdmin={isAdmin} isGuest={isGuest} ctx={ctx}
         />
       )}
 
@@ -10170,7 +10236,7 @@ function Auctions({ ctx }) {
         <div className={viewMode==="grid"?"grid-3":""} style={viewMode==="compact"?{display:"flex",flexDirection:"column",gap:6}:{}}>
           {gridAuctions.length===0&&!featuredAuction&&<div style={{color:"var(--text-dim)",gridColumn:"1/-1",textAlign:"center",padding:48,fontFamily:"'Inter',sans-serif"}}>{t("noActiveAuctionsNow")}</div>}
           {gridAuctions.map(a=>{
-            const isWinning=a.topBidder===currentUser.name;
+            const isWinning=a.topBidder===currentUser?.name;
             const minBid=a.currentBid+5;
             const rc={epic:{bg:"rgba(122,26,26,0.92)",color:"#ff8080",border:"rgba(192,57,43,0.5)"},rare:{bg:"rgba(26,90,138,0.92)",color:"#60aadd",border:"rgba(46,134,193,0.5)"},kari:{bg:"rgba(0,60,130,0.92)",color:"#a0d8ff",border:"rgba(100,200,255,0.6)"},material:{bg:"rgba(120,120,120,0.92)",color:"#cccccc",border:"rgba(160,160,160,0.5)"},uncommon:{bg:"rgba(46,138,46,0.92)",color:"#7ddc7d",border:"rgba(80,180,80,0.5)"}};
             const rc2=rc[a.rarity]||rc.epic;
@@ -10212,12 +10278,18 @@ function Auctions({ ctx }) {
                 </div>
                 {/* ROW 2: bid input + buttons */}
                 <div style={{display:"flex",gap:6,padding:"0 12px 10px",alignItems:"center"}}>
+                  {isGuest ? (
+                    <div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic"}}>{t("logInToBid")}</div>
+                  ) : (
+                  <>
                   <input className="input" type="number" min={minBid} placeholder={`${t("minBidPlaceholder")} ${fmt(minBid)}`}
                     value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p,[a.id]:e.target.value}))}
                     style={{flex:1,minWidth:0,fontSize:12,padding:"5px 8px"}} />
                   <button className="btn btn-gold btn-sm" onClick={(e)=>placeBid(a.id,e)} disabled={!!bidSubmitting[a.id]} style={{flexShrink:0,padding:"5px 14px"}}>
                     {bidSubmitting[a.id]?"…":t("bidButton")}
                   </button>
+                  </>
+                  )}
 
                   {isAdmin&&<button className={isAuctionInNews(a.id)?"btn btn-gold btn-sm":"btn btn-outline btn-sm"} onClick={()=>isAuctionInNews(a.id)?removeAuctionFromNews(a.id):postAuctionToNews(a, ctx)} title={isAuctionInNews(a.id)?t("removeFromNewsTitle"):t("putInNewsTitle")} style={{flexShrink:0,padding:"5px 10px"}}><BellIcon size={12}/></button>}
                   {isMaster&&<button className="btn btn-red btn-sm" onClick={()=>removeAuction(a.id)} title={t("removeTitle")} style={{flexShrink:0,padding:"5px 10px"}}>✕</button>}
@@ -10227,7 +10299,7 @@ function Auctions({ ctx }) {
             return (
               <AuctionGridCard key={a.id} a={a} isWinning={isWinning} minBid={minBid} rc2={rc2} t={t}
                 bidAmounts={bidAmounts} setBidAmounts={setBidAmounts} bidSubmitting={bidSubmitting} placeBid={placeBid}
-                isAdmin={isAdmin} isMaster={isMaster} isAuctionInNews={isAuctionInNews}
+                isAdmin={isAdmin} isMaster={isMaster} isGuest={isGuest} isAuctionInNews={isAuctionInNews}
                 removeAuctionFromNews={removeAuctionFromNews} postAuctionToNews={postAuctionToNews} ctx={ctx}
                 removeAuction={removeAuction} isHoverCapable={isHoverCapable} />
             );
@@ -10314,7 +10386,7 @@ function Auctions({ ctx }) {
         </>
       )}
 
-      {tab==="roulette"&&(
+      {tab==="roulette"&&!isGuest&&(
         <div>
           {/* ── Header ── */}
           <div className="dash-panel" style={{
@@ -10654,7 +10726,7 @@ function LBList({ data, valueKey, label, format, color, currentUser, showMultipl
   const max=data[0]?.[valueKey]||1;
   const totalPages = Math.ceil(data.length/LB_PAGE);
   const visible = data.slice(page*LB_PAGE, (page+1)*LB_PAGE);
-  const myRank = data.findIndex(m=>m.name===currentUser.name);
+  const myRank = data.findIndex(m=>m.name===currentUser?.name);
   const myEntry = data[myRank];
   const onCurrentPage = myRank>=page*LB_PAGE && myRank<(page+1)*LB_PAGE;
 
@@ -10696,7 +10768,7 @@ function LBList({ data, valueKey, label, format, color, currentUser, showMultipl
         {/* Ranked list */}
         {visible.map((m,i)=>{
           const globalRank = page*LB_PAGE+i+rankOffset;
-          const isMe = m.name===currentUser.name;
+          const isMe = m.name===currentUser?.name;
           return (
             <div key={m.id} className="lb-row" style={{background:isMe?"rgba(201,151,42,0.06)":"transparent",borderRadius:isMe?3:0,padding:isMe?"6px 8px":"10px 0"}}>
               <div className="lb-rank" style={{color:globalRank===0?"#f2d98a":globalRank===1?"#a8b8c8":globalRank===2?"#c87533":"var(--text-dim)"}}>{rankIcon(globalRank)}</div>
@@ -10759,7 +10831,7 @@ function LeaderboardPodium({ topThree, honorableMentions, onViewProfile }) {
             <div key={m.id} className={`podium-slot podium-rank-${rank}`}>
               <div className="podium-metal-ring">
                 <div className="podium-card-frame">
-                  <ProfileCard member={m} onClick={()=>onViewProfile(m.id)} prestigeRank={rank} />
+                  <ProfileCard member={m} onClick={onViewProfile ? ()=>onViewProfile(m.id) : undefined} prestigeRank={rank} />
                 </div>
               </div>
               <div className="podium-name">{m.cls}</div>
@@ -10783,7 +10855,7 @@ function LeaderboardPodium({ topThree, honorableMentions, onViewProfile }) {
               <div key={m.id} className="podium-honorable-slot">
                 <div className="podium-honorable-ring">
                   <div className="podium-honorable-frame">
-                    <ProfileCard member={m} onClick={()=>onViewProfile(m.id)} prestigeRank={rank} />
+                    <ProfileCard member={m} onClick={onViewProfile ? ()=>onViewProfile(m.id) : undefined} prestigeRank={rank} />
                   </div>
                 </div>
                 <div className="podium-honorable-name">{m.cls}</div>
@@ -10798,7 +10870,7 @@ function LeaderboardPodium({ topThree, honorableMentions, onViewProfile }) {
 }
 
 function Leaderboard({ ctx }) {
-  const { members, currentUser, setGlobalViewingProfile } = ctx;
+  const { members, currentUser, isGuest, setGlobalViewingProfile } = ctx;
   const { t } = useLang();
   const byCoins=[...members].sort((a,b)=>b.coins-a.coins);
   const byPower=[...members].sort((a,b)=>b.power-a.power);
@@ -10806,6 +10878,13 @@ function Leaderboard({ ctx }) {
   const powerTopThree = byPower.slice(0,3);
   const powerFourToTen = byPower.slice(3,10);
   const powerRest = byPower.slice(10);
+  // Guests only get the Most Powerful ranking — Richest Warriors (coins)
+  // and Most Active (attendance) are hidden. Also close the profile-click
+  // side door on the podium and the Most Powerful list itself: clicking
+  // through to PlayerInfo reveals a member's full Points History (coins,
+  // tx_log) even from a list that only shows power, so guests never get
+  // onViewProfile at all, not even on the list they can see.
+  const onViewProfile = isGuest ? undefined : setGlobalViewingProfile;
 
   return (
     <div>
@@ -10817,12 +10896,12 @@ function Leaderboard({ ctx }) {
         <div className="leaderboard-headline-flourish leaderboard-headline-flourish--right" />
       </div>
 
-      {powerTopThree.length > 0 && <LeaderboardPodium topThree={powerTopThree} honorableMentions={powerFourToTen} onViewProfile={setGlobalViewingProfile} />}
+      {powerTopThree.length > 0 && <LeaderboardPodium topThree={powerTopThree} honorableMentions={powerFourToTen} onViewProfile={onViewProfile} />}
 
       <div className="lb-grid">
-        <LBList data={powerRest} valueKey="power" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={POWER_ICON} size={22} />{t("mostPowerful")}</span>} format={v=>fmt(v)} color="linear-gradient(90deg,#071824,#2e86c1)" currentUser={currentUser} showMultiplier rankOffset={10} onViewProfile={setGlobalViewingProfile} />
-        <LBList data={byCoins} valueKey="coins" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={RICHEST_ICON} size={22} />{t("richestWarriors")}</span>} format={v=>`${fmt(v)}`} currentUser={currentUser} onViewProfile={setGlobalViewingProfile} />
-        <LBList data={byAttend} valueKey="attendance" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={MOSTACTIVE_ICON} size={22} />{t("mostActive")}</span>} format={v=>`${v} ${t("attSuffix")}`} color="linear-gradient(90deg,#071a0f,#27ae60)" currentUser={currentUser} onViewProfile={setGlobalViewingProfile} />
+        <LBList data={powerRest} valueKey="power" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={POWER_ICON} size={22} />{t("mostPowerful")}</span>} format={v=>fmt(v)} color="linear-gradient(90deg,#071824,#2e86c1)" currentUser={currentUser} showMultiplier rankOffset={10} onViewProfile={onViewProfile} />
+        {!isGuest && <LBList data={byCoins} valueKey="coins" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={RICHEST_ICON} size={22} />{t("richestWarriors")}</span>} format={v=>`${fmt(v)}`} currentUser={currentUser} onViewProfile={onViewProfile} />}
+        {!isGuest && <LBList data={byAttend} valueKey="attendance" label={<span style={{display:"inline-flex",alignItems:"center",gap:7}}><LBIcon src={MOSTACTIVE_ICON} size={22} />{t("mostActive")}</span>} format={v=>`${v} ${t("attSuffix")}`} color="linear-gradient(90deg,#071a0f,#27ae60)" currentUser={currentUser} onViewProfile={onViewProfile} />}
       </div>
     </div>
   );
