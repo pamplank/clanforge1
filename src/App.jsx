@@ -1869,6 +1869,78 @@ async function adjustMemberCoinsAndLogAtomic(memberName, delta, txEntry, retries
   }
   return null;
 }
+// Same atomic-single-UPDATE pattern as adjustMemberCoinsAndLogAtomic above
+// (see scripts/record_attendance_and_log.sql) — replaces the old
+// "build every present member's full new row from local state, write them
+// all at once via setMembers" path used by RecordAttendancePanel and
+// AddMissingAttendanceModal, which raced the exact same way the bidding and
+// admin-coin-adjust bugs did. Coins, attendance count, the new attendLog
+// entry, and any bonus txLog entries all land in one indivisible statement
+// per member.
+async function recordAttendanceAndLogAtomic(memberName, coinsDelta, attendanceDelta, attendEntry, bonusTxEntries, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetchWithTimeout(`${SUPA_URL}/rest/v1/rpc/record_attendance_and_log`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPA_KEY,
+          "Authorization": `Bearer ${SUPA_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          p_member_name: memberName,
+          p_coins_delta: coinsDelta,
+          p_attendance_delta: attendanceDelta,
+          p_attend_entry: attendEntry,
+          p_bonus_tx_entries: bonusTxEntries,
+        }),
+      });
+      if (!res.ok) throw new Error(`record_attendance_and_log failed: HTTP ${res.status}`);
+      const newBalance = await res.json();
+      return typeof newBalance === "number" ? newBalance : null;
+    } catch (e) {
+      if (attempt < retries) { await new Promise(r => setTimeout(r, 600 * (attempt + 1))); continue; }
+      console.error(`recordAttendanceAndLogAtomic(${memberName}) failed after retries:`, e);
+      return null;
+    }
+  }
+  return null;
+}
+// Same atomic-single-UPDATE pattern as recordAttendanceAndLogAtomic above
+// (see scripts/revert_attendance_and_log.sql) — replaces the old
+// "build every affected member's full new row from local state, write them
+// all at once via setMembers" path used by DeleteAttendanceModal, the same
+// lost-update race already fixed for bidding, admin coin adjustments, and
+// attendance recording, just never applied to attendance *deletion*.
+async function revertAttendanceAndLogAtomic(memberName, refund, attendanceDelta, attendEntry, entryTs, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetchWithTimeout(`${SUPA_URL}/rest/v1/rpc/revert_attendance_and_log`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPA_KEY,
+          "Authorization": `Bearer ${SUPA_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          p_member_name: memberName,
+          p_refund: refund,
+          p_attendance_delta: attendanceDelta,
+          p_attend_entry: attendEntry,
+          p_entry_ts: entryTs != null ? String(entryTs) : null,
+        }),
+      });
+      if (!res.ok) throw new Error(`revert_attendance_and_log failed: HTTP ${res.status}`);
+      const newBalance = await res.json();
+      return typeof newBalance === "number" ? newBalance : null;
+    } catch (e) {
+      if (attempt < retries) { await new Promise(r => setTimeout(r, 600 * (attempt + 1))); continue; }
+      console.error(`revertAttendanceAndLogAtomic(${memberName}) failed after retries:`, e);
+      return null;
+    }
+  }
+  return null;
+}
 // Same atomic-single-UPDATE pattern as adjustMemberCoinsAtomic above (see
 // increment_auction_win in scripts/increment_auction_win.sql) — replaces
 // the old "read auctionWins from this browser's local members state, add
@@ -6237,7 +6309,7 @@ function AppInner({ onMusicTrackChange }) {
 
 
   const ctx = { members, setMembers, setMembersRaw, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
-    currentUser, setCurrentUser, isGuest, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion, decayRate, setDecayRate, bonusConfig, setBonusConfig, loginAnnouncements, setLoginAnnouncements, featuredAuctionId, setFeaturedAuctionId, decayAnnouncements };
+    currentUser, setCurrentUser, isGuest, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion, decayRate, setDecayRate, bonusConfig, setBonusConfig, loginAnnouncements, setLoginAnnouncements, featuredAuctionId, setFeaturedAuctionId, decayAnnouncements, setDecayAnnouncements };
 
   const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings"),"record-attendance":t("tabRecordAttendance"),"create-auction":t("tabCreateAuction")};
 
@@ -8398,8 +8470,11 @@ const DEFAULT_BONUS_CONFIG = {
 // params: { ev: EVENTS entry, date: locale date string, ts: ms timestamp,
 //           present: [memberId], qualifierMap: {memberId: "full"|"late"|"afk"} }
 // bonusConfig: see DEFAULT_BONUS_CONFIG above.
-// Returns { updatedMembers, bonusToasts, presentNames } — caller is
-// responsible for calling setMembers(updatedMembers) and showing toasts.
+// Returns { payouts, bonusToasts, presentNames } — pure computation only,
+// no writes. payouts is one descriptor per present member (id, name,
+// coinsDelta, attendanceDelta, attendEntry, bonusTxEntries); caller is
+// responsible for actually applying each one via applyAttendancePayout
+// below (or an equivalent atomic write) and showing toasts.
 function performAttendancePayout(members, { ev, date, ts, present, qualifierMap }, bonusConfig = DEFAULT_BONUS_CONFIG) {
   const weekStart = getWeekStartFor(date);
   const EVENT_REQUIRED = { CA: 2, STI: 2, CWTD: 2, CN1F: 2, COR: 2, F5F: 2 };
@@ -8426,21 +8501,23 @@ function performAttendancePayout(members, { ev, date, ts, present, qualifierMap 
     return {name:m?.name, qualifier:q, earned};
   });
   const bonusToasts = [];
-  const updatedMembers = members.map(m=>{
-    if(!present.includes(m.id)) return m;
+  const payouts = [];
+  members.forEach(m=>{
+    if(!present.includes(m.id)) return;
     const q=qualifierMap[m.id]||"full";
     const mult=q==="full"?1:q==="late"?0.5:0;
     const rankMult=getRankMultiplier(members,m.id);
     const earned=Math.floor(ev.coins*mult*rankMult);
-    const newAttendLog=[...(m.attendLog||[]),{event:ev.name,coins:earned,date,qualifier:q,ts}];
+    const attendEntry={event:ev.name,coins:earned,date,qualifier:q,ts};
+    const newAttendLog=[...(m.attendLog||[]),attendEntry];
     let bonusCoins = 0;
-    const newTxLog = [...(m.txLog||[])];
+    const bonusEntries = [];
     // ── Major Events bonus ──
     const prevAttended = getAttendedIds(m.attendLog||[]);
     const newAttended  = getAttendedIds(newAttendLog);
     if(newAttended.size>=totalEvents && prevAttended.size<totalEvents && !alreadyReceivedThisWeek(m.txLog,"Major Events Bonus")) {
       bonusCoins += bonusConfig.majorEventsBonusAmount;
-      newTxLog.push({change:bonusConfig.majorEventsBonusAmount,reason:"Attended all major events this week",date,logType:"Major Events Bonus",addedBy:"System",ts});
+      bonusEntries.push({change:bonusConfig.majorEventsBonusAmount,reason:"Attended all major events this week",date,logType:"Major Events Bonus",addedBy:"System",ts});
       bonusToasts.push({name:m.name,bonus:"Major Events",coins:bonusConfig.majorEventsBonusAmount});
     }
     // ── ISB Veteran bonus ──
@@ -8456,7 +8533,7 @@ function performAttendancePayout(members, { ev, date, ts, present, qualifierMap 
     const isbCountOld = (m.attendLog||[]).filter(e=>EVENT_NAME_TO_ID[e.event]==="ISB"&&e.qualifier!=="afk").length;
     if(isbCountNew>=bonusConfig.isbVeteranThreshold && isbCountOld<bonusConfig.isbVeteranThreshold && !alreadyReceivedThisWeek(m.txLog,"ISB Veteran Bonus")) {
       bonusCoins += bonusConfig.isbVeteranBonusAmount;
-      newTxLog.push({change:bonusConfig.isbVeteranBonusAmount,reason:`Reached ${bonusConfig.isbVeteranThreshold} ISB events (ISB Veteran)`,date,logType:"ISB Veteran Bonus",addedBy:"System",ts});
+      bonusEntries.push({change:bonusConfig.isbVeteranBonusAmount,reason:`Reached ${bonusConfig.isbVeteranThreshold} ISB events (ISB Veteran)`,date,logType:"ISB Veteran Bonus",addedBy:"System",ts});
       bonusToasts.push({name:m.name,bonus:"ISB Veteran",coins:bonusConfig.isbVeteranBonusAmount});
     }
     // ── Sindri Veteran bonus — 2 STI/week for N weeks ──
@@ -8477,7 +8554,7 @@ function performAttendancePayout(members, { ev, date, ts, present, qualifierMap 
     const stiWeeksNew = countStiQualWeeks(newAttendLog);
     if(stiWeeksNew>=bonusConfig.sindriVeteranWeeksThreshold && stiWeeksOld<bonusConfig.sindriVeteranWeeksThreshold && !(m.txLog||[]).some(tx=>tx.logType==="Sindri Veteran Bonus")) {
       bonusCoins += bonusConfig.sindriVeteranBonusAmount;
-      newTxLog.push({change:bonusConfig.sindriVeteranBonusAmount,reason:`Attended 2 Sindri's per week for ${bonusConfig.sindriVeteranWeeksThreshold} weeks`,date,logType:"Sindri Veteran Bonus",addedBy:"System",ts});
+      bonusEntries.push({change:bonusConfig.sindriVeteranBonusAmount,reason:`Attended 2 Sindri's per week for ${bonusConfig.sindriVeteranWeeksThreshold} weeks`,date,logType:"Sindri Veteran Bonus",addedBy:"System",ts});
       bonusToasts.push({name:m.name,bonus:"Sindri Veteran",coins:bonusConfig.sindriVeteranBonusAmount});
     }
     // ── Iron Streak bonus — Major Events completed N consecutive weeks
@@ -8518,13 +8595,54 @@ function performAttendancePayout(members, { ev, date, ts, present, qualifierMap 
     const ironStreakNew = countMajorEventsStreak(newAttendLog);
     if(ironStreakNew>=bonusConfig.ironStreakWeeksThreshold && ironStreakOld<bonusConfig.ironStreakWeeksThreshold && !(m.txLog||[]).some(tx=>tx.logType==="Iron Streak Bonus")) {
       bonusCoins += bonusConfig.ironStreakBonusAmount;
-      newTxLog.push({change:bonusConfig.ironStreakBonusAmount,reason:`Attended all major events ${bonusConfig.ironStreakWeeksThreshold} weeks running (Iron Streak)`,date,logType:"Iron Streak Bonus",addedBy:"System",ts});
+      bonusEntries.push({change:bonusConfig.ironStreakBonusAmount,reason:`Attended all major events ${bonusConfig.ironStreakWeeksThreshold} weeks running (Iron Streak)`,date,logType:"Iron Streak Bonus",addedBy:"System",ts});
       bonusToasts.push({name:m.name,bonus:"Iron Streak",coins:bonusConfig.ironStreakBonusAmount});
     }
-    return{...m,coins:m.coins+earned+bonusCoins,attendance:m.attendance+(q!=="afk"?1:0),
-      attendLog:newAttendLog,txLog:newTxLog};
+    payouts.push({
+      id: m.id, name: m.name,
+      coinsDelta: earned+bonusCoins,
+      attendanceDelta: q!=="afk"?1:0,
+      attendEntry,
+      bonusEntries,
+    });
   });
-  return { updatedMembers, bonusToasts, presentNames };
+  return { payouts, bonusToasts, presentNames };
+}
+
+// Applies the payouts computed by performAttendancePayout — one atomic
+// recordAttendanceAndLogAtomic call per present member, awaited, so a
+// concurrent write to any of them (another bid closing, another admin
+// action) can't silently drop a coin/log change the way the old bulk
+// setMembers write could. Shared by both callers (a live attendance
+// submission and AddMissingAttendanceModal's backdated "distribute" mode)
+// instead of duplicating this loop twice.
+async function applyAttendancePayout(payouts, setMembersRaw, addToast) {
+  const results = await Promise.all(payouts.map(async p => {
+    const newCoins = await recordAttendanceAndLogAtomic(p.name, p.coinsDelta, p.attendanceDelta, p.attendEntry, p.bonusEntries);
+    return { ...p, newCoins };
+  }));
+  const succeeded = results.filter(r => r.newCoins !== null);
+  const failed = results.filter(r => r.newCoins === null);
+  if (succeeded.length > 0) {
+    setMembersRaw(ms => ms.map(m => {
+      const r = succeeded.find(x => x.id === m.id);
+      if (!r) return m;
+      return {
+        ...m,
+        coins: r.newCoins,
+        attendance: m.attendance + r.attendanceDelta,
+        attendLog: [...(m.attendLog||[]), r.attendEntry],
+        txLog: [...(m.txLog||[]), ...r.bonusEntries],
+      };
+    }));
+  }
+  if (failed.length > 0) {
+    addToast(
+      <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Couldn't record attendance for {failed.map(f=>f.name).join(", ")} — please try again for {failed.length===1?"them":"those members"}.</span>,
+      "red", "Attendance Failed"
+    );
+  }
+  return { succeeded, failed };
 }
 
 // ─── ATTENDANCE ───────────────────────────────────────────────────────────────
@@ -8536,7 +8654,7 @@ function performAttendancePayout(members, { ev, date, ts, present, qualifierMap 
 // now, so regular members land on the actually-useful History tab instead.
 function RecordAttendancePanel({ ctx }) {
   const { t } = useLang();
-  const { members, setMembers, addToast, currentUser, setAttendanceLogs, bonusConfig } = ctx;
+  const { members, setMembersRaw, addToast, currentUser, setAttendanceLogs, bonusConfig } = ctx;
   const [memberSearch, setMemberSearch] = useState("");
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectedMembers, setSelectedMembers] = useState({});
@@ -8547,7 +8665,7 @@ function RecordAttendancePanel({ ctx }) {
     if(!qualifier[id]) setQualifier(p=>({...p,[id]:"full"}));
   }
 
-  function submitAttendance() {
+  async function submitAttendance() {
     if(!selectedEvent){addToast(t("selectEventError"),"red",t("errorLabel"));return;}
     const ev=EVENTS.find(e=>e.id===selectedEvent);
     const present=Object.entries(selectedMembers).filter(([,v])=>v).map(([id])=>parseInt(id));
@@ -8563,13 +8681,11 @@ function RecordAttendancePanel({ ctx }) {
       const earned=Math.floor(ev.coins*mult*rankMult);
       return {name:m?.name, qualifier:q, earned};
     });
-    setMembers(ms => {
-      const { updatedMembers, bonusToasts } = performAttendancePayout(ms, { ev, date: today, ts: nowTs, present, qualifierMap }, bonusConfig);
-      setTimeout(()=>{
-        bonusToasts.forEach(bonus=>addToast(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><TrophyIcon size={14}/>{bonus.name} {t("earnedBonusText")} +{bonus.coins} {t("coinsText")} — {bonus.bonus} {t("bonusText")}</span>,"gold",t("bonusAwarded")));
-      }, 200);
-      return updatedMembers;
-    });
+    const { payouts, bonusToasts } = performAttendancePayout(members, { ev, date: today, ts: nowTs, present, qualifierMap }, bonusConfig);
+    await applyAttendancePayout(payouts, setMembersRaw, addToast);
+    setTimeout(()=>{
+      bonusToasts.forEach(bonus=>addToast(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><TrophyIcon size={14}/>{bonus.name} {t("earnedBonusText")} +{bonus.coins} {t("coinsText")} — {bonus.bonus} {t("bonusText")}</span>,"gold",t("bonusAwarded")));
+    }, 200);
     const logEntry = {id:Date.now(),event:ev.name,date:today,ts:nowTs,members:present.length,recordedBy:currentUser.name,attendees:presentNames};
     setAttendanceLogs(p=>[logEntry,...p]);
     addToast(`${t("attendanceRecorded")} ${present.length} ${t("membersUpdated")}`,"blue",t("attendanceSaved"));
@@ -12419,7 +12535,7 @@ function LoginAnnouncementEditor({ loginAnnouncements, setLoginAnnouncements, ad
 }
 
 function Settings({ ctx }) {
-  const { currentUser, members, setMembers, addToast, eventsVersion, setEventsVersion, decayRate, setDecayRate, bonusConfig, setBonusConfig, loginAnnouncements, setLoginAnnouncements } = ctx;
+  const { currentUser, members, setMembers, setMembersRaw, addToast, eventsVersion, setEventsVersion, decayRate, setDecayRate, bonusConfig, setBonusConfig, loginAnnouncements, setLoginAnnouncements, decayAnnouncements, setDecayAnnouncements } = ctx;
   const { t } = useLang();
   const isMaster = currentUser.role==="Master";
   // ── Auto-decay: every Wednesday at 7:00 AM, fixed to GMT+8 ───────────────
@@ -12507,30 +12623,63 @@ function Settings({ ctx }) {
     }
   }, []);
 
-  function triggerDecay() {
+  // ROOT CAUSE of members' balances looking wildly wrong against their own
+  // My Points History: this used to attach the clan-wide combined decay
+  // total to whichever member happened to be first in the local members
+  // array, which has nothing to do with that member's personal balance but
+  // lived in their history anyway -- the exact same bug already found and
+  // fixed in the server-side cron (api/check-weekly-decay.js, see its own
+  // comment). This also bundled every member's coins+decayLog into one
+  // racy setMembers call, the same lost-update pattern already fixed for
+  // bidding and admin coin adjustments elsewhere in this file. Now mirrors
+  // the cron's already-correct design: one targeted, checked write per
+  // member (coins + decay_log only — never touches tx_log), and the
+  // clan-wide total goes to app_state.decay_announcements instead of any
+  // one person's personal log.
+  async function triggerDecay() {
     const decayDate = new Date().toLocaleDateString();
     const decayTs = Date.now();
     const ratePct = Math.round(decayRate * 1000) / 10; // e.g. 0.05 -> 5, 0.075 -> 7.5
-    setMembers(ms=>{
-      let totalDecayed = 0;
-      const updated = ms.map(m=>{
-        const d=Math.floor(m.coins*decayRate);
-        totalDecayed += d;
-        return{...m,coins:m.coins-d,decayLog:[...(m.decayLog||[]),{amount:-d,date:decayDate,ts:decayTs}]};
-      });
-      if (updated.length>0) {
-        updated[0] = {...updated[0], txLog:[...(updated[0].txLog||[]),
-          {change:-totalDecayed,reason:`${ratePct}% weekly coin decay applied to all ${updated.length} members`,date:decayDate,logType:"Weekly Decay",addedBy:currentUser.name,ts:decayTs}]};
-      }
-      return updated;
-    });
-    addToast(`${t("decayTriggeredTostPrefix")} ${ratePct}% ${t("decayTriggeredTostSuffix")}`,"red",t("decayTriggeredTitle"));
-    // Record this in the SHARED server-side state (not just localStorage),
-    // so the cron-driven check (api/check-weekly-decay.js) correctly sees
-    // that this week's decay has already happened and doesn't run it
-    // again — regardless of which device/browser this button was clicked
-    // from.
-    dbUpsert("app_state", { key: "last_decay_ts", value: String(getMostRecentScheduledDecay()), updated_at: Date.now() });
+    const results = await Promise.all(members.map(async m => {
+      // Members can carry a negative balance (see reset_coins_allow_negative.sql) —
+      // debt should only shrink when they actually earn points back, never
+      // erode on its own here, matching the cron job's own guard.
+      const d = m.coins > 0 ? Math.floor(m.coins*decayRate) : 0;
+      const newDecayLog = [...(m.decayLog||[]), {amount:-d,date:decayDate,ts:decayTs}];
+      const newCoins = m.coins - d;
+      const ok = await dbUpsertReliable("members", { id: m.id, coins: newCoins, decay_log: JSON.stringify(newDecayLog) });
+      return { id: m.id, name: m.name, d, newCoins, newDecayLog, ok };
+    }));
+    const succeeded = results.filter(r=>r.ok);
+    const failed = results.filter(r=>!r.ok);
+    const totalDecayed = succeeded.reduce((s,r)=>s+r.d, 0);
+    if (succeeded.length > 0) {
+      setMembersRaw(ms=>ms.map(m=>{
+        const r = succeeded.find(x=>x.id===m.id);
+        return r ? {...m, coins:r.newCoins, decayLog:r.newDecayLog} : m;
+      }));
+      const announcement = { date: decayDate, ts: decayTs, ratePct, memberCount: succeeded.length, totalDecayed };
+      const newAnnouncements = [...(decayAnnouncements||[]), announcement].slice(-30);
+      await dbUpsertReliable("app_state", { key: "decay_announcements", value: JSON.stringify(newAnnouncements), updated_at: Date.now() });
+      setDecayAnnouncements(newAnnouncements);
+    }
+    if (failed.length === 0) {
+      addToast(`${t("decayTriggeredTostPrefix")} ${ratePct}% ${t("decayTriggeredTostSuffix")}`,"red",t("decayTriggeredTitle"));
+      // Record this in the SHARED server-side state (not just localStorage),
+      // so the cron-driven check (api/check-weekly-decay.js) correctly sees
+      // that this week's decay has already happened and doesn't run it
+      // again — regardless of which device/browser this button was clicked
+      // from. Only advance this once EVERY member is confirmed decayed,
+      // same guard the cron job itself uses, so a partial failure here
+      // gets picked up and retried by the next scheduled cron tick instead
+      // of being silently skipped forever.
+      dbUpsert("app_state", { key: "last_decay_ts", value: String(getMostRecentScheduledDecay()), updated_at: Date.now() });
+    } else {
+      addToast(
+        <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Decay applied to {succeeded.length}/{results.length} members — {failed.map(f=>f.name).join(", ")} failed and will be retried automatically.</span>,
+        "red", "Decay Partially Failed"
+      );
+    }
   }
   function resetAttendance() {
     setMembers(ms=>ms.map(m=>({...m,attendance:0})));
@@ -12911,7 +13060,7 @@ function RenameMemberModal({ ctx }) {
 // created in that same submission — so only effects from THIS event are
 // undone, never any other attendance the member recorded before or since.
 function DeleteAttendanceModal({ ctx }) {
-  const { modal, setModal, members, setMembers, setAttendanceLogs, addToast } = ctx;
+  const { modal, setModal, members, setMembersRaw, setAttendanceLogs, addToast } = ctx;
   const { t } = useLang();
   const log = modal.data;
   const ts = log.ts;
@@ -12953,26 +13102,53 @@ function DeleteAttendanceModal({ ctx }) {
     return sum + base + bonus;
   }, 0);
 
-  function confirmDelete() {
-    setMembers(ms => ms.map(m => {
-      if (hasAttendeeList && !attendeeNames.has(m.name)) return m;
-      const candidates = (m.attendLog||[]).filter(e => findMatch(log, ts, e));
-      const matchingAttend = pickMatch(candidates);
-      if (!matchingAttend) return m;
-      const refund = matchingAttend.coins || 0;
-      const entryTs = matchingAttend.ts;
-      const bonusRefund = (m.txLog||[]).filter(entry => entry.addedBy === "System" && entryTs != null && String(entry.ts) === String(entryTs)).reduce((s,entry)=>s+(entry.change||0),0);
+  async function confirmDelete() {
+    // ROOT CAUSE of the same coin/history drift bug recurring: this used to
+    // build every affected member's full new row from local state and write
+    // them all at once via setMembers — the same lost-update race already
+    // fixed for bidding, admin coin adjustments, and attendance recording,
+    // just never applied to attendance *deletion*. Now one atomic RPC call
+    // per affected member instead.
+    const reverts = matches.map(({ m, entry }) => {
+      const refund = entry.coins || 0;
+      const entryTs = entry.ts;
+      const bonusRefund = (m.txLog||[]).filter(e2 => e2.addedBy === "System" && entryTs != null && String(e2.ts) === String(entryTs)).reduce((s,e2)=>s+(e2.change||0),0);
       return {
-        ...m,
-        coins: m.coins - refund - bonusRefund,
-        attendance: Math.max(0, m.attendance - (matchingAttend.qualifier!=="afk" ? 1 : 0)),
-        attendLog: (m.attendLog||[]).filter(e => e !== matchingAttend),
-        txLog: (m.txLog||[]).filter(entry => !(entry.addedBy === "System" && entryTs != null && String(entry.ts) === String(entryTs))),
+        id: m.id, name: m.name,
+        refund: refund + bonusRefund,
+        attendanceDelta: entry.qualifier!=="afk" ? 1 : 0,
+        entry, entryTs,
       };
+    });
+    const results = await Promise.all(reverts.map(async r => {
+      const newCoins = await revertAttendanceAndLogAtomic(r.name, r.refund, r.attendanceDelta, r.entry, r.entryTs);
+      return { ...r, newCoins };
     }));
-    setAttendanceLogs(p => p.filter(l => l.id !== log.id));
-    addToast(`"${log.event}" ${t("attendanceDeletedToast")} ${fmt(totalRefund)} ${t("deductedFromToast")} ${affected.length} ${t("memberSuffix2")}`, "red", t("attendanceDeletedTitle"));
-    setModal(null);
+    const succeeded = results.filter(r => r.newCoins !== null);
+    const failed = results.filter(r => r.newCoins === null);
+    if (succeeded.length > 0) {
+      setMembersRaw(ms => ms.map(m => {
+        const r = succeeded.find(x => x.id === m.id);
+        if (!r) return m;
+        return {
+          ...m,
+          coins: r.newCoins,
+          attendance: Math.max(0, m.attendance - r.attendanceDelta),
+          attendLog: (m.attendLog||[]).filter(e => e !== r.entry),
+          txLog: (m.txLog||[]).filter(e2 => !(e2.addedBy === "System" && r.entryTs != null && String(e2.ts) === String(r.entryTs))),
+        };
+      }));
+    }
+    if (failed.length === 0) {
+      setAttendanceLogs(p => p.filter(l => l.id !== log.id));
+      addToast(`"${log.event}" ${t("attendanceDeletedToast")} ${fmt(totalRefund)} ${t("deductedFromToast")} ${affected.length} ${t("memberSuffix2")}`, "red", t("attendanceDeletedTitle"));
+      setModal(null);
+    } else {
+      addToast(
+        <span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Reverted {succeeded.length}/{results.length} members — {failed.map(f=>f.name).join(", ")} failed, please try again.</span>,
+        "red", "Removal Failed"
+      );
+    }
   }
 
   return (
@@ -13008,7 +13184,7 @@ function DeleteAttendanceModal({ ctx }) {
 // members, coins, attendLog, or txLog in any way, so it can never cause a
 // double-payout — it just fixes the record to match what already happened.
 function AddMissingAttendanceModal({ ctx }) {
-  const { setModal, members, setMembers, addToast, setAttendanceLogs, currentUser, bonusConfig } = ctx;
+  const { setModal, members, setMembersRaw, addToast, setAttendanceLogs, currentUser, bonusConfig } = ctx;
   const { t } = useLang();
   const [eventName, setEventName] = useState(EVENTS[0]?.name || "");
   const [whenLocal, setWhenLocal] = useState(() => {
@@ -13032,7 +13208,7 @@ function AddMissingAttendanceModal({ ctx }) {
     if (!qualifierMap[id]) setQualifierMap(p => ({...p, [id]: "full"}));
   }
 
-  function submit() {
+  async function submit() {
     setErr("");
     if (!eventName || !ev) { setErr(t("pickEventError")); return; }
     if (!whenLocal) { setErr(t("pickDateTimeError")); return; }
@@ -13055,13 +13231,11 @@ function AddMissingAttendanceModal({ ctx }) {
         const earned=Math.floor(ev.coins*mult*rankMult);
         return {name:m?.name, qualifier:q, earned};
       });
-      setMembers(ms => {
-        const { updatedMembers, bonusToasts } = performAttendancePayout(ms, { ev, date, ts, present, qualifierMap }, bonusConfig);
-        setTimeout(()=>{
-          bonusToasts.forEach(bonus=>addToast(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><TrophyIcon size={14}/>{bonus.name} {t("earnedBonusText")} +{bonus.coins} {t("coinsText")} — {bonus.bonus} {t("bonusText")}</span>,"gold",t("bonusAwarded")));
-        }, 200);
-        return updatedMembers;
-      });
+      const { payouts, bonusToasts } = performAttendancePayout(members, { ev, date, ts, present, qualifierMap }, bonusConfig);
+      await applyAttendancePayout(payouts, setMembersRaw, addToast);
+      setTimeout(()=>{
+        bonusToasts.forEach(bonus=>addToast(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><TrophyIcon size={14}/>{bonus.name} {t("earnedBonusText")} +{bonus.coins} {t("coinsText")} — {bonus.bonus} {t("bonusText")}</span>,"gold",t("bonusAwarded")));
+      }, 200);
       const logEntry = { id: Date.now(), event: eventName, date, ts, members: present.length, recordedBy: currentUser.name, attendees: presentNames };
       setAttendanceLogs(p => [logEntry, ...p]);
       addToast(`${t("attendanceRecorded")} "${eventName}" ${t("backfilledDistributed")} ${present.length} ${t("memberSuffix3")}`, "gold", t("recordAddedTitle"));
