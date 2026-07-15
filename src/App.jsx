@@ -12618,12 +12618,22 @@ function Settings({ ctx }) {
     ));
     return monthStartShifted.getTime() - GMT8_OFFSET_MS;
   }
+  // ROOT CAUSE of Balance Correction entries (and any other concurrent
+  // per-member change) silently vanishing: this reset EVERY member's
+  // attendance count via setMembers, which writes each member's ENTIRE row
+  // from whatever this specific browser has cached — including tx_log. Any
+  // admin whose tab had been open since before a correction/adjustment
+  // landed on someone else's row would silently overwrite it back to their
+  // own stale snapshot the next time this fired, for the WHOLE clan at
+  // once, not just one person. Now a targeted bulk write touching only
+  // {id, attendance} per member, never the rest of the row.
   useEffect(() => {
     const lastMonthStart = getLastMonthStart();
     let lastReset = 0;
     try { lastReset = parseInt(localStorage.getItem("last_attendance_reset") || "0"); } catch {}
     if (lastReset < lastMonthStart) {
-      setMembers(ms=>ms.map(m=>({...m,attendance:0})));
+      dbUpsertReliable("members", members.map(m => ({ id: m.id, attendance: 0 })));
+      setMembersRaw(ms=>ms.map(m=>({...m,attendance:0})));
       try { localStorage.setItem("last_attendance_reset", lastMonthStart.toString()); } catch {}
       addToast(t("autoAttendanceResetApplied"),"blue",t("resetTitle"));
     }
@@ -12687,8 +12697,10 @@ function Settings({ ctx }) {
       );
     }
   }
+  // Same targeted-write fix as the auto-reset effect above — see its comment.
   function resetAttendance() {
-    setMembers(ms=>ms.map(m=>({...m,attendance:0})));
+    dbUpsertReliable("members", members.map(m => ({ id: m.id, attendance: 0 })));
+    setMembersRaw(ms=>ms.map(m=>({...m,attendance:0})));
     try { localStorage.setItem("last_attendance_reset", getLastMonthStart().toString()); } catch {}
     addToast(t("attendanceResetToast"),"blue",t("resetTitle"));
   }
