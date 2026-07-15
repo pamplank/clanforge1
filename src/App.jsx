@@ -1995,31 +1995,46 @@ async function incrementAuctionWinAtomic(memberName, txEntry, retries = 2) {
 // the write as a single locked database transaction (`for update` in the
 // SQL), so no other bid attempt can read or write that row until this
 // one fully completes — closing the gap instead of just narrowing it.
-async function placeBidAtomic(auctionId, bidder, amount, minIncrement = 5) {
-  try {
-    const res = await fetchWithTimeout(`${SUPA_URL}/rest/v1/rpc/place_bid_atomic`, {
-      method: "POST",
-      headers: {
-        "apikey": SUPA_KEY,
-        "Authorization": `Bearer ${SUPA_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ p_auction_id: String(auctionId), p_bidder: bidder, p_amount: amount, p_min_increment: minIncrement }),
-    });
-    if (!res.ok) {
-      // Surface PostgREST/Postgres's own error body (e.g. a SQL exception
-      // message) instead of discarding it — a bare "HTTP 400" here gives
-      // no way to tell a genuine outbid from a real server-side failure,
-      // which is exactly what made this bug (bids always rejected, even
-      // with zero competing bidders) invisible until logged properly.
-      const bodyText = await res.text().catch(() => "");
-      throw new Error(`place_bid_atomic failed: HTTP ${res.status} ${bodyText}`);
+// ROOT CAUSE of "I bid but wasn't deducted coins": place_bid_atomic now
+// deducts the bidder's coins (and refunds whoever it just outbid) inside
+// the SAME transaction as claiming the bid slot — see
+// scripts/place_bid_atomic_v2.sql. Before this, the auction claim and the
+// coin deduction were two independent calls; if the deduction failed
+// after the claim had already succeeded, the bidder was recorded as
+// winning with nothing ever taken from their balance. Retries here (like
+// every other atomic RPC in this file) only apply to genuine transport
+// failures — a real business-logic rejection (outbid/ended/insufficient
+// funds) comes back as a normal { success:false, reason } response, not
+// a thrown error, so it's never retried.
+async function placeBidAtomic(auctionId, bidder, amount, minIncrement = 5, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetchWithTimeout(`${SUPA_URL}/rest/v1/rpc/place_bid_atomic`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPA_KEY,
+          "Authorization": `Bearer ${SUPA_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ p_auction_id: String(auctionId), p_bidder: bidder, p_amount: amount, p_min_increment: minIncrement }),
+      });
+      if (!res.ok) {
+        // Surface PostgREST/Postgres's own error body (e.g. a SQL exception
+        // message) instead of discarding it — a bare "HTTP 400" here gives
+        // no way to tell a genuine outbid from a real server-side failure,
+        // which is exactly what made this bug (bids always rejected, even
+        // with zero competing bidders) invisible until logged properly.
+        const bodyText = await res.text().catch(() => "");
+        throw new Error(`place_bid_atomic failed: HTTP ${res.status} ${bodyText}`);
+      }
+      return await res.json();
+    } catch (e) {
+      if (attempt < retries) { await new Promise(r => setTimeout(r, 600 * (attempt + 1))); continue; }
+      console.error(`placeBidAtomic(${auctionId}, ${bidder}, ${amount}) failed after retries:`, e);
+      return { success: false, reason: "network_error" };
     }
-    return await res.json();
-  } catch (e) {
-    console.error(`placeBidAtomic(${auctionId}, ${bidder}, ${amount}) failed:`, e);
-    return { success: false, reason: "network_error" };
   }
+  return { success: false, reason: "network_error" };
 }
 
 const GMT8_OFFSET_MS_GLOBAL = 8 * 60 * 60 * 1000;
@@ -10009,6 +10024,10 @@ function Auctions({ ctx }) {
         addToast(`${t("outbidMessage")} (${fmt(result.current_bid)}). ${t("pleaseRetry")}`,"red",t("outbidTitle"));
       } else if (result?.reason === "not_found") {
         addToast(t("auctionEnded"),"red",t("auctionEndedTitle"));
+      } else if (result?.reason === "insufficient_funds") {
+        addToast(t("insufficientCoins"),"red",t("noFunds"));
+      } else if (result?.reason === "bidder_not_found") {
+        addToast(`${t("outbidMessage")}. ${t("pleaseRetry")}`,"red",t("outbidTitle"));
       } else {
         // network_error or anything unrecognized — don't claim success,
         // but also don't pretend we know exactly what happened.
@@ -10017,29 +10036,25 @@ function Auctions({ ctx }) {
       return;
     }
 
-    // The bid genuinely succeeded. The previous bidder/amount MUST come
-    // from place_bid_atomic's own response (captured inside its locked
-    // transaction), not from this browser's local `a` — `a` is only as
-    // fresh as this client's last 3s poll, and using it here silently
-    // refunded the WRONG member (whoever this stale cache still thought
-    // was winning) whenever another client's bid had already changed the
-    // real top bidder in the gap since this browser's last poll. That
-    // credited coins to someone who was no longer actually the outbid
-    // party, with no corresponding log entry — see scripts/fix_place_bid_atomic_refund_target.sql.
-    const prevBidder = result.prev_bidder || null;
-    const prevRefund = prevBidder ? (Number(result.prev_amount) || 0) : 0;
-
-    // Apply both coin changes AND their matching Points History entries as
-    // ATOMIC database operations (see adjustMemberCoinsAndLogAtomic above
-    // for the incident this fixes) — this is the actual source of truth.
-    // Local state below (via the bare setMembersRaw, no DB side effects —
-    // same pattern claimAuctionWinAndLog uses for auction_wins) is just an
-    // optimistic preview for instant UI feedback; the next poll cycle
-    // reconciles it with whatever the database actually ended up with
-    // regardless. Deliberately NOT going through setMembers here: that
-    // wrapper persists this browser's entire locally-cached tx_log array
-    // for the target member on every call, which is exactly the lost-
-    // update race this fix closes — see the RPC's own SQL comment.
+    // ROOT CAUSE of "I bid but wasn't deducted coins": place_bid_atomic
+    // now deducts the bidder's coins and refunds whoever it just outbid
+    // INSIDE its own locked transaction (see scripts/place_bid_atomic_v2.sql)
+    // — before this fix, that was a separate adjustMemberCoinsAndLogAtomic
+    // call made AFTER the bid claim already succeeded, so a failure there
+    // left the bidder recorded as winning with nothing ever actually taken
+    // from their balance. result.success now means the coins genuinely
+    // moved, not just that the auction row was claimed. The previous
+    // bidder/amount/new balances all come from place_bid_atomic's own
+    // response (captured inside its locked transaction), not this
+    // browser's local `a` — `a` is only as fresh as this client's last 3s
+    // poll, and using it here would refer to the WRONG member whenever
+    // another client's bid had already changed the real top bidder in the
+    // gap since this browser's last poll.
+    //
+    // Local state below (via the bare setMembersRaw, no DB side effects)
+    // is just an optimistic preview for instant UI feedback, built to
+    // exactly mirror what the RPC already wrote server-side; the next
+    // poll cycle reconciles it with the database regardless.
     //
     // Log each side of this individually, not just the eventual winning
     // total — Points History previously only ever showed a single lump
@@ -10051,24 +10066,15 @@ function Auctions({ ctx }) {
     // correct for the eventual winner too — see the change:0 comment on
     // claimAuctionWinAndLog's own entry for why that one doesn't also
     // carry the amount (it would double-count this "Bid Placed" entry).
-    const bidLogTs = Date.now();
+    const prevBidder = result.prev_bidder || null;
+    const prevRefund = prevBidder ? (Number(result.prev_amount) || 0) : 0;
+    const bidLogTs = result.bid_ts || Date.now();
     const bidTxEntry = {change:-amount, reason:`Bid on ${a.name}`, date:new Date().toLocaleDateString(), ts:bidLogTs, logType:"Bid Placed", addedBy:"System", auctionId:auctionId};
-    const newBidderBalance = await adjustMemberCoinsAndLogAtomic(currentUser.name, -amount, bidTxEntry);
-    const deductionOk = newBidderBalance !== null;
-    if (!deductionOk) {
-      addToast(t("coinSyncFailed"), "red", t("errorLabel"));
-    } else {
-      setMembersRaw(ms=>ms.map(m=>m.name===currentUser.name ? {...m,coins:newBidderBalance,txLog:[...(m.txLog||[]),bidTxEntry]} : m));
-    }
+    setMembersRaw(ms=>ms.map(m=>m.name===currentUser.name ? {...m,coins:result.new_bidder_coins,txLog:[...(m.txLog||[]),bidTxEntry]} : m));
 
     if (prevBidder && prevRefund > 0) {
       const refundTxEntry = {change:prevRefund, reason:`Outbid on ${a.name}`, date:new Date().toLocaleDateString(), ts:bidLogTs, logType:"Outbid Refund", addedBy:"System", auctionId:auctionId};
-      const newPrevBidderBalance = await adjustMemberCoinsAndLogAtomic(prevBidder, prevRefund, refundTxEntry);
-      if (newPrevBidderBalance === null) {
-        console.error(`placeBid: outbid refund of ${prevRefund} to ${prevBidder} failed after retries — their coins were not credited, no log entry written.`);
-      } else {
-        setMembersRaw(ms=>ms.map(m=>m.name===prevBidder ? {...m,coins:newPrevBidderBalance,txLog:[...(m.txLog||[]),refundTxEntry]} : m));
-      }
+      setMembersRaw(ms=>ms.map(m=>m.name===prevBidder ? {...m,coins:result.new_prev_bidder_coins,txLog:[...(m.txLog||[]),refundTxEntry]} : m));
     }
     // SNIPE PROTECTION: if a bid lands in the last 60s, extend the auction by
     // 60s so no one can snipe in the final moment. This also helps with the
