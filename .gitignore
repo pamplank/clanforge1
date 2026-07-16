@@ -31,3 +31,5 @@ graphify-out/
 *.njsproj
 *.sln
 *.sw?
+.vercel
+.env*
