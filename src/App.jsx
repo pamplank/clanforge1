@@ -218,6 +218,7 @@ const TRANSLATIONS = {
     tabBonuses: "Bonuses",
     tabMyLog: "My Points History",
     tabGlobalLog: "Global Points Log",
+    tabDriftAudit: "Drift Audit",
     totalLogsLabel: "Total Logs",
     thisWeekLabel: "This Week",
     latestEventLabel: "Latest Event",
@@ -278,6 +279,13 @@ const TRANSLATIONS = {
     globalPointsTitle: "Global Points History",
     globalPointsDesc: "Admin manual adjustments, bonuses, and weekly decay — visible to everyone.",
     noGlobalAdjustments: "No global point adjustments yet.",
+    driftAuditTitle: "Coin Drift Audit",
+    driftAuditDesc: "Compares every member's logged Points History total against their real live coin balance. Any nonzero gap here means their log doesn't fully explain their coins — same root cause as past incidents (duplicate/lost entries, corrections that didn't stick).",
+    noDriftFound: "No drift found — every member's log total matches their live balance.",
+    driftSummary: "members with drift",
+    colLogTotal: "Log Total",
+    colLiveBalance: "Live Balance",
+    colDrift: "Drift",
     colDateTime: "Date & Time",
     colEvent: "Event",
     colMembers: "Members",
@@ -799,6 +807,7 @@ const TRANSLATIONS = {
     tabBonuses: "奖励",
     tabMyLog: "我的积分历史",
     tabGlobalLog: "全局积分日志",
+    tabDriftAudit: "余额偏差审计",
     totalLogsLabel: "总记录数",
     thisWeekLabel: "本周",
     latestEventLabel: "最新活动",
@@ -859,6 +868,13 @@ const TRANSLATIONS = {
     globalPointsTitle: "全局积分历史",
     globalPointsDesc: "管理员手动调整、奖励以及每周衰减 — 所有人可见。",
     noGlobalAdjustments: "暂无全局积分调整记录。",
+    driftAuditTitle: "余额偏差审计",
+    driftAuditDesc: "将每位成员积分历史记录的总计与其真实实时金币余额进行比对。此处出现非零差值，表示其记录无法完全解释其金币数量 — 与过往事故（重复/丢失的记录条目、未生效的修正）成因相同。",
+    noDriftFound: "未发现偏差 — 所有成员的记录总计均与其实时余额一致。",
+    driftSummary: "名成员存在偏差",
+    colLogTotal: "记录总计",
+    colLiveBalance: "实时余额",
+    colDrift: "偏差",
     colDateTime: "日期与时间",
     colEvent: "活动",
     colMembers: "成员",
@@ -1272,9 +1288,37 @@ async function fetchWithTimeout(url, opts = {}, timeoutMs = 8000) {
   }
 }
 
+// Shared tab-visibility tracker so every useJitteredInterval poller below
+// can react to backgrounding without each registering its own
+// visibilitychange listener (one DOM listener total, not one per poller).
+// ROOT CAUSE this addresses: a backgrounded tab (switched away from,
+// minimized, or just a forgotten browser window left open overnight) was
+// polling at exactly the same full rate as the tab someone's actually
+// looking at, with nothing to show for it -- a real, avoidable chunk of
+// the egress that's twice now gotten this project's Supabase project
+// throttled.
+const _visibilitySubscribers = new Set();
+let _isTabVisible = typeof document === "undefined" || document.visibilityState !== "hidden";
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    _isTabVisible = document.visibilityState !== "hidden";
+    _visibilitySubscribers.forEach(fn => fn(_isTabVisible));
+  });
+}
+
 // Schedules a repeating async task with small random jitter so that many
 // concurrent clients (e.g. 50 users all loading around the same time)
 // don't all hit the DB in the same instant on every interval tick.
+// While the tab is hidden, ticks fall back to a much slower flat rate
+// (BACKGROUND_POLL_MS) instead of stopping outright -- visibilitychange is
+// known to be flaky on some browser/OS combinations (e.g. a fully
+// minimized window), so a tab that's actually visible again but never
+// received the event would otherwise be stuck polling at the slow rate
+// forever; staying alive-but-slow is the safer default than a hard stop.
+// Regaining visibility clears whatever's left of the current delay and
+// polls immediately, so a tab someone switches back to catches up right
+// away instead of waiting out a stale background-rate timer.
+const BACKGROUND_POLL_MS = 90000;
 function useJitteredInterval(fn, baseMs, jitterMs, deps) {
   useEffect(() => {
     let cancelled = false;
@@ -1283,12 +1327,19 @@ function useJitteredInterval(fn, baseMs, jitterMs, deps) {
       if (cancelled) return;
       try { await fn(); } catch {}
       if (cancelled) return;
-      const delay = baseMs + Math.random() * jitterMs;
+      const delay = _isTabVisible ? (baseMs + Math.random() * jitterMs) : BACKGROUND_POLL_MS;
       timer = setTimeout(tick, delay);
     }
+    function onVisibilityChange(visible) {
+      if (visible) {
+        clearTimeout(timer);
+        tick();
+      }
+    }
+    _visibilitySubscribers.add(onVisibilityChange);
     // Stagger the very first call too
     timer = setTimeout(tick, Math.random() * jitterMs);
-    return () => { cancelled = true; clearTimeout(timer); };
+    return () => { cancelled = true; clearTimeout(timer); _visibilitySubscribers.delete(onVisibilityChange); };
   }, deps);
 }
 
@@ -1457,6 +1508,15 @@ const MEMBER_LIVE_COLS = "id,name,username,role,cls,power,coins,attendance,join_
 // through the verify_login RPC (checks server-side, never returns the
 // password), so nothing client-side needs this column anymore.
 const MEMBER_ALL_COLS_NO_PASSWORD = "id,name,username,role,cls,power,coins,attendance,join_date,auction_wins,discord,profile_rarity,awakening_level,last_login_ts,decay_log,tx_log,attend_log,power_log";
+// The rest of these were the last remaining `select=*` calls in the app —
+// each was re-downloading every column of every row on every poll tick
+// (including ones nothing here ever reads), on top of the members/auctions
+// egress already addressed above. Narrowed to exactly what's actually used.
+const ATTENDANCE_LOG_COLS = "id,event,date,ts,members,recorded_by,attendees";
+const LOOT_RESULT_COLS = "id,timestamp,date,event_label,results";
+const COIN_REQUEST_COLS = "id,member_id,member_name,amount,type,reason,requested_by,requested_at";
+const APP_STATE_COLS = "key,value,updated_at";
+const EVENT_COIN_VALUES_COLS = "id,coins,updated_at";
 async function dbLoadAuctionImage(id) {
   try {
     const t = await supa.from("auctions");
@@ -2304,7 +2364,7 @@ async function uploadAuctionImage(file) {
 // — all things anon CAN reliably read/write on this project).
 async function loadImageLibraryFromAppState() {
   try {
-    const rows = await dbLoad("app_state");
+    const rows = await dbLoad("app_state", APP_STATE_COLS);
     const row = Array.isArray(rows) && rows.find(r => r.key === "auction_image_library");
     if (!row) return [];
     const parsed = JSON.parse(row.value);
@@ -2758,7 +2818,7 @@ async function notifyAuctionEndedOnce(auction) {
     // dbLoad always returns the whole table — there's no per-row filter
     // parameter — so the matching key is found client-side, the same
     // pattern already used elsewhere for app_state (e.g. decay_rate).
-    const rows = await dbLoad("app_state");
+    const rows = await dbLoad("app_state", APP_STATE_COLS);
     if (Array.isArray(rows) && rows.some(r => r.key === claimKey)) return; // someone already claimed it
   } catch {
     // If the check itself fails, proceed anyway — better to risk an
@@ -2868,17 +2928,29 @@ function buildPointsHistoryEntries(member, t) {
     details:entry.reason||"—",
     coins:entry.change,
   }));
-  const sorted = [...attendEntries, ...decayEntries, ...adjustmentEntries]
-    .sort((a,b)=>logSortKey(b)-logSortKey(a));
-  // Running balance column: anchored to the member's actual current coin
-  // total (always correct for the newest row), then walked backwards
-  // subtracting each entry's own delta to reconstruct what the balance was
-  // right after it landed. This is only as accurate as the log itself —
-  // a manual DB correction that was never mirrored into attendLog/decayLog/
-  // txLog would shift every "Balance" value before that point, even though
-  // the current total (and the newest row) is always right.
-  let running = member.coins;
-  sorted.forEach(e => { e.balanceAfter = running; running -= e.coins; });
+  const entries = [...attendEntries, ...decayEntries, ...adjustmentEntries];
+  // Running balance column: built forward (oldest entry first, cumulative
+  // sum of each entry's own delta), NOT anchored to the member's current
+  // live coin total. Anchoring to the live total (the old approach) walked
+  // backward subtracting each delta — which guarantees every row looks
+  // internally consistent no matter what, even when the log itself has a
+  // duplicate or missing entry, because any real drift just gets smeared
+  // backward across every row instead of appearing anywhere. That made the
+  // Balance column useless for spotting bugged coins: a member's history
+  // could page perfectly cleanly from top to bottom while still hiding a
+  // real, uncorrected drift the whole time (see ikillyou's duplicate
+  // "Won auction"/"Clan MVP Refund" entries from 6/25 — invisible on this
+  // column, only found via a separate DB-side sum-vs-coins audit).
+  // Computing forward from zero instead makes the final total a genuinely
+  // independent number: comparing it against the member's real `coins`
+  // shows real drift as a real, visible gap.
+  const chronological = [...entries].sort((a,b)=>logSortKey(a)-logSortKey(b));
+  let running = 0;
+  chronological.forEach(e => { running += (e.coins||0); e.balanceAfter = running; });
+  const sorted = [...entries].sort((a,b)=>logSortKey(b)-logSortKey(a));
+  sorted.logTotal = running;
+  sorted.liveTotal = member.coins;
+  sorted.drift = member.coins - running;
   return sorted;
 }
 function pointsHistoryBadgeClass(e) {
@@ -5240,11 +5312,11 @@ function AppInner({ onMusicTrackChange }) {
         // (see its comment) and caches it in _auctionImageCache, so nothing
         // here needs it eagerly.
         dbLoad("auctions", AUCTION_LIST_COLS),
-        dbLoad("attendance_logs"),
-        dbLoad("coin_requests"),
-        dbLoad("loot_results"),
-        dbLoad("event_coin_values"),
-        dbLoad("app_state"),
+        dbLoad("attendance_logs", ATTENDANCE_LOG_COLS),
+        dbLoad("coin_requests", COIN_REQUEST_COLS),
+        dbLoad("loot_results", LOOT_RESULT_COLS),
+        dbLoad("event_coin_values", EVENT_COIN_VALUES_COLS),
+        dbLoad("app_state", APP_STATE_COLS),
       ]);
       if (Array.isArray(mRows) && mRows.length > 0) {
         const safeJson = (v) => {
@@ -5682,7 +5754,7 @@ function AppInner({ onMusicTrackChange }) {
   // union-merge logic that catches anything that might have drifted.
   // Still correct, just not done wastefully on every 5-second tick.
   useJitteredInterval(async () => {
-      const lRows = await dbLoad("attendance_logs");
+      const lRows = await dbLoad("attendance_logs", ATTENDANCE_LOG_COLS);
       const mRows = await dbLoad("members", MEMBER_LIVE_COLS);
       if (Array.isArray(lRows) && lRows.length > 0) {
         const fromDb = lRows.map(r => ({
@@ -5739,7 +5811,7 @@ function AppInner({ onMusicTrackChange }) {
           };
         });
       });
-  }, 5000, 1500, []);
+  }, 8000, 2000, []);
 
   // Slow poll: full member data including all log arrays, for the
   // union-merge logic. 60s interval dramatically reduces egress from
@@ -5925,12 +5997,16 @@ function AppInner({ onMusicTrackChange }) {
       });
   }, 3000, 1000, []);
 
-  // Poll loot_results every 10s so all users see new distributions
+  // Poll loot_results so all users see new distributions. Was a raw,
+  // un-jittered setInterval (every open tab firing in lockstep every 10s) —
+  // now on useJitteredInterval like every other poller, both for the
+  // staggering and to inherit its tab-visibility throttling for free.
+  // Loot distributions aren't latency-sensitive the way live bidding is, so
+  // this also runs slower than before (15s base vs. the old flat 10s).
   const [latestLootId, setLatestLootId] = useState(null);
   const deletedLootIds = useRef(new Set());
-  useEffect(() => {
-    const iv = setInterval(async () => {
-      const rows = await dbLoad("loot_results");
+  useJitteredInterval(async () => {
+      const rows = await dbLoad("loot_results", LOOT_RESULT_COLS);
       if (Array.isArray(rows)) {
         const parsed = rows.map(r => ({
           id: r.id,
@@ -5942,7 +6018,7 @@ function AppInner({ onMusicTrackChange }) {
         setLootResults(prev => {          // ROOT CAUSE FIX: this used to be a hard overwrite (`return parsed`).
           // A roll is saved optimistically into local state immediately, then
           // written to Supabase asynchronously (with retries, which can take
-          // a couple seconds). This poll runs on its own independent 10s timer,
+          // a couple seconds). This poll runs on its own independent timer,
           // not synchronized with that write at all — if a tick landed in the
           // gap before the write finished, it would read the DB's still-stale
           // rows and stomp over the optimistic entry, erasing it from this
@@ -5965,22 +6041,21 @@ function AppInner({ onMusicTrackChange }) {
           return merged;
         });
       }
-    }, 10000);
-    return () => clearInterval(iv);
-  }, []);
+  }, 15000, 4000, []);
 
-  // Poll coin_requests every 10s too — this was previously only loaded
-  // once on page mount, so a Master who already had the app open before
-  // an Elder submitted a request would never see it appear (no error, no
-  // feedback, the approval button simply never showed up since nothing
-  // ever told this client a new request existed). Same merge-by-id-union
-  // approach as loot_results above, so a request submitted locally but
-  // not yet confirmed in the DB isn't briefly erased by a poll that races
-  // ahead of that write.
+  // Poll coin_requests too — this was previously only loaded once on page
+  // mount, so a Master who already had the app open before an Elder
+  // submitted a request would never see it appear (no error, no feedback,
+  // the approval button simply never showed up since nothing ever told
+  // this client a new request existed). Same merge-by-id-union approach as
+  // loot_results above, so a request submitted locally but not yet
+  // confirmed in the DB isn't briefly erased by a poll that races ahead of
+  // that write. Also migrated off a raw, un-jittered setInterval onto
+  // useJitteredInterval for the same lockstep-avoidance + visibility-
+  // throttling reasons as loot_results above.
   const deletedCoinReqIds = useRef(new Set());
-  useEffect(() => {
-    const iv = setInterval(async () => {
-      const rows = await dbLoad("coin_requests");
+  useJitteredInterval(async () => {
+      const rows = await dbLoad("coin_requests", COIN_REQUEST_COLS);
       if (Array.isArray(rows)) {
         // ROOT CAUSE FIX: previously only `localOnly` (locally-pending,
         // not-yet-confirmed requests) was filtered against
@@ -5988,7 +6063,7 @@ function AppInner({ onMusicTrackChange }) {
         // database were NOT filtered at all. So if a request's
         // dbDeleteReliable call failed (the row never actually left the
         // coin_requests table, even though it was optimistically removed
-        // from the screen), the very next 10s poll would fetch that same
+        // from the screen), the very next poll would fetch that same
         // row again and re-add it to pendingCoinRequests — fully visible
         // and approvable again, with no indication anything had gone
         // wrong. Repeatedly clicking Approve on that reappearing request
@@ -6014,9 +6089,7 @@ function AppInner({ onMusicTrackChange }) {
           return [...parsed, ...localOnly];
         });
       }
-    }, 10000);
-    return () => clearInterval(iv);
-  }, []);
+  }, 15000, 4000, []);
   useEffect(() => {
     // ── AUCTION EXPIRY LOGIC ────────────────────────────────────────────────
     // ROOT CAUSE FIX: Previously every client (all 50 members) would race to
@@ -8938,6 +9011,7 @@ function Attendance({ ctx }) {
         <div className={`dash-tab${tab==="bonuses"?" active":""}`} onClick={()=>setTab("bonuses")}>{t("tabBonuses")}</div>
         <div className={`dash-tab${tab==="mylog"?" active":""}`} onClick={()=>setTab("mylog")}>{t("tabMyLog")}</div>
         <div className={`dash-tab${tab==="globallog"?" active":""}`} onClick={()=>setTab("globallog")}>{t("tabGlobalLog")}</div>
+        {isMaster && <div className={`dash-tab${tab==="driftaudit"?" active":""}`} onClick={()=>setTab("driftaudit")}>{t("tabDriftAudit")}</div>}
       </div>
 
       {tab==="logs" && (
@@ -9192,6 +9266,11 @@ function Attendance({ ctx }) {
             const badgeClass = pointsHistoryBadgeClass;
             return (
               <>
+                {rawEntries.drift !== 0 && (
+                  <div style={{fontSize:11,color:"#e07070",background:"rgba(168,50,40,0.12)",border:"1px solid rgba(168,50,40,0.35)",borderRadius:4,padding:"8px 10px",margin:"12px 20px 0",fontFamily:"'Inter',sans-serif"}}>
+                    ⚠ Log total ({fmt(rawEntries.logTotal)}) doesn't match live balance ({fmt(rawEntries.liveTotal)}) — drift: {rawEntries.drift>0?"+":""}{fmt(rawEntries.drift)} coins unaccounted for in the log below.
+                  </div>
+                )}
                 {presentTypes.length>0 && (
                   <div style={{display:"flex",gap:6,flexWrap:"wrap",padding:"12px 20px",borderBottom:"1px solid var(--border)"}}>
                     {["All",...presentTypes].map(filterType=>(
@@ -9342,6 +9421,72 @@ function Attendance({ ctx }) {
                   </div>
                 </div>
               )}
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {tab==="driftaudit" && isMaster && (
+        <div className="dash-panel" style={{
+          padding:0,position:"relative",overflow:"hidden",
+          background:"linear-gradient(135deg,#161110 0%,#1c1410 60%,#161110 100%)",
+          border:"1px solid rgba(200,146,42,0.2)",borderRadius:6,
+        }}>
+          <CornerBrackets size={13} thickness={1.5} inset={8} opacity={0.4}/>
+          <div style={{padding:"18px 20px",borderBottom:"1px solid var(--border)"}}>
+            <div style={{fontFamily:"'Spectral',serif",fontSize:18,fontWeight:700,color:"var(--gold-light)"}}>{t("driftAuditTitle")}</div>
+            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3,fontFamily:"'Inter',sans-serif"}}>{t("driftAuditDesc")}</div>
+          </div>
+          {(()=>{
+            // Reuses the same forward ledger (buildPointsHistoryEntries) that
+            // powers the per-member Balance column and its drift banner —
+            // running it across every member at once instead of requiring an
+            // admin to open each profile individually to notice a gap.
+            const rows = members
+              .map(m => {
+                const entries = buildPointsHistoryEntries(m, t);
+                return { id:m.id, name:m.name, cls:m.cls, logTotal:entries.logTotal, liveTotal:entries.liveTotal, drift:entries.drift };
+              })
+              .filter(r => r.drift !== 0)
+              .sort((a,b) => Math.abs(b.drift) - Math.abs(a.drift));
+            if (rows.length===0) return (
+              <div style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noDriftFound")}</div>
+            );
+            return (
+              <>
+              <div style={{padding:"10px 20px",borderBottom:"1px solid var(--border)",fontSize:11,color:"#e07070",fontFamily:"'Inter',sans-serif",fontWeight:600}}>
+                ⚠ {rows.length} {t("driftSummary")}
+              </div>
+              <div className="table-wrap attendance-table-view">
+                <table className="table-stack">
+                  <thead><tr><th>{t("colMember")}</th><th>{t("colLogTotal")}</th><th>{t("colLiveBalance")}</th><th>{t("colDrift")}</th></tr></thead>
+                  <tbody>
+                    {rows.map(r=>(
+                      <tr key={r.id}>
+                        <td data-label="Member" style={{fontFamily:"'Inter',sans-serif",fontWeight:700,color:"var(--text-bright)"}}>{r.name}</td>
+                        <td data-label="Log Total" style={{fontFamily:"'Inter',sans-serif",fontWeight:600,color:"var(--text-mid)"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={16}/>{fmt(r.logTotal)}</span></td>
+                        <td data-label="Live Balance" style={{fontFamily:"'Inter',sans-serif",fontWeight:600,color:"var(--text-mid)"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={16}/>{fmt(r.liveTotal)}</span></td>
+                        <td data-label="Drift" style={{fontFamily:"'Inter',sans-serif",fontWeight:800,color:r.drift>0?"var(--gold-light)":"#e07070"}}>{r.drift>0?`+${fmt(r.drift)}`:fmt(r.drift)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="attendance-card-view" style={{padding:"4px 16px 16px"}}>
+                {rows.map(r=>(
+                  <div key={`card-${r.id}`} className="dash-subcard" style={{marginBottom:8,padding:"12px 14px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:6}}>
+                      <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:13,color:"var(--text-bright)"}}>{r.name}</span>
+                      <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:13,color:r.drift>0?"var(--gold-light)":"#e07070"}}>{r.drift>0?`+${fmt(r.drift)}`:fmt(r.drift)}</span>
+                    </div>
+                    <div style={{fontSize:11,color:"var(--text-dim)",display:"flex",justifyContent:"space-between",gap:8}}>
+                      <span>{t("colLogTotal")}: {fmt(r.logTotal)}</span>
+                      <span>{t("colLiveBalance")}: {fmt(r.liveTotal)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
               </>
             );
           })()}
@@ -10094,7 +10239,22 @@ function Auctions({ ctx }) {
       dbUpsert("auctions", { id: String(auctionId), ends_at: newEndsAt });
     }
 
-    setAuctions(prev=>prev.map(x=>x.id===auctionId?{...x,currentBid:amount,topBidder:currentUser.name,endsAt:newEndsAt,bids:[...(x.bids||[]),{bidder:currentUser.name,amount,time:Date.now()}]}:x));
+    // ROOT CAUSE of a real "outbid but never refunded" incident (Scarlett01,
+    // auction x50k gwemix): this used to also call setAuctions() here, which
+    // — unlike the bare setAuctionsRaw the 3s poll uses — triggers its own
+    // non-atomic blanket dbUpsert of the WHOLE auctions row (current_bid,
+    // top_bidder, bids) built from this bidder's own local, possibly-stale
+    // cache of `a`. place_bid_atomic (see scripts/place_bid_atomic_v2.sql)
+    // already wrote the authoritative row server-side in one locked
+    // transaction, refund included — this second write was pure redundancy
+    // with a real race window: if a concurrent bid from someone else landed
+    // in the gap between the RPC call and this echo-write, the echo-write's
+    // stale reconstruction could clobber that concurrent bidder's state on
+    // the auctions row without ever touching the members/refund side. Local
+    // UI feedback for coins already comes from the setMembersRaw calls
+    // above (sourced from the RPC's own result, not local cache); the
+    // auction's own state is already kept in sync by the existing 3s poll
+    // (setAuctionsRaw, bare, no DB side effects). No second write is needed.
     addToast(`${t("bidPlacedOn")} ${fmt(amount)} ${t("placedOn")} ${a.name}!${endsAtChanged?" "+t("snipeProtection"):""}`, "gold",t("bidPlacedTitle"));
     if (burstX !== null) {
       fireCoinBurst(burstX, burstY);
@@ -10599,7 +10759,7 @@ function Auctions({ ctx }) {
                   <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'Inter',sans-serif"}}>{t("autoRefreshes")}</span>
                 </div>
                 <button className="btn btn-ghost btn-sm" onClick={async ()=>{
-                  const rows=await dbLoad("loot_results");
+                  const rows=await dbLoad("loot_results", LOOT_RESULT_COLS);
                   if(Array.isArray(rows)&&rows.length>0){
                     setLootResults(rows.map(r=>({id:r.id,timestamp:Number(r.timestamp)||0,date:r.date||"",eventLabel:r.event_label||"Loot Distribution",results:(()=>{try{return typeof r.results==="string"?JSON.parse(r.results):(r.results||[]);}catch{return[];}})()})).filter(r=>Date.now()-r.timestamp<7*24*60*60*1000).sort((a,b)=>b.timestamp-a.timestamp));
                     addToast(t("resultsRefreshed"),"blue",t("refreshedTitle"));
@@ -11551,6 +11711,11 @@ function PointsHistoryPanel({ member, t }) {
     }}>
       <div style={{fontSize:10,color:"var(--text-dim)",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:4}}>{t("adminPointsHistoryTitle")}</div>
       <div style={{fontSize:10.5,color:"var(--text-dim)",marginBottom:14}}>{t("adminPointsHistoryDesc")}</div>
+      {rawEntries.drift !== 0 && (
+        <div style={{fontSize:11,color:"#e07070",background:"rgba(168,50,40,0.12)",border:"1px solid rgba(168,50,40,0.35)",borderRadius:4,padding:"8px 10px",marginBottom:12,fontFamily:"'Inter',sans-serif"}}>
+          ⚠ Log total ({fmt(rawEntries.logTotal)}) doesn't match live balance ({fmt(rawEntries.liveTotal)}) — drift: {rawEntries.drift>0?"+":""}{fmt(rawEntries.drift)} coins unaccounted for in the log below.
+        </div>
+      )}
       {presentTypes.length>0 && (
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
           {["All",...presentTypes].map(filterType=>(
