@@ -2953,6 +2953,62 @@ function buildPointsHistoryEntries(member, t) {
   sorted.drift = member.coins - running;
   return sorted;
 }
+// Heuristic-only cause detection for a drifted member, reusing the exact
+// patterns found by hand while investigating ikillyou (duplicate-entry
+// bursts from the pre-auction_win_claims multi-tab race) and Scarlett01
+// (a bid with no matching refund/win entry — the redundant setAuctions
+// echo-write bug). Suggests what to check, never applies anything itself
+// — see the "detect-and-alert, not auto-fix" reasoning in
+// api/check-coin-drift.js. False positives are expected (e.g. a still-
+// active bid this member is currently winning looks identical to an
+// unresolved one until you check the live auction), so every finding is
+// phrased as something to verify, not a fact.
+function analyzeDriftCauses(member) {
+  const txLog = (member.txLog||[]).filter(e=>e.ts).slice().sort((a,b)=>a.ts-b.ts);
+  const findings = [];
+
+  // 1) Duplicate bursts: identical logType+reason+change landing within
+  // 2 minutes of each other — the exact signature of ikillyou's 4x
+  // "Won auction" entries, 58 seconds apart.
+  const DUP_WINDOW_MS = 120000;
+  const used = new Set();
+  txLog.forEach((e, i) => {
+    if (used.has(i)) return;
+    const group = [i];
+    for (let j=i+1; j<txLog.length; j++) {
+      if (used.has(j)) continue;
+      const o = txLog[j];
+      if (o.ts - e.ts > DUP_WINDOW_MS) break;
+      if (o.logType===e.logType && o.reason===e.reason && o.change===e.change) group.push(j);
+    }
+    if (group.length > 1) {
+      group.forEach(idx=>used.add(idx));
+      const spanSeconds = Math.round((txLog[group[group.length-1]].ts - txLog[group[0]].ts)/1000);
+      findings.push({
+        type: "duplicate_burst",
+        suggestion: `${group.length}x "${e.reason}" (${e.change} each) landed within ${spanSeconds}s of each other — classic multi-tab race signature. Verify how many were real before reversing any.`,
+      });
+    }
+  });
+
+  // 2) Unresolved bids: a "Bid Placed" whose auctionId has no matching
+  // "Outbid Refund" or "Auction Win" anywhere later in the log. Could
+  // mean a missing refund (Scarlett01's case) — or just a bid that's
+  // still actively winning, which is normal. Only the live auctions
+  // table can tell those apart, so this just flags it for a look.
+  txLog.forEach(e => {
+    if (e.logType !== "Bid Placed" || !e.auctionId) return;
+    const resolved = txLog.some(o => o.auctionId===e.auctionId && (o.logType==="Outbid Refund" || o.logType==="Auction Win"));
+    if (!resolved) {
+      findings.push({
+        type: "unresolved_bid",
+        suggestion: `Bid of ${e.change} on "${e.reason}" (auction ${e.auctionId}) has no Outbid Refund or Auction Win entry after it. Check that auction's live status — if they've since been outbid or it ended without a win entry, this refund may be missing.`,
+      });
+    }
+  });
+
+  return findings;
+}
 function pointsHistoryBadgeClass(e) {
   return e.type==="Attendance"?"badge-blue":e.type==="Weekly Decay"?"badge-red":e.type==="Auction Win"?"badge-silver":e.coins>=0?"badge-gold":"badge-red";
 }
@@ -9443,10 +9499,14 @@ function Attendance({ ctx }) {
             // powers the per-member Balance column and its drift banner —
             // running it across every member at once instead of requiring an
             // admin to open each profile individually to notice a gap.
+            // analyzeDriftCauses adds a best-guess "what to check" note per
+            // member, reusing the exact patterns found by hand investigating
+            // ikillyou (duplicate bursts) and Scarlett01 (unresolved bids) —
+            // heuristic only, never a fact, never applied automatically.
             const rows = members
               .map(m => {
                 const entries = buildPointsHistoryEntries(m, t);
-                return { id:m.id, name:m.name, cls:m.cls, logTotal:entries.logTotal, liveTotal:entries.liveTotal, drift:entries.drift };
+                return { id:m.id, name:m.name, cls:m.cls, logTotal:entries.logTotal, liveTotal:entries.liveTotal, drift:entries.drift, causes:analyzeDriftCauses(m) };
               })
               .filter(r => r.drift !== 0)
               .sort((a,b) => Math.abs(b.drift) - Math.abs(a.drift));
@@ -9463,12 +9523,25 @@ function Attendance({ ctx }) {
                   <thead><tr><th>{t("colMember")}</th><th>{t("colLogTotal")}</th><th>{t("colLiveBalance")}</th><th>{t("colDrift")}</th></tr></thead>
                   <tbody>
                     {rows.map(r=>(
-                      <tr key={r.id}>
+                      <React.Fragment key={r.id}>
+                      <tr>
                         <td data-label="Member" style={{fontFamily:"'Inter',sans-serif",fontWeight:700,color:"var(--text-bright)"}}>{r.name}</td>
                         <td data-label="Log Total" style={{fontFamily:"'Inter',sans-serif",fontWeight:600,color:"var(--text-mid)"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={16}/>{fmt(r.logTotal)}</span></td>
                         <td data-label="Live Balance" style={{fontFamily:"'Inter',sans-serif",fontWeight:600,color:"var(--text-mid)"}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><StatIcon src={COINS_ICON} size={16}/>{fmt(r.liveTotal)}</span></td>
                         <td data-label="Drift" style={{fontFamily:"'Inter',sans-serif",fontWeight:800,color:r.drift>0?"var(--gold-light)":"#e07070"}}>{r.drift>0?`+${fmt(r.drift)}`:fmt(r.drift)}</td>
                       </tr>
+                      {r.causes.length>0 && (
+                        <tr>
+                          <td colSpan={4} style={{padding:"0 0 12px",border:"none"}}>
+                            {r.causes.map((c,ci)=>(
+                              <div key={ci} style={{fontSize:11,color:"#e0a070",background:"rgba(200,146,42,0.08)",border:"1px solid rgba(200,146,42,0.25)",borderRadius:4,padding:"6px 10px",marginTop:4,fontFamily:"'Inter',sans-serif"}}>
+                                💡 {c.suggestion}
+                              </div>
+                            ))}
+                          </td>
+                        </tr>
+                      )}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -9484,6 +9557,11 @@ function Attendance({ ctx }) {
                       <span>{t("colLogTotal")}: {fmt(r.logTotal)}</span>
                       <span>{t("colLiveBalance")}: {fmt(r.liveTotal)}</span>
                     </div>
+                    {r.causes.map((c,ci)=>(
+                      <div key={ci} style={{fontSize:11,color:"#e0a070",background:"rgba(200,146,42,0.08)",border:"1px solid rgba(200,146,42,0.25)",borderRadius:4,padding:"6px 10px",marginTop:6,fontFamily:"'Inter',sans-serif"}}>
+                        💡 {c.suggestion}
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
