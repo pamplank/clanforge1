@@ -8803,6 +8803,7 @@ function RecordAttendancePanel({ ctx }) {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectedMembers, setSelectedMembers] = useState({});
   const [qualifier, setQualifier] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   function toggleMember(id) {
     setSelectedMembers(p=>({...p,[id]:!p[id]}));
@@ -8810,10 +8811,19 @@ function RecordAttendancePanel({ ctx }) {
   }
 
   async function submitAttendance() {
+    // Guards against the exact bug that caused three real duplicate-payout
+    // incidents (6/25, 6/27, 7/2 — 52 duplicate attend_log entries across
+    // 29 members, 1175 coins over-credited): this button had no submission
+    // guard, so a click while the previous submit's per-member atomic RPCs
+    // were still in flight (a real multi-second wait for a full roster)
+    // fired the entire batch a second time. Same pattern already fixed for
+    // bidding via bidSubmitting.
+    if (isSubmitting) return;
     if(!selectedEvent){addToast(t("selectEventError"),"red",t("errorLabel"));return;}
     const ev=EVENTS.find(e=>e.id===selectedEvent);
     const present=Object.entries(selectedMembers).filter(([,v])=>v).map(([id])=>parseInt(id));
     if(present.length===0){addToast(t("noMembersSelected"),"red",t("errorLabel"));return;}
+    setIsSubmitting(true);
     const today = new Date().toLocaleDateString();
     const nowTs = Date.now();
     const qualifierMap = {...qualifier};
@@ -8827,6 +8837,7 @@ function RecordAttendancePanel({ ctx }) {
     });
     const { payouts, bonusToasts } = performAttendancePayout(members, { ev, date: today, ts: nowTs, present, qualifierMap }, bonusConfig);
     await applyAttendancePayout(payouts, setMembersRaw, addToast);
+    setIsSubmitting(false);
     setTimeout(()=>{
       bonusToasts.forEach(bonus=>addToast(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><TrophyIcon size={14}/>{bonus.name} {t("earnedBonusText")} +{bonus.coins} {t("coinsText")} — {bonus.bonus} {t("bonusText")}</span>,"gold",t("bonusAwarded")));
     }, 200);
@@ -8886,8 +8897,8 @@ function RecordAttendancePanel({ ctx }) {
           ))}
         </div>
         <div style={{marginTop:16,display:"flex",gap:10}}>
-          <button className="btn btn-gold" style={{flex:1}} onClick={submitAttendance}>{t("submitAttendance")}</button>
-          <button className="btn btn-outline" onClick={()=>{setSelectedMembers({});setQualifier({});}}>{t("clear")}</button>
+          <button className="btn btn-gold" style={{flex:1}} onClick={submitAttendance} disabled={isSubmitting}>{isSubmitting?"…":t("submitAttendance")}</button>
+          <button className="btn btn-outline" onClick={()=>{setSelectedMembers({});setQualifier({});}} disabled={isSubmitting}>{t("clear")}</button>
         </div>
       </div>
     </div>
@@ -13459,6 +13470,7 @@ function AddMissingAttendanceModal({ ctx }) {
   const [qualifierMap, setQualifierMap] = useState({});
   const [payoutMode, setPayoutMode] = useState("none"); // "none" | "distribute"
   const [err, setErr] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const filtered = members.filter(m => m.name.toLowerCase().includes(search.toLowerCase()));
   const selectedCount = Object.values(selected).filter(Boolean).length;
@@ -13470,6 +13482,11 @@ function AddMissingAttendanceModal({ ctx }) {
   }
 
   async function submit() {
+    // Same double-submission guard added to RecordAttendancePanel's
+    // submitAttendance — this modal's "distribute" mode runs the exact
+    // same per-member atomic payout loop and was equally vulnerable to a
+    // second click mid-submit re-running the whole batch.
+    if (submitting) return;
     setErr("");
     if (!eventName || !ev) { setErr(t("pickEventError")); return; }
     if (!whenLocal) { setErr(t("pickDateTimeError")); return; }
@@ -13478,6 +13495,7 @@ function AddMissingAttendanceModal({ ctx }) {
     if (isNaN(ts)) { setErr(t("invalidDateTime")); return; }
     const date = new Date(ts).toLocaleDateString();
     const present = members.filter(m => selected[m.id]).map(m => m.id);
+    setSubmitting(true);
 
     if (payoutMode === "distribute") {
       // Reuses the exact same payout/bonus math as a live attendance
@@ -13569,8 +13587,8 @@ function AddMissingAttendanceModal({ ctx }) {
           </div>
         </div>
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={()=>setModal(null)}>{t("cancel")}</button>
-          <button className="btn btn-gold" onClick={submit}>{payoutMode==="distribute" ? t("addRecordPayBtn") : t("addRecordBtn")}</button>
+          <button className="btn btn-outline" onClick={()=>setModal(null)} disabled={submitting}>{t("cancel")}</button>
+          <button className="btn btn-gold" onClick={submit} disabled={submitting}>{submitting ? "…" : (payoutMode==="distribute" ? t("addRecordPayBtn") : t("addRecordBtn"))}</button>
         </div>
       </div>
     </div>
