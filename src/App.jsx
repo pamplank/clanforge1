@@ -13039,14 +13039,35 @@ function AddMemberModal({ ctx }) {
     submittingRef.current = true;
     setSubmitting(true);
     const newM={id:Date.now(),name:form.name,username:form.username,cls:form.cls,power:parseInt(form.power)||10000,role:form.role,coins:0,attendance:0,auctionWins:0,joinDate:new Date().toLocaleDateString(),decayLog:[],txLog:[],attendLog:[],powerLog:[],discord:""};
-    setMembers(ms=>[...ms,newM]);
-    // Set the initial password via the dedicated RPC (see
-    // setMemberPasswordAtomic's own comment) — the row above was created
-    // WITHOUT a password at all, so without this the new member couldn't
-    // log in until someone manually set one.
+    // Insert the member row and WAIT for it to actually land before setting
+    // its password. setMemberPasswordAtomic below is a plain UPDATE keyed on
+    // newM.id — if it races ahead of the row's own INSERT (which used to
+    // happen here, since setMembers's dbUpsert is fire-and-forget and this
+    // ran right after it with no await), the UPDATE silently matches zero
+    // rows and reports success while the typed password never gets saved.
+    // The INSERT then lands moments later with no password at all (it's
+    // deliberately excluded from that payload — see setMembers's own
+    // comment), so the new member ends up with none of the password they
+    // were given, and can't log in.
+    const inserted = await dbUpsertReliable("members", {
+      id: String(newM.id), name: newM.name, username: newM.username,
+      role: newM.role, cls: newM.cls, power: newM.power, coins: newM.coins,
+      attendance: newM.attendance, join_date: newM.joinDate,
+      auction_wins: newM.auctionWins,
+      decay_log: "[]", tx_log: "[]", attend_log: "[]", power_log: "[]",
+      profile_rarity: "uncommon", awakening_level: 0, last_login_ts: 0,
+      discord: "",
+    });
+    if (!inserted) {
+      submittingRef.current = false;
+      setSubmitting(false);
+      addToast(`Couldn't save ${form.name} to the roster — please try again.`, "red", t("errorLabel"));
+      return;
+    }
     const ok = await setMemberPasswordAtomic(newM.id, form.password);
     submittingRef.current = false;
     setSubmitting(false);
+    setMembers(ms=>[...ms,newM]);
     if (!ok) {
       addToast(`${form.name} ${t("addedToClan")}, but the initial password couldn't be saved — set it manually.`, "red", t("errorLabel"));
       setModal(null);
