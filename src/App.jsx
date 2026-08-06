@@ -383,6 +383,7 @@ const TRANSLATIONS = {
     rarityKari: "Kari",
     rarityMaterial: "Common",
     rarityUncommon: "Uncommon",
+    rarityLegendary: "Legendary",
     colItem: "Item",
     colRarity: "Rarity",
     colWinner: "Winner",
@@ -968,6 +969,7 @@ const TRANSLATIONS = {
     rarityKari: "卡里",
     rarityMaterial: "普通",
     rarityUncommon: "罕见",
+    rarityLegendary: "传说",
     colItem: "物品",
     colRarity: "稀有度",
     colWinner: "赢家",
@@ -3020,7 +3022,7 @@ const HISTORY_TAB_PAGE_SIZE = 10;
 // Maps a stored rarity key (always lowercase English: epic/rare/kari/material/uncommon) to its
 // translated display label. The stored value never changes — only the
 // rendered text does.
-const RARITY_LABEL_KEYS = { epic: "rarityEpic", rare: "rarityRare", kari: "rarityKari", material: "rarityMaterial", uncommon: "rarityUncommon" };
+const RARITY_LABEL_KEYS = { epic: "rarityEpic", rare: "rarityRare", kari: "rarityKari", material: "rarityMaterial", uncommon: "rarityUncommon", legendary: "rarityLegendary" };
 function rarityLabel(rarity, t) {
   const key = RARITY_LABEL_KEYS[rarity];
   return (key ? t(key) : (rarity||"")).toUpperCase();
@@ -3774,6 +3776,7 @@ tbody tr:last-child td{border-bottom:none;}
 .badge-kari{background:rgba(0,80,160,0.35);color:#a0d8ff;border:1px solid rgba(100,200,255,0.6);text-transform:uppercase;}
 .badge-material{background:rgba(120,120,120,0.25);color:#cccccc;border:1px solid rgba(160,160,160,0.55);text-transform:uppercase;}
 .badge-uncommon{background:rgba(46,138,46,0.2);color:#7ddc7d;border:1px solid rgba(80,180,80,0.55);text-transform:uppercase;}
+.badge-legendary{background:rgba(200,146,42,0.25);color:#e6b048;border:1px solid rgba(230,176,72,0.6);text-transform:uppercase;}
 
 /* ── SECTION HEADER ── */
 .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
@@ -3834,8 +3837,11 @@ tbody tr:last-child td{border-bottom:none;}
 .auction-card.rarity-uncommon{border-color:rgba(80,180,80,0.5);}
 .auction-card.rarity-uncommon:hover{border-color:#7ddc7d;box-shadow:0 6px 30px rgba(46,138,46,0.2);}
 .auction-card.rarity-rare:hover{border-color:var(--rare-light);box-shadow:0 6px 30px rgba(26,90,138,0.2);}
+.auction-card.rarity-legendary{border-color:rgba(200,146,42,0.6);box-shadow:0 0 18px rgba(230,176,72,0.25);}
+.auction-card.rarity-legendary:hover{border-color:var(--gold-light);box-shadow:0 6px 30px rgba(200,146,42,0.3);}
 .auction-img{width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:52px;position:relative;overflow:hidden;}
 .auction-img.rarity-epic{background:radial-gradient(ellipse at 50% 50%,rgba(180,30,30,0.55) 0%,rgba(90,10,10,0.8) 55%,#0d0a0a 100%);}
+.auction-img.rarity-legendary{background:radial-gradient(ellipse at 50% 50%,rgba(230,176,72,0.55) 0%,rgba(140,100,20,0.8) 55%,#0d0a06 100%);}
 .auction-img.rarity-rare{background:radial-gradient(ellipse at 50% 50%,rgba(30,100,180,0.55) 0%,rgba(10,40,90,0.8) 55%,#090d12 100%);}
 .auction-img.rarity-material{background:radial-gradient(ellipse at 50% 50%,rgba(140,140,140,0.5) 0%,rgba(60,60,60,0.8) 55%,#0d0d0d 100%);}
 .auction-img.rarity-uncommon{background:radial-gradient(ellipse at 50% 50%,rgba(60,180,60,0.5) 0%,rgba(20,70,20,0.8) 55%,#0a0d0a 100%);}
@@ -9662,6 +9668,7 @@ function CreateAuctionPanel({ ctx }) {
   const [newAuction, setNewAuction] = useState({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000),postToNews:false,featureAtTop:false});
 
   const RARITY_OPTS=[
+    {value:"legendary",label:t("rarityLegendary"),color:"#e6b048",bg:"rgba(200,146,42,0.25)",border:"rgba(230,176,72,0.6)"},
     {value:"epic",label:t("rarityEpic"),color:"#ff8080",bg:"rgba(122,26,26,0.25)",border:"rgba(192,57,43,0.55)"},
     {value:"rare",label:t("rarityRare"),color:"#60aadd",bg:"rgba(26,90,138,0.2)",border:"rgba(46,134,193,0.5)"},
     {value:"kari",label:t("rarityKari"),color:"#a0d8ff",bg:"rgba(0,80,160,0.35)",border:"rgba(100,200,255,0.6)"},
