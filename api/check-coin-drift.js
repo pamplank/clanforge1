@@ -26,6 +26,41 @@
 // Known-drift state is stored in app_state (key="known_coin_drift") as
 // {memberId: driftAmount}, the same table/pattern check-weekly-decay
 // already uses for last_decay_ts — no new table needed.
+//
+// Also runs two related checks discovered the same way this drift check
+// was originally found — by hand, after the fact, once someone noticed a
+// specific member's numbers looked wrong:
+//
+// 1. ATTENDANCE HISTORY GAPS: attendance_logs.attendees is the
+//    authoritative record of who was marked present and what they were
+//    supposed to earn for an event (written once, at submission time,
+//    unaffected by later per-member writes) — but a since-fixed bug in
+//    setMembers could silently wipe a member's own attend_log/tx_log
+//    entry for that same event afterward. Cross-checking the two catches
+//    exactly that gap: present in the event record, missing from the
+//    member's own history. Scoped to a rolling window (ATTENDANCE_WINDOW_MS
+//    below) rather than all-time, since this only needs to catch RECENT
+//    gaps — rescanning the entire history every night forever is wasted
+//    work once older gaps are backfilled.
+//
+// 2. RESURRECTED / DUPLICATE MEMBERS: a member whose join_date is recent
+//    but who's listed as an attendee on an event dated BEFORE that
+//    join_date is a member whose original account was lost (deleted, or
+//    replaced by a fresh row) and re-added — silently losing all prior
+//    coins/attendance/rarity/power history in the process (see Khaleesy,
+//    found 2026-08-07: join_date 8/6, but present at an 8/3 event under
+//    her real, since-lost account). This can't be auto-fixed (the old
+//    history is genuinely gone, not just miscounted) — it's flagged so a
+//    human knows to go looking for what else that member might be
+//    missing beyond just attendance (rarity, power, coins earned before
+//    the loss, etc.).
+//
+// Same philosophy as the drift check above: alert once per new finding,
+// never auto-correct. Known state for these two lives in app_state keys
+// "known_attendance_gaps" (array of "member|event|date" strings) and
+// "known_resurrected_members" (array of member ids).
+
+const ATTENDANCE_WINDOW_MS = 21 * 24 * 60 * 60 * 1000; // 21 days
 
 const SUPA_URL = process.env.VITE_SUPABASE_URL;
 const SUPA_KEY = process.env.VITE_SUPABASE_ANON_KEY;
@@ -85,6 +120,60 @@ function computeDrift(member) {
   return { logTotal, liveTotal: Number(member.coins) || 0, drift: (Number(member.coins) || 0) - logTotal };
 }
 
+// attendance_logs.date / members.join_date are both "M/D/YYYY" strings
+// (toLocaleDateString-style, no leading zeros) — plain `new Date(str)`
+// parses that correctly as US-format.
+function parseUsDate(str) {
+  const d = new Date(str);
+  return isNaN(d) ? null : d;
+}
+
+// Cross-checks attendance_logs.attendees (authoritative — written once at
+// submission, not touched afterward) against each member's own attend_log,
+// for events within the last ATTENDANCE_WINDOW_MS. Returns one entry per
+// missing (member, event, date) combo, keyed for dedup against known state.
+function findAttendanceGaps(attendanceLogs, membersByName) {
+  const cutoff = Date.now() - ATTENDANCE_WINDOW_MS;
+  const gaps = [];
+  attendanceLogs.forEach((log) => {
+    const logTs = Number(log.id);
+    if (!logTs || logTs < cutoff) return;
+    const attendees = safeJsonArray(log.attendees);
+    attendees.forEach((att) => {
+      const member = membersByName.get(att.name);
+      if (!member) return; // member no longer exists — nothing to flag
+      const hasEntry = safeJsonArray(member.attend_log).some(
+        (e) => e.event === log.event && e.date === log.date
+      );
+      if (!hasEntry) {
+        gaps.push({ key: `${att.name}|${log.event}|${log.date}`, member: att.name, event: log.event, date: log.date, earned: att.earned });
+      }
+    });
+  });
+  return gaps;
+}
+
+// A member whose join_date is recent but who's listed as an attendee on an
+// event dated BEFORE that join_date has a lost-and-recreated account.
+function findResurrectedMembers(members, attendanceLogs) {
+  const recentCutoff = Date.now() - ATTENDANCE_WINDOW_MS;
+  const found = [];
+  members.forEach((m) => {
+    if (!m.join_date) return;
+    const joinDate = parseUsDate(m.join_date);
+    if (!joinDate || joinDate.getTime() < recentCutoff) return; // only recently-(re)joined members are suspects
+    const earlierEvent = attendanceLogs.find((log) => {
+      if (!safeJsonArray(log.attendees).some((a) => a.name === m.name)) return false;
+      const eventDate = parseUsDate(log.date);
+      return eventDate && eventDate.getTime() < joinDate.getTime();
+    });
+    if (earlierEvent) {
+      found.push({ id: m.id, name: m.name, joinDate: m.join_date, earlierEvent: earlierEvent.event, earlierDate: earlierEvent.date });
+    }
+  });
+  return found;
+}
+
 export default async function handler(req, res) {
   const providedKey = req.query?.key || req.headers["authorization"]?.replace("Bearer ", "");
   if (!CRON_SECRET || providedKey !== CRON_SECRET) {
@@ -95,11 +184,18 @@ export default async function handler(req, res) {
   }
 
   try {
-    const [membersRes, stateRes] = await Promise.all([
-      fetch(`${SUPA_URL}/rest/v1/members?select=id,name,coins,tx_log,attend_log,decay_log`, {
+    const attendanceCutoff = Date.now() - ATTENDANCE_WINDOW_MS;
+    const [membersRes, attendanceRes, stateRes] = await Promise.all([
+      fetch(`${SUPA_URL}/rest/v1/members?select=id,name,join_date,coins,tx_log,attend_log,decay_log`, {
         headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` },
       }),
-      fetch(`${SUPA_URL}/rest/v1/app_state?select=key,value&key=eq.known_coin_drift`, {
+      // id is a text column holding a ms-timestamp string, but every id in
+      // this table is the same digit-length, so a lexicographic gte filter
+      // here matches numeric gte — no need to pull the whole table.
+      fetch(`${SUPA_URL}/rest/v1/attendance_logs?select=id,date,event,attendees&id=gte.${attendanceCutoff}`, {
+        headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` },
+      }),
+      fetch(`${SUPA_URL}/rest/v1/app_state?select=key,value&key=in.(known_coin_drift,known_attendance_gaps,known_resurrected_members)`, {
         headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` },
       }),
     ]);
@@ -107,12 +203,16 @@ export default async function handler(req, res) {
     if (!Array.isArray(members)) {
       return res.status(500).json({ error: "Failed to load members" });
     }
+    const attendanceLogs = await attendanceRes.json();
     const stateRows = await stateRes.json();
-    let knownDrift = {};
-    try {
-      const raw = Array.isArray(stateRows) && stateRows[0] ? stateRows[0].value : null;
-      knownDrift = raw ? JSON.parse(raw) : {};
-    } catch { knownDrift = {}; }
+    const stateByKey = {};
+    if (Array.isArray(stateRows)) stateRows.forEach((r) => { stateByKey[r.key] = r.value; });
+    function parseState(key, fallback) {
+      try { return stateByKey[key] ? JSON.parse(stateByKey[key]) : fallback; } catch { return fallback; }
+    }
+    const knownDrift = parseState("known_coin_drift", {});
+    const knownGapKeys = new Set(parseState("known_attendance_gaps", []));
+    const knownResurrectedIds = new Set(parseState("known_resurrected_members", []));
 
     const currentDrift = {};
     const newOrChanged = [];
@@ -126,31 +226,57 @@ export default async function handler(req, res) {
       }
     });
 
-    // Persist the full current snapshot (including unchanged entries) so
-    // next run's diff is against this run's reality, not a stale one.
-    await fetch(`${SUPA_URL}/rest/v1/app_state?on_conflict=key`, {
-      method: "POST",
-      headers: {
-        apikey: SUPA_KEY,
-        Authorization: `Bearer ${SUPA_KEY}`,
-        "Content-Type": "application/json",
-        Prefer: "resolution=merge-duplicates,return=minimal",
-      },
-      body: JSON.stringify({ key: "known_coin_drift", value: JSON.stringify(currentDrift), updated_at: Date.now() }),
-    });
+    const membersByName = new Map(members.map((m) => [m.name, m]));
+    const allGaps = Array.isArray(attendanceLogs) ? findAttendanceGaps(attendanceLogs, membersByName) : [];
+    const newGaps = allGaps.filter((g) => !knownGapKeys.has(g.key));
+    const allResurrected = Array.isArray(attendanceLogs) ? findResurrectedMembers(members, attendanceLogs) : [];
+    const newResurrected = allResurrected.filter((r) => !knownResurrectedIds.has(r.id));
 
-    if (newOrChanged.length > 0 && DISCORD_WEBHOOK_URL) {
+    // Persist each check's full current snapshot (including unchanged
+    // findings) so the next run's diff is against this run's reality.
+    await Promise.all([
+      fetch(`${SUPA_URL}/rest/v1/app_state?on_conflict=key`, {
+        method: "POST",
+        headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify({ key: "known_coin_drift", value: JSON.stringify(currentDrift), updated_at: Date.now() }),
+      }),
+      fetch(`${SUPA_URL}/rest/v1/app_state?on_conflict=key`, {
+        method: "POST",
+        headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify({ key: "known_attendance_gaps", value: JSON.stringify(allGaps.map((g) => g.key)), updated_at: Date.now() }),
+      }),
+      fetch(`${SUPA_URL}/rest/v1/app_state?on_conflict=key`, {
+        method: "POST",
+        headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify({ key: "known_resurrected_members", value: JSON.stringify(allResurrected.map((r) => r.id)), updated_at: Date.now() }),
+      }),
+    ]);
+
+    const sections = [];
+    if (newOrChanged.length > 0) {
       const lines = newOrChanged.map((r) => {
         const sign = r.drift > 0 ? "+" : "";
         const changeNote = r.prevDrift !== undefined ? ` (was ${r.prevDrift > 0 ? "+" : ""}${r.prevDrift})` : " (new)";
         const causeNote = r.cause ? `\n  💡 ${r.cause}` : "";
         return `• **${r.name}** — log total ${r.logTotal}, live balance ${r.liveTotal}, drift **${sign}${r.drift}**${changeNote}${causeNote}`;
       });
+      sections.push(`⚠️ **Coin Drift** — ${newOrChanged.length} member(s) with new or changed drift:\n${lines.join("\n")}`);
+    }
+    if (newGaps.length > 0) {
+      const lines = newGaps.map((g) => `• **${g.member}** — missing "${g.event}" (${g.date}), ${g.earned} coins never landed in their history`);
+      sections.push(`📋 **Attendance History Gaps** — ${newGaps.length} entr${newGaps.length === 1 ? "y" : "ies"} present in an event record but missing from the member's own history:\n${lines.join("\n")}`);
+    }
+    if (newResurrected.length > 0) {
+      const lines = newResurrected.map((r) => `• **${r.name}** — joined ${r.joinDate}, but attended "${r.earlierEvent}" on ${r.earlierDate} (before that join date) — likely a lost/recreated account`);
+      sections.push(`👻 **Possibly Resurrected Members** — ${newResurrected.length} member(s) whose account may have lost its real history:\n${lines.join("\n")}`);
+    }
+
+    if (sections.length > 0 && DISCORD_WEBHOOK_URL) {
       await fetch(DISCORD_WEBHOOK_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: `⚠️ **Coin Drift Audit** found ${newOrChanged.length} member(s) with new or changed drift:\n${lines.join("\n")}\n\nCheck the Drift Audit tab in-app (Master only) before correcting — this alert does not auto-fix anything.`,
+          content: `**Nightly Audit**\n\n${sections.join("\n\n")}\n\nCheck the Drift Audit tab in-app (Master only) before correcting — this alert does not auto-fix anything.`,
         }),
       }).catch((e) => console.error("check-coin-drift: Discord post failed:", e));
     }
@@ -159,7 +285,9 @@ export default async function handler(req, res) {
       checked: members.length,
       totalWithDrift: Object.keys(currentDrift).length,
       newOrChanged: newOrChanged.length,
-      alerted: newOrChanged.length > 0 && !!DISCORD_WEBHOOK_URL,
+      attendanceGaps: { total: allGaps.length, new: newGaps.length },
+      resurrectedMembers: { total: allResurrected.length, new: newResurrected.length },
+      alerted: sections.length > 0 && !!DISCORD_WEBHOOK_URL,
     });
   } catch (err) {
     console.error("check-coin-drift failed:", err);
