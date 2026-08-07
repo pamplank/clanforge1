@@ -7084,7 +7084,7 @@ function Dashboard({ ctx, setPage }) {
           {activeAuctions.length===0&&<div style={{color:"var(--text-dim)",fontSize:13,fontFamily:"'Inter',sans-serif"}}>{t("noActiveAuctions")}</div>}
           {[...activeAuctions].sort((a,b)=>b.currentBid-a.currentBid).slice(0,3).map(a=>(
             <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid var(--border-dim)"}}>
-              <div style={{width:42,height:42,borderRadius:2,overflow:"hidden",background:a.rarity==="epic"?"rgba(122,26,26,0.3)":"rgba(26,90,138,0.3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
+              <div style={{position:"relative",width:42,height:42,borderRadius:2,overflow:"hidden",background:a.rarity==="epic"?"rgba(122,26,26,0.3)":"rgba(26,90,138,0.3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
                 {a.image?<AuctionImage auction={a} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={<span style={{fontSize:22}}>{a.emoji}</span>}/>:<span style={{fontSize:22}}>{a.emoji}</span>}
               </div>
               <div style={{flex:1,minWidth:0}}>
@@ -7151,7 +7151,7 @@ function Dashboard({ ctx, setPage }) {
           {recentWinners.length===0&&<div style={{color:"var(--text-dim)",fontSize:13,fontFamily:"'Inter',sans-serif"}}>{t("noRecentWinners")}</div>}
           {recentWinners.map(a=>(
             <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid var(--border-dim)"}}>
-              <div style={{width:36,height:36,borderRadius:2,overflow:"hidden",background:"var(--bg-mid)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <div style={{position:"relative",width:36,height:36,borderRadius:2,overflow:"hidden",background:"var(--bg-mid)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                 {a.image?<AuctionImage auction={a} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={<StatIcon src={AUCTION_ICON} size={32}/>}/>:<StatIcon src={AUCTION_ICON} size={32}/>}
               </div>
               <div style={{flex:1,minWidth:0}}>
@@ -10077,7 +10077,7 @@ function Auctions({ ctx }) {
                 {/* ROW 1: thumbnail + info + bid stats */}
                 <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px"}}>
                   {/* Thumbnail */}
-                  <div style={{width:48,height:48,borderRadius:4,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:a.rarity==="epic"?"rgba(122,26,26,0.3)":a.rarity==="kari"?"rgba(0,60,130,0.4)":"rgba(26,90,138,0.3)",border:`1px solid ${rc2.border}`}}>
+                  <div style={{position:"relative",width:48,height:48,borderRadius:4,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:a.rarity==="epic"?"rgba(122,26,26,0.3)":a.rarity==="kari"?"rgba(0,60,130,0.4)":"rgba(26,90,138,0.3)",border:`1px solid ${rc2.border}`}}>
                     {a.image?<AuctionImage auction={a} alt={a.name} style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={<StatIcon src={AUCTION_ICON} size={24}/>}/>:<StatIcon src={AUCTION_ICON} size={24}/>}
                   </div>
                   {/* Name + bidder */}
@@ -10172,7 +10172,7 @@ function Auctions({ ctx }) {
                     <td data-label="Date & Time" style={{fontWeight:500,whiteSpace:"nowrap"}}>{formatLogDateTime({ts:a.endsAt})}</td>
                     <td data-label="Item">
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <div style={{width:28,height:28,borderRadius:2,overflow:"hidden",background:a.rarity==="epic"?"rgba(122,26,26,0.2)":"rgba(26,90,138,0.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
+                        <div style={{position:"relative",width:28,height:28,borderRadius:2,overflow:"hidden",background:a.rarity==="epic"?"rgba(122,26,26,0.2)":"rgba(26,90,138,0.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
                           {a.image?<AuctionImage auction={a} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={<StatIcon src={AUCTION_ICON} size={16}/>}/>:<StatIcon src={AUCTION_ICON} size={16}/>}
                         </div>
                         <span style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:"var(--text-bright)"}}>{a.name}</span>
@@ -10202,7 +10202,7 @@ function Auctions({ ctx }) {
           {pagedEnded.map(a=>(
             <div key={`card-${a.id}`} className="dash-subcard" style={{marginBottom:10,padding:"14px 16px"}}>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-                <div style={{width:36,height:36,borderRadius:3,overflow:"hidden",background:a.rarity==="epic"?"rgba(122,26,26,0.2)":"rgba(26,90,138,0.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
+                <div style={{position:"relative",width:36,height:36,borderRadius:3,overflow:"hidden",background:a.rarity==="epic"?"rgba(122,26,26,0.2)":"rgba(26,90,138,0.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
                   {a.image?<AuctionImage auction={a} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={<StatIcon src={AUCTION_ICON} size={18}/>}/>:<StatIcon src={AUCTION_ICON} size={18}/>}
                 </div>
                 <div style={{flex:1,minWidth:0}}>
