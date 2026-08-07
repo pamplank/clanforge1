@@ -10145,7 +10145,29 @@ function Auctions({ ctx }) {
               <thead><tr><th>{t("colDateTime")}</th><th>{t("colItem")}</th><th>{t("colRarity")}</th><th>{t("colWinner")}</th><th>{t("colFinalBid")}</th></tr></thead>
               <tbody>
                 {ended.length===0 && <tr><td colSpan={5} style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noEndedAuctions")}</td></tr>}
-                {pagedEnded.map(a=>(
+                {pagedEnded.map(a=>{
+                  // A row can briefly reach this table before its full
+                  // record (name/rarity/topBidder) has landed client-side
+                  // — e.g. right as the ended list resorts/repaginates
+                  // mid-poll-merge. Rather than flash the row half-blank
+                  // (date + bid number with everything else missing, which
+                  // reads as broken/awkward), show a shimmer placeholder
+                  // for exactly that row until it's actually ready — same
+                  // shimmer AuctionImage already uses for its own loading
+                  // state, so it reads as "still loading", not "bugged".
+                  if (!a.name) {
+                    const shimmer = {background:"linear-gradient(110deg, #1a1410 30%, #2a2118 50%, #1a1410 70%)",backgroundSize:"200% 100%",animation:"profileCardShimmer 1.6s ease-in-out infinite",borderRadius:4,height:14};
+                    return (
+                      <tr key={a.id}>
+                        <td data-label="Date & Time" style={{fontWeight:500,whiteSpace:"nowrap"}}>{formatLogDateTime({ts:a.endsAt})}</td>
+                        <td data-label="Item"><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{...shimmer,width:28,height:28,borderRadius:2,flexShrink:0}}/><div style={{...shimmer,width:120}}/></div></td>
+                        <td data-label="Rarity"><div style={{...shimmer,width:52,height:18,borderRadius:10}}/></td>
+                        <td data-label="Winner"><div style={{...shimmer,width:80}}/></td>
+                        <td data-label="Final Bid"><div style={{...shimmer,width:50}}/></td>
+                      </tr>
+                    );
+                  }
+                  return (
                   <tr key={a.id}>
                     <td data-label="Date & Time" style={{fontWeight:500,whiteSpace:"nowrap"}}>{formatLogDateTime({ts:a.endsAt})}</td>
                     <td data-label="Item">
@@ -10160,7 +10182,8 @@ function Auctions({ ctx }) {
                     <td data-label="Winner">{a.topBidder ? <span style={{color:"var(--gold-light)",fontWeight:700,fontFamily:"'Inter',sans-serif"}}>{a.topBidder}</span> : <span className="badge badge-silver">{t("noWinner")}</span>}</td>
                     <td data-label="Final Bid">{a.topBidder ? <span style={{display:"inline-flex",alignItems:"center",gap:4,color:"var(--gold)",fontWeight:700,fontFamily:"'Inter',sans-serif"}}><StatIcon src={COINS_ICON} size={20}/>{fmt(a.currentBid)}</span> : <span style={{color:"var(--text-dim)"}}>—</span>}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
