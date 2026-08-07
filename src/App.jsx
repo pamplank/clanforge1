@@ -1280,7 +1280,13 @@ function LangSwitcher() {
 
 // Wrap fetch with a timeout so a slow/hanging response (e.g. under high
 // concurrent load) can never leave the app stuck on the loading screen.
-async function fetchWithTimeout(url, opts = {}, timeoutMs = 8000) {
+// 8000ms was tuned for Supabase's CDN-backed infrastructure. Self-hosting
+// behind a Tailscale Funnel tunnel adds real TCP/TLS connection-establishment
+// latency (measured: up to ~8s just to connect, before any request/response,
+// worse when several requests queue up trying to connect to the same origin
+// at once on initial page load) -- 8000ms was aborting requests that would
+// have succeeded fine, they just needed more time to connect.
+async function fetchWithTimeout(url, opts = {}, timeoutMs = 20000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -5361,8 +5367,17 @@ function AppInner({ onMusicTrackChange }) {
   useEffect(() => {
     async function loadAll() {
     try {
-      const [mRows, aRows, lRows, cRows, rRows, evRows, asRows] = await Promise.all([
-        dbLoad("members", MEMBER_ALL_COLS_NO_PASSWORD),
+      // Fire the members load alone first, THEN the rest in parallel — not
+      // all 7 at once. Self-hosting behind a tunnel means the browser has no
+      // warm connection to this origin yet on a fresh page load, so firing
+      // everything simultaneously means several requests independently race
+      // to open their own new TCP/TLS connection at once, each queueing
+      // behind the others (measured: several seconds of pure connection
+      // "Stalled" time, on top of the handshake itself). Letting one request
+      // land first establishes that connection so the rest multiplex over
+      // it instead of each paying that cost separately.
+      const mRows = await dbLoad("members", MEMBER_ALL_COLS_NO_PASSWORD);
+      const [aRows, lRows, cRows, rRows, evRows, asRows] = await Promise.all([
         // Deliberately NOT ",image_data" here — this fetches EVERY auction
         // row ever created (all-time history, no status/date filter), and
         // image_data can be a large base64 blob on older pre-bucket-storage
@@ -5605,7 +5620,29 @@ function AppInner({ onMusicTrackChange }) {
   function setMembers(updater, skipCoinsWrite=false) {
     setMembersRaw(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
+      // ROOT CAUSE of rarity/power/coins silently reverting and removed
+      // members reappearing: this used to forEach over EVERY member in
+      // `next` and re-upsert all of them on every single call, using
+      // whatever this browser tab's in-memory copy of each member
+      // happened to be. A caller editing ONE member (rarity, role, power,
+      // etc.) would blindly re-blast every OTHER member's full row too —
+      // including coins/tx_log/profile_rarity — from this tab's local
+      // state, which is only as fresh as its last poll (5s for live
+      // fields, 60s for the log arrays). Any edit landing elsewhere in
+      // that window got silently clobbered back to this tab's stale copy
+      // the next time ANY action ran through this function, and — since a
+      // deleted member simply isn't in the DB anymore, not "reverted" to
+      // some prior value — the exact same blind reupload resurrected
+      // members other tabs had removed, if this tab's cached roster still
+      // included them. Reference equality is enough to detect "did this
+      // update actually touch this member": every caller already builds
+      // `next` via immutable patterns (ms.map/filter/spread), so any
+      // member this update didn't intend to change keeps the exact same
+      // object reference from `prev` — skip those instead of re-writing
+      // them from stale memory.
+      const prevById = new Map(prev.map(m => [m.id, m]));
       next.forEach(m => {
+        if (prevById.get(m.id) === m) return;
         const row = {
           // password deliberately NOT included here -- see set_member_password.sql:
           // PostgreSQL's ON CONFLICT DO UPDATE (what this upsert becomes)
