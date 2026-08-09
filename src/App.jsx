@@ -1447,6 +1447,35 @@ async function incrementAuctionWinAtomic(memberName, txEntry, retries = 2) {
   }
   return null;
 }
+// Weekly decay's one remaining direct writer of coins/decay_log — now
+// routed through apply_member_decay_atomic (see
+// scripts/lock_down_coins_columns_v2.sql) instead of a raw dbUpsert PATCH,
+// since anon no longer has UPDATE on either column directly. Same
+// contract as the other atomic helpers here: new coins balance on
+// success, null on failure.
+async function applyMemberDecayAtomic(memberId, newCoins, decayLog, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetchWithTimeout(`${SUPA_URL}/rest/v1/rpc/apply_member_decay_atomic`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPA_KEY,
+          "Authorization": `Bearer ${SUPA_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ p_member_id: memberId, p_new_coins: newCoins, p_decay_log: JSON.stringify(decayLog) }),
+      });
+      if (!res.ok) throw new Error(`apply_member_decay_atomic failed: HTTP ${res.status}`);
+      const balance = await res.json();
+      return typeof balance === "number" ? balance : null;
+    } catch (e) {
+      if (attempt < retries) { await new Promise(r => setTimeout(r, 600 * (attempt + 1))); continue; }
+      console.error(`applyMemberDecayAtomic(${memberId}) failed after retries:`, e);
+      return null;
+    }
+  }
+  return null;
+}
 // ROOT CAUSE FIX for "a lower bid sometimes beats a higher one": the old
 // flow checked the live database value, THEN did more work (coin
 // adjustments, etc.), THEN finally wrote the new bid via setAuctions's
@@ -5004,13 +5033,25 @@ function AppInner({ onMusicTrackChange }) {
   }, [retryCount]);
 
   // ── Wrapped setters that also sync to Supabase ────────────────────────────
-  // skipCoinsWrite: when true, this write omits `coins` from the dbUpsert
-  // payload entirely. Needed by callers (like placeBid) that already
-  // applied a coin change atomically via adjustMemberCoinsAtomic — without
-  // this, setMembers's own dbUpsert would immediately overwrite that atomic
-  // change with a locally-computed value that may already be stale by the
-  // time this write lands, silently undoing the race-condition fix.
-  function setMembers(updater, skipCoinsWrite=false) {
+  // ROOT CAUSE of real, no-exploit-needed coin/log loss (the same failure
+  // mode as Dexxu's missing refund on 2026-08-06/07): this used to
+  // unconditionally include coins/tx_log/decay_log/attend_log in every
+  // upsert this function fires — for EVERY caller, including ones with
+  // nothing to do with money (role promote/demote, discord link, rename,
+  // login timestamp, rarity/awakening changes). None of those callers
+  // pass fresh values for those four fields; they just carry along
+  // whatever this browser tab's local cache happens to hold. If a bid,
+  // refund, or attendance payout landed on that same member via its own
+  // atomic RPC moments before an unrelated admin click fired this
+  // function, this upsert's stale snapshot silently overwrote the real,
+  // just-written values back to the old ones — coins included, not just
+  // the log. No open grant, no external exploit, no malice required: an
+  // ordinary admin action racing an ordinary bid was enough. Every actual
+  // writer of these four fields already goes through its own dedicated
+  // atomic path (place_bid_atomic, adjust_member_coins_and_log,
+  // record/revert_attendance_and_log, weekly decay) — this generic path
+  // never legitimately needs to touch any of them, so it no longer does.
+  function setMembers(updater) {
     setMembersRaw(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       // ROOT CAUSE of rarity/power/coins silently reverting and removed
@@ -5051,16 +5092,12 @@ function AppInner({ onMusicTrackChange }) {
           role: m.role, cls: m.cls, power: m.power,
           attendance: m.attendance, join_date: m.joinDate || m.join_date,
           auction_wins: m.auctionWins,
-          decay_log: JSON.stringify(m.decayLog || []),
-          tx_log: JSON.stringify(m.txLog || []),
-          attend_log: JSON.stringify(m.attendLog || []),
           power_log: JSON.stringify(m.powerLog || []),
           profile_rarity: m.profileRarity || "uncommon",
           awakening_level: m.awakeningLevel || 0,
           last_login_ts: m.lastLoginTs || 0,
           discord: m.discord || "",
         };
-        if (!skipCoinsWrite) row.coins = m.coins;
         dbUpsert("members", row);
       });
       return next;
@@ -8089,12 +8126,18 @@ function performAttendancePayout(members, { ev, date, ts, present, qualifierMap 
     const newAttendLog=[...(m.attendLog||[]),attendEntry];
     let bonusCoins = 0;
     const bonusEntries = [];
+    // Each bonus below gets ts+N (N=1..4, distinct per bonus type) instead
+    // of reusing the attendance entry's own `ts` — sharing one timestamp
+    // made Points History's newest-first sort tie between the bonus and
+    // the attendance row that triggered it, landing them in an arbitrary
+    // (stable-sort) order that read as if the bonus happened before the
+    // attendance itself. Balances were never affected, only display order.
     // ── Major Events bonus ──
     const prevAttended = getAttendedIds(m.attendLog||[]);
     const newAttended  = getAttendedIds(newAttendLog);
     if(newAttended.size>=totalEvents && prevAttended.size<totalEvents && !alreadyReceivedThisWeek(m.txLog,"Major Events Bonus")) {
       bonusCoins += bonusConfig.majorEventsBonusAmount;
-      bonusEntries.push({change:bonusConfig.majorEventsBonusAmount,reason:"Attended all major events this week",date,logType:"Major Events Bonus",addedBy:"System",ts});
+      bonusEntries.push({change:bonusConfig.majorEventsBonusAmount,reason:"Attended all major events this week",date,logType:"Major Events Bonus",addedBy:"System",ts:ts+1});
       bonusToasts.push({name:m.name,bonus:"Major Events",coins:bonusConfig.majorEventsBonusAmount});
     }
     // ── ISB Veteran bonus ──
@@ -8110,7 +8153,7 @@ function performAttendancePayout(members, { ev, date, ts, present, qualifierMap 
     const isbCountOld = (m.attendLog||[]).filter(e=>EVENT_NAME_TO_ID[e.event]==="ISB"&&e.qualifier!=="afk").length;
     if(isbCountNew>=bonusConfig.isbVeteranThreshold && isbCountOld<bonusConfig.isbVeteranThreshold && !alreadyReceivedThisWeek(m.txLog,"ISB Veteran Bonus")) {
       bonusCoins += bonusConfig.isbVeteranBonusAmount;
-      bonusEntries.push({change:bonusConfig.isbVeteranBonusAmount,reason:`Reached ${bonusConfig.isbVeteranThreshold} ISB events (ISB Veteran)`,date,logType:"ISB Veteran Bonus",addedBy:"System",ts});
+      bonusEntries.push({change:bonusConfig.isbVeteranBonusAmount,reason:`Reached ${bonusConfig.isbVeteranThreshold} ISB events (ISB Veteran)`,date,logType:"ISB Veteran Bonus",addedBy:"System",ts:ts+2});
       bonusToasts.push({name:m.name,bonus:"ISB Veteran",coins:bonusConfig.isbVeteranBonusAmount});
     }
     // ── Sindri Veteran bonus — 2 STI/week for N weeks ──
@@ -8131,7 +8174,7 @@ function performAttendancePayout(members, { ev, date, ts, present, qualifierMap 
     const stiWeeksNew = countStiQualWeeks(newAttendLog);
     if(stiWeeksNew>=bonusConfig.sindriVeteranWeeksThreshold && stiWeeksOld<bonusConfig.sindriVeteranWeeksThreshold && !(m.txLog||[]).some(tx=>tx.logType==="Sindri Veteran Bonus")) {
       bonusCoins += bonusConfig.sindriVeteranBonusAmount;
-      bonusEntries.push({change:bonusConfig.sindriVeteranBonusAmount,reason:`Attended 2 Sindri's per week for ${bonusConfig.sindriVeteranWeeksThreshold} weeks`,date,logType:"Sindri Veteran Bonus",addedBy:"System",ts});
+      bonusEntries.push({change:bonusConfig.sindriVeteranBonusAmount,reason:`Attended 2 Sindri's per week for ${bonusConfig.sindriVeteranWeeksThreshold} weeks`,date,logType:"Sindri Veteran Bonus",addedBy:"System",ts:ts+3});
       bonusToasts.push({name:m.name,bonus:"Sindri Veteran",coins:bonusConfig.sindriVeteranBonusAmount});
     }
     // ── Iron Streak bonus — Major Events completed N consecutive weeks
@@ -8172,7 +8215,7 @@ function performAttendancePayout(members, { ev, date, ts, present, qualifierMap 
     const ironStreakNew = countMajorEventsStreak(newAttendLog);
     if(ironStreakNew>=bonusConfig.ironStreakWeeksThreshold && ironStreakOld<bonusConfig.ironStreakWeeksThreshold && !(m.txLog||[]).some(tx=>tx.logType==="Iron Streak Bonus")) {
       bonusCoins += bonusConfig.ironStreakBonusAmount;
-      bonusEntries.push({change:bonusConfig.ironStreakBonusAmount,reason:`Attended all major events ${bonusConfig.ironStreakWeeksThreshold} weeks running (Iron Streak)`,date,logType:"Iron Streak Bonus",addedBy:"System",ts});
+      bonusEntries.push({change:bonusConfig.ironStreakBonusAmount,reason:`Attended all major events ${bonusConfig.ironStreakWeeksThreshold} weeks running (Iron Streak)`,date,logType:"Iron Streak Bonus",addedBy:"System",ts:ts+4});
       bonusToasts.push({name:m.name,bonus:"Iron Streak",coins:bonusConfig.ironStreakBonusAmount});
     }
     payouts.push({
@@ -12374,8 +12417,8 @@ function Settings({ ctx }) {
       const d = m.coins > 0 ? Math.floor(m.coins*decayRate) : 0;
       const newDecayLog = [...(m.decayLog||[]), {amount:-d,date:decayDate,ts:decayTs}];
       const newCoins = m.coins - d;
-      const ok = await dbUpsertReliable("members", { id: m.id, coins: newCoins, decay_log: JSON.stringify(newDecayLog) });
-      return { id: m.id, name: m.name, d, newCoins, newDecayLog, ok };
+      const result = await applyMemberDecayAtomic(m.id, newCoins, newDecayLog);
+      return { id: m.id, name: m.name, d, newCoins, newDecayLog, ok: result !== null };
     }));
     const succeeded = results.filter(r=>r.ok);
     const failed = results.filter(r=>!r.ok);

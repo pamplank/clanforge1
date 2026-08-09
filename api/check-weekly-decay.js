@@ -157,17 +157,21 @@ export default async function handler(req, res) {
       });
     }
 
+    // Routed through apply_member_decay_atomic (see
+    // scripts/lock_down_coins_columns_v2.sql) instead of a raw PATCH —
+    // anon no longer has UPDATE on members.coins/decay_log directly, same
+    // as every other coin-moving write in this app now goes through a
+    // SECURITY DEFINER RPC rather than a raw table grant.
     const results = await Promise.allSettled(
-      toUpdate.map(({ _amount, ...u }) =>
-        fetch(`${SUPA_URL}/rest/v1/members?id=eq.${encodeURIComponent(u.id)}`, {
-          method: "PATCH",
+      toUpdate.map((u) =>
+        fetch(`${SUPA_URL}/rest/v1/rpc/apply_member_decay_atomic`, {
+          method: "POST",
           headers: {
             apikey: SUPA_KEY,
             Authorization: `Bearer ${SUPA_KEY}`,
             "Content-Type": "application/json",
-            Prefer: "return=minimal",
           },
-          body: JSON.stringify(u),
+          body: JSON.stringify({ p_member_id: u.id, p_new_coins: u.coins, p_decay_log: u.decay_log }),
         }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r; })
       )
     );
