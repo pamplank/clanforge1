@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  getBuyoutConfig,
+  isBuyoutEligibleRarity,
+  computeBuyoutExpiresAt,
+  isBuyoutWindowOpen,
+  validateBuyoutPrice,
+  suggestBuyoutPrice,
+} from "./auctionBuyout.js";
 
 // ─── SUPABASE CONFIG ──────────────────────────────────────────────────────────
 // These come from environment variables (set per-deployment in Vercel,
@@ -889,7 +897,7 @@ async function setMemberPasswordAtomic(memberId, newPassword, retries = 2) {
 // to cause "select=*" to hit the statement timeout. List/poll queries
 // fetch everything except image_data; fetch it separately per-item only
 // when needed (e.g. opening an auction's detail/edit view).
-const AUCTION_LIST_COLS = "id,name,description,rarity,status,ends_at,started_at,current_bid,min_bid,top_bidder,image_name,bids";
+const AUCTION_LIST_COLS = "id,name,description,rarity,status,ends_at,started_at,current_bid,min_bid,top_bidder,image_name,bids,buyout_price,buyout_expires_at,closed_reason";
 // ROOT CAUSE of a real egress (data transfer) overage: the old members
 // poll used `select=*`, re-downloading every member's ENTIRE history
 // (attend_log, tx_log, decay_log, power_log — potentially hundreds of
@@ -1038,7 +1046,14 @@ async function claimAuctionWinAndLog(auction, setMembersRaw) {
 // browser's own (possibly stale) copy, used only if the fresh re-fetch
 // itself fails for some unrelated reason — better to proceed with
 // slightly-stale data than to leave an auction stuck mid-close forever.
-async function finalizeAuctionClose(localFallback, setMembersRaw, addToast) {
+// closedReason: how THIS call knows the auction closed — "buyout" when
+// called right after a successful buyout_auction_atomic RPC, or omitted
+// for the normal expiry path, in which case it's derived below from
+// whether a winner was actually found (bid_won vs expired with no bids).
+// Passed explicitly rather than re-derived from the DB every time so a
+// buyout is never mistaken for an ordinary bid win just because both leave
+// topBidder set — see auctions.closed_reason (scripts/add_auction_buyout_columns.sql).
+async function finalizeAuctionClose(localFallback, setMembersRaw, addToast, closedReason = null) {
   let fresh = localFallback;
   try {
     const rows = await dbLoad("auctions", `id,current_bid,top_bidder,bids,status&id=eq.${encodeURIComponent(localFallback.id)}`);
@@ -1057,8 +1072,13 @@ async function finalizeAuctionClose(localFallback, setMembersRaw, addToast) {
     // of the original staleness bug, but only on actual fetch failure,
     // not as the default path the way it was before this fix.
   }
+  const finalClosedReason = closedReason || (fresh.topBidder ? "bid_won" : "expired");
   if (fresh.topBidder) {
-    addToast(`${fresh.topBidder} won ${fresh.name} for ${fmt(fresh.currentBid)} coins!`, "gold", "Auction Ended");
+    if (finalClosedReason === "buyout") {
+      addToast(`${fresh.topBidder} bought out ${fresh.name} for ${fmt(fresh.currentBid)} coins!`, "gold", "Sold — Buy Now");
+    } else {
+      addToast(`${fresh.topBidder} won ${fresh.name} for ${fmt(fresh.currentBid)} coins!`, "gold", "Auction Ended");
+    }
     claimAuctionWinAndLog(fresh, setMembersRaw);
   }
   const endImageData = fresh.image?.dataUrl || _auctionImageCache.get(String(fresh.id)) || undefined;
@@ -1077,10 +1097,11 @@ async function finalizeAuctionClose(localFallback, setMembersRaw, addToast) {
     // `bids` is a genuine jsonb array column and dbUpsert already
     // stringifies the whole row object once.
     bids:        fresh.bids ?? [],
+    closed_reason: finalClosedReason,
   };
   if (endImageData) endRow.image_data = endImageData;
   dbUpsert("auctions", endRow);
-  notifyAuctionEndedOnce(fresh);
+  notifyAuctionEndedOnce({ ...fresh, closedReason: finalClosedReason });
 }
 async function dbUpsert(table, data) {
   try {
@@ -1522,6 +1543,40 @@ async function placeBidAtomic(auctionId, bidder, amount, minIncrement = 5, retri
     } catch (e) {
       if (attempt < retries) { await new Promise(r => setTimeout(r, 600 * (attempt + 1))); continue; }
       console.error(`placeBidAtomic(${auctionId}, ${bidder}, ${amount}) failed after retries:`, e);
+      return { success: false, reason: "network_error" };
+    }
+  }
+  return { success: false, reason: "network_error" };
+}
+// Same atomic-single-transaction pattern as placeBidAtomic above (see
+// scripts/buyout_auction_atomic.sql) — "first valid buyout request wins" has
+// to be enforced by ONE locked database transaction (a `for update` row
+// lock), not by a client-side check-then-write, or two buyers racing the
+// same instant could both believe they'd won it. Retries here only apply to
+// genuine transport failures, same rule as every other atomic RPC in this
+// file — a real rejection (window closed, already sold, insufficient
+// funds) comes back as a normal { success:false, reason } response, not a
+// thrown error, so it's never retried.
+async function buyoutAuctionAtomic(auctionId, buyer, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetchWithTimeout(`${SUPA_URL}/rest/v1/rpc/buyout_auction_atomic`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPA_KEY,
+          "Authorization": `Bearer ${SUPA_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ p_auction_id: String(auctionId), p_buyer: buyer }),
+      });
+      if (!res.ok) {
+        const bodyText = await res.text().catch(() => "");
+        throw new Error(`buyout_auction_atomic failed: HTTP ${res.status} ${bodyText}`);
+      }
+      return await res.json();
+    } catch (e) {
+      if (attempt < retries) { await new Promise(r => setTimeout(r, 600 * (attempt + 1))); continue; }
+      console.error(`buyoutAuctionAtomic(${auctionId}, ${buyer}) failed after retries:`, e);
       return { success: false, reason: "network_error" };
     }
   }
@@ -2264,9 +2319,12 @@ async function notifyAuctionEndedOnce(auction) {
   const imgUrl = (auction?.image?.dataUrl && auction.image.dataUrl.startsWith("http"))
     ? auction.image.dataUrl
     : null;
+  const isBuyout = auction.closedReason === "buyout";
   notifyDiscord({ embeds: [{
-    title: auction.topBidder ? `🏆 Auction ended: ${auction.name}` : `🔨 Auction ended: ${auction.name}`,
-    description: auction.topBidder
+    title: isBuyout ? `⚡ Bought out: ${auction.name}` : auction.topBidder ? `🏆 Auction ended: ${auction.name}` : `🔨 Auction ended: ${auction.name}`,
+    description: isBuyout
+      ? `${auction.topBidder} bought it now for ${fmt(auction.currentBid)} coins!`
+      : auction.topBidder
       ? `Won by ${auction.topBidder} for ${fmt(auction.currentBid)} coins!`
       : "No bids were placed.",
     color: auction.topBidder ? 0xc8922a : 0x8a7a64,
@@ -4891,6 +4949,9 @@ function AppInner({ onMusicTrackChange }) {
           startBid:    Number(r.min_bid)    || 0,
           topBidder:   r.top_bidder ?? null,
           bids:        (() => { try { const b = typeof r.bids === "string" ? JSON.parse(r.bids) : (Array.isArray(r.bids) ? r.bids : []); return b || []; } catch { return []; } })(),
+          buyoutPrice:     r.buyout_price != null ? Number(r.buyout_price) : null,
+          buyoutExpiresAt: r.buyout_expires_at != null ? Number(r.buyout_expires_at) : null,
+          closedReason:    r.closed_reason ?? null,
           // dataUrl is intentionally not eager here — AuctionImage fetches
           // and caches it on demand per-item (see loadAll's dbLoad above).
           image:       r.image_name ? { dataUrl: _auctionImageCache.get(String(r.id)) || null, name: r.image_name } : null,
@@ -5183,6 +5244,9 @@ function AppInner({ onMusicTrackChange }) {
           // ARRAY, breaking place_bid_atomic's `bids || jsonb_build_array(...)`
           // concatenation for any row that goes through this write path.
           bids:        a.bids ?? [],
+          buyout_price:      a.buyoutPrice ?? null,
+          buyout_expires_at: a.buyoutExpiresAt ?? null,
+          closed_reason:     a.closedReason ?? null,
         };
         if (endsAtChanged) row.ending_soon_notified = false;
         // Only write image_data if we actually have it — never overwrite DB with null
@@ -5428,6 +5492,9 @@ function AppInner({ onMusicTrackChange }) {
             startBid:    Number(r.min_bid)    || 0,
             topBidder:   r.top_bidder ?? null,
             bids:        (() => { try { const db = typeof r.bids === "string" ? JSON.parse(r.bids) : (Array.isArray(r.bids) ? r.bids : null); if (db && db.length > 0) return db; } catch {} return prevA?.bids || []; })(),
+            buyoutPrice:     r.buyout_price != null ? Number(r.buyout_price) : null,
+            buyoutExpiresAt: r.buyout_expires_at != null ? Number(r.buyout_expires_at) : null,
+            closedReason:    r.closed_reason ?? null,
             image:       r.image_name ? { dataUrl: prevA?.image?.dataUrl || _auctionImageCache.get(String(r.id)) || null, name: r.image_name } : null,
           };
           // ROOT CAUSE of duplicate "Auction Win" entries in My Points
@@ -5925,7 +5992,7 @@ function AppInner({ onMusicTrackChange }) {
   }
 
 
-  const ctx = { members, setMembers, setMembersRaw, auctions, setAuctions, attendanceLogs, setAttendanceLogs,
+  const ctx = { members, setMembers, setMembersRaw, auctions, setAuctions, setAuctionsRaw, attendanceLogs, setAttendanceLogs,
     currentUser, setCurrentUser, isGuest, addToast, fireCoinBurst, fireBalancePopup, modal, setModal, tick, imageLibrary, addImage, linkDiscord, adjustPower, removeAuction, pendingCoinRequests, setPendingCoinRequests, submitCoinRequest, approveCoinRequest, rejectCoinRequest, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, globalViewingProfile, setGlobalViewingProfile, eventsVersion, setEventsVersion, decayRate, setDecayRate, bonusConfig, setBonusConfig, loginAnnouncements, setLoginAnnouncements, featuredAuctionId, setFeaturedAuctionId, decayAnnouncements, setDecayAnnouncements };
 
   const PAGE_TITLES = {dashboard:t("pageTitle_dashboard"),attendance:t("pageTitle_attendance"),members:t("pageTitle_members"),auctions:t("pageTitle_auctions"),leaderboard:t("pageTitle_leaderboard"),export:t("pageTitle_export"),settings:t("pageTitle_settings"),"record-attendance":t("tabRecordAttendance"),"create-auction":t("tabCreateAuction")};
@@ -9135,7 +9202,7 @@ function BidMarquee({ feed, auctions }) {
 function CreateAuctionPanel({ ctx }) {
   const { t } = useLang();
   const { setAuctions, addToast, imageLibrary, addImage } = ctx;
-  const [newAuction, setNewAuction] = useState({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000),postToNews:false,featureAtTop:false});
+  const [newAuction, setNewAuction] = useState({name:"",image:null,rarity:"epic",desc:"",startBid:100,buyoutPrice:suggestBuyoutPrice("epic",100)||"",endsAtInput:timestampToGmt8String(Date.now()+30*60000),postToNews:false,featureAtTop:false});
 
   const RARITY_OPTS=[
     {value:"legendary",label:t("rarityLegendary"),color:"#e6b048",bg:"rgba(200,146,42,0.25)",border:"rgba(230,176,72,0.6)"},
@@ -9145,6 +9212,24 @@ function CreateAuctionPanel({ ctx }) {
     {value:"uncommon",label:t("rarityUncommon"),color:"#7ddc7d",bg:"rgba(46,138,46,0.2)",border:"rgba(80,180,80,0.55)"},
     {value:"material",label:t("rarityMaterial"),color:"#b8b8b8",bg:"rgba(120,120,120,0.25)",border:"rgba(160,160,160,0.55)"},
   ];
+
+  // Switching rarity resets the suggested buyout price for the new tier's
+  // multiplier range — a value that was valid for the old rarity (e.g. a
+  // 2.2x-of-startBid Common price) is very likely NOT valid for the new one
+  // (Epic needs 3.5x-4x), so carrying it over silently would just trip the
+  // validation error on submit with no obvious cause.
+  function selectRarity(rarity) {
+    setNewAuction(p => ({ ...p, rarity, buyoutPrice: suggestBuyoutPrice(rarity, p.startBid) ?? "" }));
+  }
+
+  const buyoutEligible = isBuyoutEligibleRarity(newAuction.rarity);
+  const buyoutCfg = getBuyoutConfig(newAuction.rarity);
+  const startBidNum = parseInt(newAuction.startBid) || 0;
+  const buyoutRangeMin = buyoutEligible ? Math.round(startBidNum * buyoutCfg.minMult) : null;
+  const buyoutRangeMax = buyoutEligible ? Math.round(startBidNum * buyoutCfg.maxMult) : null;
+  const buyoutWindowLabel = buyoutEligible
+    ? (buyoutCfg.windowMs == null ? "full auction duration" : `first ${buyoutCfg.windowMs/(60*60*1000)}h only`)
+    : null;
 
   function createAuction() {
     if(!newAuction.name){addToast(t("itemNameRequired"),"red",t("errorLabel"));return;}
@@ -9158,6 +9243,26 @@ function CreateAuctionPanel({ ctx }) {
     if (endsAt <= now) {
       addToast("The end time must be in the future.","red",t("errorLabel"));
       return;
+    }
+    // Buyout price is fixed at listing time and constrained to this
+    // rarity's multiplier-of-starting-bid range (see src/auctionBuyout.js
+    // for the table — approved by clan poll). Ineligible rarities
+    // (Legendary) never get a buyout price at all, so there's nothing to
+    // validate for them.
+    let buyoutPrice = null;
+    let buyoutExpiresAt = null;
+    if (isBuyoutEligibleRarity(newAuction.rarity)) {
+      const check = validateBuyoutPrice(newAuction.rarity, minBid, newAuction.buyoutPrice);
+      if (!check.valid) {
+        if (check.reason === "out_of_range") {
+          addToast(`Buy Now price must be between ${fmt(Math.round(check.min))} and ${fmt(Math.round(check.max))} coins for this rarity (based on the starting bid).`,"red",t("errorLabel"));
+        } else {
+          addToast("Please enter a valid Buy Now price.","red",t("errorLabel"));
+        }
+        return;
+      }
+      buyoutPrice = Number(newAuction.buyoutPrice);
+      buyoutExpiresAt = computeBuyoutExpiresAt(newAuction.rarity, now, endsAt);
     }
     const a={
       id: String(now),
@@ -9175,6 +9280,8 @@ function CreateAuctionPanel({ ctx }) {
       endsAt: endsAt,
       status: "active",
       bids: [],
+      buyoutPrice,
+      buyoutExpiresAt,
     };
     setAuctions(prev=>[...prev,a]);
     addToast(`${t("auctionStarted")} ${a.name}`,"gold",t("auctionLive"));
@@ -9184,13 +9291,13 @@ function CreateAuctionPanel({ ctx }) {
       const imgUrl = auctionImageUrl(a);
       notifyDiscord({ embeds: [{
         title: `🔨 New auction: ${a.name}`,
-        description: `Starting bid: ${fmt(minBid)} coins · Ends ${timeLeft(endsAt)}`,
+        description: `Starting bid: ${fmt(minBid)} coins${buyoutPrice ? ` · Buy Now: ${fmt(buyoutPrice)} coins` : ""} · Ends ${timeLeft(endsAt)}`,
         color: 0xc8922a,
         url: `${window.location.origin}/?page=auctions`,
         ...(imgUrl ? { thumbnail: { url: imgUrl } } : {}),
       }] }, "auctions");
     }
-    setNewAuction({name:"",image:null,rarity:"epic",desc:"",startBid:100,endsAtInput:timestampToGmt8String(Date.now()+30*60000),postToNews:false,featureAtTop:false});
+    setNewAuction({name:"",image:null,rarity:"epic",desc:"",startBid:100,buyoutPrice:suggestBuyoutPrice("epic",100)||"",endsAtInput:timestampToGmt8String(Date.now()+30*60000),postToNews:false,featureAtTop:false});
   }
 
   return (
@@ -9204,7 +9311,7 @@ function CreateAuctionPanel({ ctx }) {
         <label className="form-label">{t("rarityLabel")}</label>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(80px,1fr))",gap:8}}>
           {RARITY_OPTS.map(r=>(
-            <div key={r.value} onClick={()=>setNewAuction(p=>({...p,rarity:r.value}))}
+            <div key={r.value} onClick={()=>selectRarity(r.value)}
               style={{padding:"10px 8px",borderRadius:2,cursor:"pointer",textAlign:"center",
                 background:newAuction.rarity===r.value?r.bg:"rgba(10,11,15,0.6)",
                 border:`1px solid ${newAuction.rarity===r.value?r.border:"var(--border)"}`,
@@ -9239,6 +9346,21 @@ function CreateAuctionPanel({ ctx }) {
           />
         </div>
       </div>
+      <div className="form-group">
+        {buyoutEligible ? (
+          <>
+            <label className="form-label">Buy Now Price (Coins)</label>
+            <input className="input" type="number" min={1} value={newAuction.buyoutPrice} onChange={e=>setNewAuction(p=>({...p,buyoutPrice:e.target.value}))} />
+            <div style={{fontSize:11,color:"var(--text-dim)",marginTop:5}}>
+              Must be {buyoutRangeMin}–{buyoutRangeMax} coins ({buyoutCfg.minMult}x–{buyoutCfg.maxMult}x the starting bid) for this rarity. Buy Now is offered for the {buyoutWindowLabel}.
+            </div>
+          </>
+        ) : (
+          <div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic"}}>
+            {rarityLabel(newAuction.rarity,t)} items don't offer a Buy Now option — bidding only.
+          </div>
+        )}
+      </div>
       {/* Preview */}
       <div style={{marginBottom:20,padding:14,background:"rgba(10,11,15,0.7)",border:"1px solid var(--border)",borderRadius:2}}>
         <div style={{fontSize:9,color:"var(--text-dim)",fontWeight:700,letterSpacing:2,marginBottom:10,textTransform:"uppercase"}}>{t("previewLabel")}</div>
@@ -9252,6 +9374,9 @@ function CreateAuctionPanel({ ctx }) {
               <span className={`badge badge-${newAuction.rarity}`}>{rarityLabel(newAuction.rarity,t).toLowerCase()}</span>
             </div>
             <div style={{fontSize:12,color:"var(--text-dim)"}}>{newAuction.desc||t("descriptionDefault")}</div>
+            {buyoutEligible && newAuction.buyoutPrice ? (
+              <div style={{fontSize:11,color:"#e6b048",marginTop:4,fontWeight:700}}>⚡ Buy Now: {fmt(parseInt(newAuction.buyoutPrice)||0)} coins</div>
+            ) : null}
             <div style={{fontSize:11,color:"var(--gold)",marginTop:4,fontWeight:600}}>
               {newAuction.endsAtInput
                 ? `Ends ${new Date(gmt8StringToTimestamp(newAuction.endsAtInput)).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",timeZone:"Asia/Manila"})} (GMT+8)`
@@ -9384,10 +9509,16 @@ async function setFeaturedAuction(auctionId, ctx) {
 // blurred (backdrop-filter still sampling) on any card with bid history,
 // even at rest. onHoverStart/onHoverEnd + a plain boolean + explicit
 // animate={...} is the reliable version of the same interaction. ───
-function AuctionGridCard({ a, isWinning, minBid, rc2, t, bidAmounts, setBidAmounts, bidSubmitting, placeBid, isAdmin, isMaster, isGuest, isAuctionInNews, removeAuctionFromNews, postAuctionToNews, ctx, removeAuction, isHoverCapable }) {
+function AuctionGridCard({ a, isWinning, minBid, rc2, t, bidAmounts, setBidAmounts, bidSubmitting, placeBid, buyoutSubmitting, buyoutAuction, isAdmin, isMaster, isGuest, isAuctionInNews, removeAuctionFromNews, postAuctionToNews, ctx, removeAuction, isHoverCapable }) {
   const [imgHovered, setImgHovered] = useState(false);
   const recentBids = [...(a.bids||[])].reverse().slice(0,2);
   const hasRevealContent = !!a.desc || recentBids.length>0 || !!a.topBidder;
+  // Re-evaluated on every render — this card re-renders every 1s along with
+  // the rest of the tab (see AppInner's `tick` state, threaded through ctx),
+  // so the button disappears on its own the instant the window closes, no
+  // poll/refresh needed. Per spec, this is deliberately NOT re-checked
+  // against "has anyone bid yet" — once the window's closed it's closed.
+  const buyoutOpen = isBuyoutWindowOpen(a);
   return (
     <motion.div className={`auction-card rarity-${a.rarity||"epic"}`}
       initial={{scale:1,y:0}} whileHover={{scale:1.035,y:-4}}
@@ -9402,6 +9533,7 @@ function AuctionGridCard({ a, isWinning, minBid, rc2, t, bidAmounts, setBidAmoun
         {a.image?<AuctionImage auction={a} alt={a.name} style={{width:"80%",height:"80%",objectFit:"contain",position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",filter:"drop-shadow(0 4px 16px rgba(0,0,0,0.7))"}} fallback={<StatIcon src={AUCTION_ICON} size={56}/>}/>:<StatIcon src={AUCTION_ICON} size={56}/>}
         <div className="auction-timer pulse">{timeLeft(a.endsAt)}</div>
         {(()=>{const r=rc2;return(<div style={{position:"absolute",top:8,left:8,zIndex:10,background:r.bg,fontFamily:"'Inter',sans-serif",fontSize:10,fontWeight:700,padding:"3px 8px",border:`1px solid ${r.border}`,letterSpacing:1,color:r.color}}>{rarityLabel(a.rarity||"epic",t)}</div>);})()}
+        {buyoutOpen&&<div style={{position:"absolute",top:8,right:8,zIndex:10,background:"linear-gradient(135deg,#e6b048,#c8922a)",color:"#241a08",fontFamily:"'Inter',sans-serif",fontSize:10,fontWeight:800,padding:"3px 8px",letterSpacing:0.5}}>⚡ Buy Now</div>}
         {isWinning&&<div style={{position:"absolute",bottom:8,right:8,background:"rgba(39,174,96,0.85)",color:"#fff",fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:9,padding:"3px 8px",letterSpacing:1.5,textTransform:"uppercase"}}>{t("winningBadge")}</div>}
         {/* ── Hover-reveal: description + recent bids, over the art.
             Desktop-pointer-only — see isHoverCapable. On touch, this
@@ -9457,6 +9589,15 @@ function AuctionGridCard({ a, isWinning, minBid, rc2, t, bidAmounts, setBidAmoun
             <div style={{fontFamily:"'Spectral',serif",fontWeight:800,fontSize:20,color:"#a8b8c8"}}>{(a.bids||[]).length || (a.topBidder ? 1 : 0)}</div>
           </div>
         </div>
+        {!isGuest && buyoutOpen && (
+          <div style={{marginTop:12,padding:"8px 10px",background:"rgba(230,176,72,0.1)",border:"1px solid rgba(230,176,72,0.4)",borderRadius:2}}>
+            <button className="btn" style={{width:"100%",justifyContent:"center",background:"linear-gradient(135deg,#e6b048,#c8922a)",color:"#241a08",fontWeight:800}}
+              onClick={(e)=>buyoutAuction(a.id,e)} disabled={!!buyoutSubmitting[a.id]}>
+              {buyoutSubmitting[a.id]?"…":`⚡ Buy Now — ${fmt(a.buyoutPrice)} coins`}
+            </button>
+            <div style={{fontSize:10,color:"var(--text-dim)",textAlign:"center",marginTop:5}}>window closes in {timeLeft(a.buyoutExpiresAt)}</div>
+          </div>
+        )}
         {isGuest ? (
           <div style={{marginTop:12,fontSize:11,color:"var(--text-dim)",fontStyle:"italic",textAlign:"center"}}>{t("logInToBid")}</div>
         ) : (
@@ -9495,7 +9636,8 @@ function AuctionGridCard({ a, isWinning, minBid, rc2, t, bidAmounts, setBidAmoun
 // warm spotlight glow behind the item and a heavy vignette (the "B4"
 // treatment), rather than another grid card. Still fully biddable from
 // here; it just isn't shown a second time in the grid below.
-function FeaturedAuctionSpotlight({ a, isWinning, minBid, t, bidAmounts, setBidAmounts, bidSubmitting, placeBid, isAdmin, isGuest, ctx }) {
+function FeaturedAuctionSpotlight({ a, isWinning, minBid, t, bidAmounts, setBidAmounts, bidSubmitting, placeBid, buyoutSubmitting, buyoutAuction, isAdmin, isGuest, ctx }) {
+  const buyoutOpen = isBuyoutWindowOpen(a);
   // Same rarity color map AuctionGridCard uses — the spotlight was
   // shipping with a fixed gold border and no rarity badge at all,
   // dropping the one visual signal (rarity color) that's meaningful and
@@ -9595,12 +9737,25 @@ function FeaturedAuctionSpotlight({ a, isWinning, minBid, t, bidAmounts, setBidA
             <div style={{fontSize:9, letterSpacing:1.5, textTransform:"uppercase", color:"var(--text-mid)", marginBottom:3, textShadow:"0 1px 5px rgba(0,0,0,0.95), 0 1px 2px rgba(0,0,0,1)"}}>Ends In</div>
             <div style={{fontFamily:"'Spectral',serif", fontSize:19, fontWeight:800, color:"#e08585", textShadow:"0 1px 6px rgba(0,0,0,0.9)"}}>{timeLeft(a.endsAt)}</div>
           </div>
+          {buyoutOpen && !isGuest && (
+            <div>
+              <div style={{fontSize:9, letterSpacing:1.5, textTransform:"uppercase", color:"var(--text-mid)", marginBottom:3, textShadow:"0 1px 5px rgba(0,0,0,0.95), 0 1px 2px rgba(0,0,0,1)"}}>Buy Now closes in</div>
+              <div style={{fontFamily:"'Spectral',serif", fontSize:19, fontWeight:800, color:"#e6b048", textShadow:"0 1px 6px rgba(0,0,0,0.9)"}}>{timeLeft(a.buyoutExpiresAt)}</div>
+            </div>
+          )}
           {isWinning ? (
             <div style={{fontSize:12, fontWeight:800, color:"#7ddc7d"}}>You're winning this!</div>
           ) : isGuest ? (
             <div style={{fontSize:12, color:"var(--text-mid)", fontStyle:"italic"}}>{t("logInToBid")}</div>
           ) : (
-            <div style={{display:"flex", gap:8}}>
+            <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
+              {buyoutOpen && (
+                <button
+                  className="btn" disabled={buyoutSubmitting[a.id]}
+                  style={{background:"linear-gradient(135deg,#e6b048,#c8922a)",color:"#241a08",fontWeight:800,opacity:buyoutSubmitting[a.id]?0.6:1}}
+                  onClick={e=>buyoutAuction(a.id, e)}
+                >{buyoutSubmitting[a.id] ? "…" : `⚡ Buy Now — ${fmt(a.buyoutPrice)}`}</button>
+              )}
               <input
                 type="number" className="input" placeholder={String(minBid)} style={{width:100}}
                 value={bidAmounts[a.id]||""} onChange={e=>setBidAmounts(p=>({...p, [a.id]: e.target.value}))}
@@ -9619,11 +9774,12 @@ function FeaturedAuctionSpotlight({ a, isWinning, minBid, t, bidAmounts, setBidA
 }
 
 function Auctions({ ctx }) {
-  const { auctions, setAuctions, members, setMembers, setMembersRaw, currentUser, isGuest, addToast, fireCoinBurst, fireBalancePopup, tick, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, loginAnnouncements, setLoginAnnouncements, featuredAuctionId, setFeaturedAuctionId } = ctx;
+  const { auctions, setAuctions, setAuctionsRaw, members, setMembers, setMembersRaw, currentUser, isGuest, addToast, fireCoinBurst, fireBalancePopup, tick, removeAuction, attendanceLogs, lootResults, setLootResults, latestLootId, setLatestLootId, bidFeed, loginAnnouncements, setLoginAnnouncements, featuredAuctionId, setFeaturedAuctionId } = ctx;
   const { t } = useLang();
   const [tab, setTab] = useState("active");
   const [bidAmounts, setBidAmounts] = useState({});
   const [bidSubmitting, setBidSubmitting] = useState({});
+  const [buyoutSubmitting, setBuyoutSubmitting] = useState({});
   const [sortBy, setSortBy] = useState("default");
   const [viewMode, setViewMode] = useState("grid");
   const [historyPage, setHistoryPage] = useState(0);
@@ -9844,6 +10000,84 @@ function Auctions({ ctx }) {
     const bidEventId = `${auctionId}_${Date.now()}`;
     const bidTs = Date.now();
     dbUpsert("bid_events", { id: bidEventId, bidder: currentUser.name, auction_name: a.name, amount, ts: bidTs });
+  }
+
+  // Buy Now — skips bidding entirely for a fixed price, only while this
+  // listing's rarity-scoped buyout window is still open (see
+  // src/auctionBuyout.js). The atomicity guarantee ("first valid request
+  // wins") lives in buyout_auction_atomic's locked transaction (see
+  // scripts/buyout_auction_atomic.sql) — this is just the client side of
+  // that call, same shape as placeBid above.
+  async function buyoutAuction(auctionId, clickEvent) {
+    if (!currentUser) return;
+    let burstX = null, burstY = null;
+    if (clickEvent && clickEvent.currentTarget) {
+      const rect = clickEvent.currentTarget.getBoundingClientRect();
+      burstX = rect.left + rect.width/2;
+      burstY = rect.top + rect.height/2;
+    }
+    const a = auctions.find(x=>x.id===auctionId);
+    const me = members.find(m=>m.name===currentUser.name);
+    // Cheap local-only checks first, same as placeBid — the real,
+    // authoritative check (window still open, listing still active) happens
+    // server-side inside buyout_auction_atomic below.
+    if (!a || !isBuyoutWindowOpen(a)) {
+      addToast("Buy Now is no longer available for this item.","red","Unavailable");
+      return;
+    }
+    if (!me || me.coins < a.buyoutPrice) { addToast(t("insufficientCoins"),"red",t("noFunds")); return; }
+
+    setBuyoutSubmitting(prev=>({...prev,[auctionId]:true}));
+    const result = await buyoutAuctionAtomic(auctionId, currentUser.name);
+    setBuyoutSubmitting(prev=>({...prev,[auctionId]:false}));
+
+    if (!result?.success) {
+      if (result?.reason === "ended") addToast("Someone else already bought this out.","red","Too Late");
+      else if (result?.reason === "window_closed") addToast("The Buy Now window for this item has closed.","red","Window Closed");
+      else if (result?.reason === "not_buyout_eligible") addToast("This item can't be bought out.","red","Unavailable");
+      else if (result?.reason === "insufficient_funds") addToast(t("insufficientCoins"),"red",t("noFunds"));
+      else addToast("Buy Now failed — please try again.","red","Error");
+      return;
+    }
+
+    // Mirrors placeBid's handling of place_bid_atomic's response: the RPC
+    // already moved the coins server-side inside its own locked
+    // transaction, so this just mirrors that result into local state for
+    // instant feedback rather than re-deriving it from a possibly-stale
+    // local cache.
+    const buyTs = result.ts || Date.now();
+    const buyTxEntry = {change:-a.buyoutPrice, reason:`Bought out ${a.name}`, date:new Date().toLocaleDateString(), ts:buyTs, logType:"Buyout", addedBy:"System", auctionId:auctionId};
+    setMembersRaw(ms=>ms.map(m=>m.name===currentUser.name ? {...m,coins:result.new_buyer_coins,txLog:[...(m.txLog||[]),buyTxEntry]} : m));
+
+    const prevBidder = result.prev_bidder || null;
+    const prevRefund = prevBidder ? (Number(result.prev_amount) || 0) : 0;
+    if (prevBidder && prevRefund > 0) {
+      const refundTxEntry = {change:prevRefund, reason:`Outbid (item bought out) on ${a.name}`, date:new Date().toLocaleDateString(), ts:buyTs, logType:"Outbid Refund", addedBy:"System", auctionId:auctionId};
+      setMembersRaw(ms=>ms.map(m=>m.name===prevBidder ? {...m,coins:result.new_prev_bidder_coins,txLog:[...(m.txLog||[]),refundTxEntry]} : m));
+    }
+
+    // Unlike placeBid (which leans on the next 3s poll to reflect the new
+    // bid), buyout is meant to close the listing instantly — the buyer just
+    // paid specifically to skip waiting. Bare setAuctionsRaw only, same
+    // reasoning as the AUCTION EXPIRY effect below: no redundant setAuctions()
+    // echo-write racing the RPC's own already-authoritative write.
+    setAuctionsRaw(prev => prev.map(x => x.id===auctionId
+      ? {...x, status:"ended", topBidder:currentUser.name, currentBid:a.buyoutPrice, closedReason:"buyout"}
+      : x));
+
+    if (burstX !== null) {
+      fireCoinBurst(burstX, burstY);
+      fireBalancePopup(burstX, burstY, fmt(me.coins - a.buyoutPrice));
+    }
+
+    // Reuses the exact same win-claim + Discord-notify flow a normal auction
+    // win goes through on expiry (see the AUCTION EXPIRY LOGIC effect below)
+    // — claims auction_wins credit via the auction_win_claims table, so it's
+    // still exactly-once even if another tab/session somehow raced this
+    // same close. addToast's "bought out" message comes from here, not a
+    // second toast in this handler, so the buyer sees exactly one
+    // confirmation.
+    finalizeAuctionClose({...a, status:"ended", topBidder:currentUser.name, currentBid:a.buyoutPrice, closedReason:"buyout"}, setMembersRaw, addToast, "buyout");
   }
 
 
@@ -10096,6 +10330,7 @@ function Auctions({ ctx }) {
         <FeaturedAuctionSpotlight
           a={featuredAuction} isWinning={featuredAuction.topBidder===currentUser?.name} minBid={featuredAuction.currentBid+5}
           t={t} bidAmounts={bidAmounts} setBidAmounts={setBidAmounts} bidSubmitting={bidSubmitting} placeBid={placeBid}
+          buyoutSubmitting={buyoutSubmitting} buyoutAuction={buyoutAuction}
           isAdmin={isAdmin} isGuest={isGuest} ctx={ctx}
         />
       )}
@@ -10144,6 +10379,18 @@ function Auctions({ ctx }) {
                     <div style={{fontSize:11,fontWeight:700,color:"#f0a0a0",fontFamily:"'Inter',sans-serif"}}>{timeLeft(a.endsAt)}</div>
                   </div>
                 </div>
+                {/* Buy Now — only while this listing's rarity-scoped buyout
+                    window is still open; disappears on its own (isBuyoutWindowOpen
+                    re-evaluates every 1s tick, no refresh needed) once it closes. */}
+                {!isGuest && isBuyoutWindowOpen(a) && (
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"0 12px 8px"}}>
+                    <button className="btn btn-sm" onClick={(e)=>buyoutAuction(a.id,e)} disabled={!!buyoutSubmitting[a.id]}
+                      style={{background:"linear-gradient(135deg,#e6b048,#c8922a)",color:"#241a08",fontWeight:800,flexShrink:0}}>
+                      {buyoutSubmitting[a.id]?"…":`⚡ Buy Now — ${fmt(a.buyoutPrice)}`}
+                    </button>
+                    <span style={{fontSize:10,color:"var(--text-dim)"}}>window closes in {timeLeft(a.buyoutExpiresAt)}</span>
+                  </div>
+                )}
                 {/* ROW 2: bid input + buttons */}
                 <div style={{display:"flex",gap:6,padding:"0 12px 10px",alignItems:"center"}}>
                   {isGuest ? (
@@ -10167,6 +10414,7 @@ function Auctions({ ctx }) {
             return (
               <AuctionGridCard key={a.id} a={a} isWinning={isWinning} minBid={minBid} rc2={rc2} t={t}
                 bidAmounts={bidAmounts} setBidAmounts={setBidAmounts} bidSubmitting={bidSubmitting} placeBid={placeBid}
+                buyoutSubmitting={buyoutSubmitting} buyoutAuction={buyoutAuction}
                 isAdmin={isAdmin} isMaster={isMaster} isGuest={isGuest} isAuctionInNews={isAuctionInNews}
                 removeAuctionFromNews={removeAuctionFromNews} postAuctionToNews={postAuctionToNews} ctx={ctx}
                 removeAuction={removeAuction} isHoverCapable={isHoverCapable} />
