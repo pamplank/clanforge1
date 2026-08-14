@@ -9,6 +9,13 @@ import {
   validateBuyoutPrice,
   suggestBuyoutPrice,
 } from "./auctionBuyout.js";
+import {
+  canManageDistribution,
+  filterPendingDistribution,
+  buildDistributedPayload,
+  buildUndistributedPayload,
+  formatDistributedDate,
+} from "./auctionDistribution.js";
 
 // ─── SUPABASE CONFIG ──────────────────────────────────────────────────────────
 // These come from environment variables (set per-deployment in Vercel,
@@ -396,6 +403,15 @@ const TRANSLATIONS = {
     colRarity: "Rarity",
     colWinner: "Winner",
     colFinalBid: "Final Bid",
+    colDistribution: "Distribution",
+    markDistributedBtn: "Mark as Distributed",
+    distributedBadge: "Distributed",
+    pendingDistributionBadge: "Pending Distribution",
+    undoDistributedHint: "Click to undo",
+    distributionFilterLabel: "Filter:",
+    distributionFilterAll: "All",
+    distributionFilterPending: "Pending Distribution",
+    noPendingDistribution: "Nothing pending distribution.",
     importFromAttendance: "Import from Attendance Log",
     selectingLogHint: "Selecting a log auto-fills the event name, date, and marks all non-AFK attendees.",
     eventNameLabel: "Event Name",
@@ -897,7 +913,7 @@ async function setMemberPasswordAtomic(memberId, newPassword, retries = 2) {
 // to cause "select=*" to hit the statement timeout. List/poll queries
 // fetch everything except image_data; fetch it separately per-item only
 // when needed (e.g. opening an auction's detail/edit view).
-const AUCTION_LIST_COLS = "id,name,description,rarity,status,ends_at,started_at,current_bid,min_bid,top_bidder,image_name,bids,buyout_price,buyout_expires_at,closed_reason";
+const AUCTION_LIST_COLS = "id,name,description,rarity,status,ends_at,started_at,current_bid,min_bid,top_bidder,image_name,bids,buyout_price,buyout_expires_at,closed_reason,distributed,distributed_at,distributed_by";
 // ROOT CAUSE of a real egress (data transfer) overage: the old members
 // poll used `select=*`, re-downloading every member's ENTIRE history
 // (attend_log, tx_log, decay_log, power_log — potentially hundreds of
@@ -4952,6 +4968,9 @@ function AppInner({ onMusicTrackChange }) {
           buyoutPrice:     r.buyout_price != null ? Number(r.buyout_price) : null,
           buyoutExpiresAt: r.buyout_expires_at != null ? Number(r.buyout_expires_at) : null,
           closedReason:    r.closed_reason ?? null,
+          distributed:     !!r.distributed,
+          distributedAt:   r.distributed_at ?? null,
+          distributedBy:   r.distributed_by ?? null,
           // dataUrl is intentionally not eager here — AuctionImage fetches
           // and caches it on demand per-item (see loadAll's dbLoad above).
           image:       r.image_name ? { dataUrl: _auctionImageCache.get(String(r.id)) || null, name: r.image_name } : null,
@@ -5495,6 +5514,9 @@ function AppInner({ onMusicTrackChange }) {
             buyoutPrice:     r.buyout_price != null ? Number(r.buyout_price) : null,
             buyoutExpiresAt: r.buyout_expires_at != null ? Number(r.buyout_expires_at) : null,
             closedReason:    r.closed_reason ?? null,
+            distributed:     !!r.distributed,
+            distributedAt:   r.distributed_at ?? null,
+            distributedBy:   r.distributed_by ?? null,
             image:       r.image_name ? { dataUrl: prevA?.image?.dataUrl || _auctionImageCache.get(String(r.id)) || null, name: r.image_name } : null,
           };
           // ROOT CAUSE of duplicate "Auction Win" entries in My Points
@@ -9783,6 +9805,8 @@ function Auctions({ ctx }) {
   const [sortBy, setSortBy] = useState("default");
   const [viewMode, setViewMode] = useState("grid");
   const [historyPage, setHistoryPage] = useState(0);
+  const [distributionFilter, setDistributionFilter] = useState("all");
+  const [distributionSubmitting, setDistributionSubmitting] = useState({});
   const isAdmin = !!currentUser && (currentUser.role==="Elder"||currentUser.role==="Master");
   const isMaster = !!currentUser && currentUser.role==="Master";
   // Real mouse/trackpad hover only — excludes touchscreens. The auction
@@ -9820,6 +9844,11 @@ function Auctions({ ctx }) {
 
   const active = sortAuctions(auctions.filter(a=>a.status==="active"));
   const ended  = [...auctions.filter(a=>a.status==="ended")].sort((a,b)=>(b.endsAt||0)-(a.endsAt||0));
+  // Admin-only "Pending Distribution" view — only ever narrows `ended`, never
+  // the other way around, so a non-admin (whose filter control never
+  // renders — see distributionFilter's UI below) always sees every ended
+  // auction regardless of this state's value.
+  const visibleEnded = (isAdmin && distributionFilter==="pending") ? filterPendingDistribution(ended) : ended;
   // ROOT CAUSE of the History tab locking up/lagging: this list used to
   // render with zero pagination, in BOTH the desktop table and the
   // duplicate mobile card list at once — and each row's AuctionImage
@@ -9830,9 +9859,68 @@ function Auctions({ ctx }) {
   // hundreds of simultaneous network requests firing at once. Paginating
   // caps both to whatever fits on one page.
   const HISTORY_PAGE_SIZE = 15;
-  const historyTotalPages = Math.max(1, Math.ceil(ended.length / HISTORY_PAGE_SIZE));
+  const historyTotalPages = Math.max(1, Math.ceil(visibleEnded.length / HISTORY_PAGE_SIZE));
   const safeHistoryPage = Math.min(historyPage, historyTotalPages - 1);
-  const pagedEnded = ended.slice(safeHistoryPage*HISTORY_PAGE_SIZE, (safeHistoryPage+1)*HISTORY_PAGE_SIZE);
+  const pagedEnded = visibleEnded.slice(safeHistoryPage*HISTORY_PAGE_SIZE, (safeHistoryPage+1)*HISTORY_PAGE_SIZE);
+  // Marks (or un-marks) an auction as distributed. Optimistic local update
+  // first for a snappy UI, then a targeted partial upsert (only the id +
+  // the three distribution columns — see buildDistributedPayload) so this
+  // can never clobber a concurrently-changing field like `bids` with this
+  // browser's stale local copy of the rest of the row. Reverts the local
+  // state and tells the admin if the write doesn't actually stick, same
+  // pattern as every other reliable-write call site in this file.
+  async function toggleDistributed(auction, e) {
+    e?.stopPropagation?.();
+    if (!canManageDistribution(auction, isAdmin) || distributionSubmitting[auction.id]) return;
+    const marking = !auction.distributed;
+    const payload = marking
+      ? buildDistributedPayload(auction.id, currentUser.name)
+      : buildUndistributedPayload(auction.id);
+    const prevState = { distributed: auction.distributed, distributedAt: auction.distributedAt, distributedBy: auction.distributedBy };
+    setDistributionSubmitting(p => ({ ...p, [auction.id]: true }));
+    setAuctionsRaw(prev => prev.map(a => a.id===auction.id ? {
+      ...a,
+      distributed: payload.distributed,
+      distributedAt: payload.distributed_at,
+      distributedBy: payload.distributed_by,
+    } : a));
+    const ok = await dbUpsertReliable("auctions", payload);
+    setDistributionSubmitting(p => { const n = { ...p }; delete n[auction.id]; return n; });
+    if (!ok) {
+      setAuctionsRaw(prev => prev.map(a => a.id===auction.id ? { ...a, ...prevState } : a));
+      addToast(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><WarningIcon size={13}/>Failed to update distribution status for "{auction.name}" — please try again.</span>, "red", "Save Failed");
+    }
+  }
+  // Shared between the desktop table cell and the mobile card — admins get
+  // the button/badge for every won auction; regular members only ever see a
+  // status badge, and only on items they personally won (see spec: everyone
+  // else's distribution status isn't shown to non-admins). Returns null
+  // when there's nothing to show for this row/viewer, so callers can skip
+  // rendering an empty cell.
+  function renderDistributionStatus(a) {
+    if (!a.topBidder) return null;
+    const isOwnWin = !!currentUser && a.topBidder === currentUser.name;
+    if (a.distributed) {
+      const dateStr = formatDistributedDate(a.distributedAt);
+      const subtext = `Distributed by ${a.distributedBy || "?"}${dateStr ? ` on ${dateStr}` : ""}`;
+      if (isAdmin) {
+        return (
+          <span className="badge badge-green" style={{cursor:"pointer"}} title={`${subtext} — ${t("undoDistributedHint")}`} onClick={(e)=>toggleDistributed(a,e)}>
+            {t("distributedBadge")}
+          </span>
+        );
+      }
+      return isOwnWin ? <span className="badge badge-green" title={subtext}>{t("distributedBadge")}</span> : null;
+    }
+    if (isAdmin) {
+      return (
+        <button className="btn btn-gold btn-sm" disabled={!!distributionSubmitting[a.id]} onClick={(e)=>toggleDistributed(a,e)} style={{fontSize:10,padding:"4px 10px",whiteSpace:"nowrap"}}>
+          {distributionSubmitting[a.id] ? "…" : t("markDistributedBtn")}
+        </button>
+      );
+    }
+    return isOwnWin ? <span className="badge badge-red">{t("pendingDistributionBadge")}</span> : null;
+  }
   // Pulled out of the grid entirely (not duplicated) once it's found here
   // — if the featured auction has since ended or been removed, this is
   // simply null and the grid renders exactly as it did before this
@@ -10306,6 +10394,15 @@ function Auctions({ ctx }) {
               <BellIcon size={13}/>{t("postAllToDiscordBtn")}
             </button>
           )}
+          {tab==="ended" && isAdmin && (
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:11,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700,fontFamily:"'Inter',sans-serif"}}>{t("distributionFilterLabel")}</span>
+              <select className="select" style={{width:"auto",fontSize:11,padding:"4px 10px",cursor:"pointer"}} value={distributionFilter} onChange={e=>{setDistributionFilter(e.target.value);setHistoryPage(0);}}>
+                <option value="all">{t("distributionFilterAll")}</option>
+                <option value="pending">{t("distributionFilterPending")}</option>
+              </select>
+            </div>
+          )}
           <div style={{display:"flex",alignItems:"center",gap:6}}>
             <span style={{fontSize:11,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:2,fontWeight:700,fontFamily:"'Inter',sans-serif"}}>{t("sortLabel")}</span>
             <select className="select" style={{width:"auto",fontSize:11,padding:"4px 10px",cursor:"pointer"}} value={sortBy} onChange={e=>setSortBy(e.target.value)}>
@@ -10433,9 +10530,9 @@ function Auctions({ ctx }) {
           <CornerBrackets size={13} thickness={1.5} inset={8} opacity={0.4}/>
           <div className="table-wrap">
             <table className="table-stack">
-              <thead><tr><th>{t("colDateTime")}</th><th>{t("colItem")}</th><th>{t("colRarity")}</th><th>{t("colWinner")}</th><th>{t("colFinalBid")}</th></tr></thead>
+              <thead><tr><th>{t("colDateTime")}</th><th>{t("colItem")}</th><th>{t("colRarity")}</th><th>{t("colWinner")}</th><th>{t("colFinalBid")}</th><th>{t("colDistribution")}</th></tr></thead>
               <tbody>
-                {ended.length===0 && <tr><td colSpan={5} style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noEndedAuctions")}</td></tr>}
+                {visibleEnded.length===0 && <tr><td colSpan={6} style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{isAdmin && distributionFilter==="pending" ? t("noPendingDistribution") : t("noEndedAuctions")}</td></tr>}
                 {pagedEnded.map(a=>{
                   // A row can briefly reach this table before its full
                   // record (name/rarity/topBidder) has landed client-side
@@ -10455,6 +10552,7 @@ function Auctions({ ctx }) {
                         <td data-label="Rarity"><div style={{...shimmer,width:52,height:18,borderRadius:10}}/></td>
                         <td data-label="Winner"><div style={{...shimmer,width:80}}/></td>
                         <td data-label="Final Bid"><div style={{...shimmer,width:50}}/></td>
+                        <td data-label="Distribution"><div style={{...shimmer,width:70,height:18,borderRadius:10}}/></td>
                       </tr>
                     );
                   }
@@ -10472,6 +10570,7 @@ function Auctions({ ctx }) {
                     <td data-label="Rarity"><span className={`badge badge-${a.rarity||"epic"}`}>{rarityLabel(a.rarity||"epic",t).toLowerCase()}</span></td>
                     <td data-label="Winner">{a.topBidder ? <span style={{color:"var(--gold-light)",fontWeight:700,fontFamily:"'Inter',sans-serif"}}>{a.topBidder}</span> : <span className="badge badge-silver">{t("noWinner")}</span>}</td>
                     <td data-label="Final Bid">{a.topBidder ? <span style={{display:"inline-flex",alignItems:"center",gap:4,color:"var(--gold)",fontWeight:700,fontFamily:"'Inter',sans-serif"}}><StatIcon src={COINS_ICON} size={20}/>{fmt(a.currentBid)}</span> : <span style={{color:"var(--text-dim)"}}>—</span>}</td>
+                    <td data-label="Distribution">{renderDistributionStatus(a)}</td>
                   </tr>
                   );
                 })}
@@ -10489,8 +10588,10 @@ function Auctions({ ctx }) {
 
         {/* Mobile card view */}
         <div className="attendance-card-view">
-          {ended.length===0 && <div className="dash-subcard" style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{t("noEndedAuctions")}</div>}
-          {pagedEnded.map(a=>(
+          {visibleEnded.length===0 && <div className="dash-subcard" style={{textAlign:"center",color:"var(--text-dim)",padding:32}}>{isAdmin && distributionFilter==="pending" ? t("noPendingDistribution") : t("noEndedAuctions")}</div>}
+          {pagedEnded.map(a=>{
+            const distributionStatus = renderDistributionStatus(a);
+            return (
             <div key={`card-${a.id}`} className="dash-subcard" style={{marginBottom:10,padding:"14px 16px"}}>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
                 <div style={{position:"relative",width:36,height:36,borderRadius:3,overflow:"hidden",background:a.rarity==="epic"?"rgba(122,26,26,0.2)":"rgba(26,90,138,0.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--border)"}}>
@@ -10512,8 +10613,14 @@ function Auctions({ ctx }) {
                   {a.topBidder ? <span style={{display:"inline-flex",alignItems:"center",gap:4,color:"var(--gold)",fontWeight:700,fontFamily:"'Inter',sans-serif",fontSize:13}}><StatIcon src={COINS_ICON} size={18}/>{fmt(a.currentBid)}</span> : <span style={{color:"var(--text-dim)"}}>—</span>}
                 </div>
               </div>
+              {distributionStatus && (
+                <div style={{paddingTop:8,marginTop:8,borderTop:"1px solid var(--border-dim)",display:"flex",justifyContent:"flex-end"}}>
+                  {distributionStatus}
+                </div>
+              )}
             </div>
-          ))}
+            );
+          })}
           {historyTotalPages>1 && (
             <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 4px",justifyContent:"center"}}>
               <button className="btn btn-outline btn-sm" disabled={safeHistoryPage===0} onClick={()=>setHistoryPage(p=>p-1)} style={{opacity:safeHistoryPage===0?0.4:1}}>{t("prevPage")}</button>
