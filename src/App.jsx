@@ -2321,7 +2321,7 @@ async function notifyAuctionEndedOnce(auction) {
     : null;
   const isBuyout = auction.closedReason === "buyout";
   notifyDiscord({ embeds: [{
-    title: isBuyout ? `⚡ Bought out: ${auction.name}` : auction.topBidder ? `🏆 Auction ended: ${auction.name}` : `🔨 Auction ended: ${auction.name}`,
+    title: isBuyout ? `Bought out: ${auction.name}` : auction.topBidder ? `🏆 Auction ended: ${auction.name}` : `🔨 Auction ended: ${auction.name}`,
     description: isBuyout
       ? `${auction.topBidder} bought it now for ${fmt(auction.currentBid)} coins!`
       : auction.topBidder
@@ -9375,7 +9375,7 @@ function CreateAuctionPanel({ ctx }) {
             </div>
             <div style={{fontSize:12,color:"var(--text-dim)"}}>{newAuction.desc||t("descriptionDefault")}</div>
             {buyoutEligible && newAuction.buyoutPrice ? (
-              <div style={{fontSize:11,color:"#e6b048",marginTop:4,fontWeight:700}}>⚡ Buy Now: {fmt(parseInt(newAuction.buyoutPrice)||0)} coins</div>
+              <div style={{fontSize:11,color:"#e6b048",marginTop:4,fontWeight:700}}>Buy Now: {fmt(parseInt(newAuction.buyoutPrice)||0)} coins</div>
             ) : null}
             <div style={{fontSize:11,color:"var(--gold)",marginTop:4,fontWeight:600}}>
               {newAuction.endsAtInput
@@ -9533,7 +9533,7 @@ function AuctionGridCard({ a, isWinning, minBid, rc2, t, bidAmounts, setBidAmoun
         {a.image?<AuctionImage auction={a} alt={a.name} style={{width:"80%",height:"80%",objectFit:"contain",position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",filter:"drop-shadow(0 4px 16px rgba(0,0,0,0.7))"}} fallback={<StatIcon src={AUCTION_ICON} size={56}/>}/>:<StatIcon src={AUCTION_ICON} size={56}/>}
         <div className="auction-timer pulse">{timeLeft(a.endsAt)}</div>
         {(()=>{const r=rc2;return(<div style={{position:"absolute",top:8,left:8,zIndex:10,background:r.bg,fontFamily:"'Inter',sans-serif",fontSize:10,fontWeight:700,padding:"3px 8px",border:`1px solid ${r.border}`,letterSpacing:1,color:r.color}}>{rarityLabel(a.rarity||"epic",t)}</div>);})()}
-        {buyoutOpen&&<div style={{position:"absolute",top:8,right:8,zIndex:10,background:"linear-gradient(135deg,#e6b048,#c8922a)",color:"#241a08",fontFamily:"'Inter',sans-serif",fontSize:10,fontWeight:800,padding:"3px 8px",letterSpacing:0.5}}>⚡ Buy Now</div>}
+        {buyoutOpen&&<div style={{position:"absolute",top:8,right:8,zIndex:10,background:"linear-gradient(135deg,#e6b048,#c8922a)",color:"#241a08",fontFamily:"'Inter',sans-serif",fontSize:10,fontWeight:800,padding:"3px 8px",letterSpacing:0.5}}>Buy Now</div>}
         {isWinning&&<div style={{position:"absolute",bottom:8,right:8,background:"rgba(39,174,96,0.85)",color:"#fff",fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:9,padding:"3px 8px",letterSpacing:1.5,textTransform:"uppercase"}}>{t("winningBadge")}</div>}
         {/* ── Hover-reveal: description + recent bids, over the art.
             Desktop-pointer-only — see isHoverCapable. On touch, this
@@ -9593,7 +9593,7 @@ function AuctionGridCard({ a, isWinning, minBid, rc2, t, bidAmounts, setBidAmoun
           <div style={{marginTop:12,padding:"8px 10px",background:"rgba(230,176,72,0.1)",border:"1px solid rgba(230,176,72,0.4)",borderRadius:2}}>
             <button className="btn" style={{width:"100%",justifyContent:"center",background:"linear-gradient(135deg,#e6b048,#c8922a)",color:"#241a08",fontWeight:800}}
               onClick={(e)=>buyoutAuction(a.id,e)} disabled={!!buyoutSubmitting[a.id]}>
-              {buyoutSubmitting[a.id]?"…":`⚡ Buy Now — ${fmt(a.buyoutPrice)} coins`}
+              {buyoutSubmitting[a.id]?"…":`Buy Now — ${fmt(a.buyoutPrice)} coins`}
             </button>
             <div style={{fontSize:10,color:"var(--text-dim)",textAlign:"center",marginTop:5}}>window closes in {timeLeft(a.buyoutExpiresAt)}</div>
           </div>
@@ -9754,7 +9754,7 @@ function FeaturedAuctionSpotlight({ a, isWinning, minBid, t, bidAmounts, setBidA
                   className="btn" disabled={buyoutSubmitting[a.id]}
                   style={{background:"linear-gradient(135deg,#e6b048,#c8922a)",color:"#241a08",fontWeight:800,opacity:buyoutSubmitting[a.id]?0.6:1}}
                   onClick={e=>buyoutAuction(a.id, e)}
-                >{buyoutSubmitting[a.id] ? "…" : `⚡ Buy Now — ${fmt(a.buyoutPrice)}`}</button>
+                >{buyoutSubmitting[a.id] ? "…" : `Buy Now — ${fmt(a.buyoutPrice)}`}</button>
               )}
               <input
                 type="number" className="input" placeholder={String(minBid)} style={{width:100}}
@@ -10386,7 +10386,7 @@ function Auctions({ ctx }) {
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"0 12px 8px"}}>
                     <button className="btn btn-sm" onClick={(e)=>buyoutAuction(a.id,e)} disabled={!!buyoutSubmitting[a.id]}
                       style={{background:"linear-gradient(135deg,#e6b048,#c8922a)",color:"#241a08",fontWeight:800,flexShrink:0}}>
-                      {buyoutSubmitting[a.id]?"…":`⚡ Buy Now — ${fmt(a.buyoutPrice)}`}
+                      {buyoutSubmitting[a.id]?"…":`Buy Now — ${fmt(a.buyoutPrice)}`}
                     </button>
                     <span style={{fontSize:10,color:"var(--text-dim)"}}>window closes in {timeLeft(a.buyoutExpiresAt)}</span>
                   </div>
