@@ -408,6 +408,7 @@ const TRANSLATIONS = {
     distributedBadge: "Distributed",
     pendingDistributionBadge: "Pending Distribution",
     undoDistributedHint: "Click to undo",
+    distributedByPrefix: "by",
     distributionFilterLabel: "Filter:",
     distributionFilterAll: "All",
     distributionFilterPending: "Pending Distribution",
@@ -9901,16 +9902,21 @@ function Auctions({ ctx }) {
     if (!a.topBidder) return null;
     const isOwnWin = !!currentUser && a.topBidder === currentUser.name;
     if (a.distributed) {
+      if (!isAdmin && !isOwnWin) return null;
       const dateStr = formatDistributedDate(a.distributedAt);
-      const subtext = `Distributed by ${a.distributedBy || "?"}${dateStr ? ` on ${dateStr}` : ""}`;
-      if (isAdmin) {
-        return (
-          <span className="badge badge-green" style={{cursor:"pointer"}} title={`${subtext} — ${t("undoDistributedHint")}`} onClick={(e)=>toggleDistributed(a,e)}>
-            {t("distributedBadge")}
-          </span>
-        );
-      }
-      return isOwnWin ? <span className="badge badge-green" title={subtext}>{t("distributedBadge")}</span> : null;
+      const fullSubtext = `Distributed by ${a.distributedBy || "?"}${dateStr ? ` on ${dateStr}` : ""}`;
+      return (
+        <div style={{display:"flex",flexDirection:"column",gap:2}}>
+          {isAdmin ? (
+            <span className="badge badge-green" style={{cursor:"pointer",width:"fit-content"}} title={`${fullSubtext} — ${t("undoDistributedHint")}`} onClick={(e)=>toggleDistributed(a,e)}>
+              {t("distributedBadge")}
+            </span>
+          ) : (
+            <span className="badge badge-green" style={{width:"fit-content"}} title={fullSubtext}>{t("distributedBadge")}</span>
+          )}
+          <span style={{fontSize:9,color:"var(--text-dim)",whiteSpace:"nowrap"}}>{t("distributedByPrefix")} {a.distributedBy || "?"}</span>
+        </div>
+      );
     }
     if (isAdmin) {
       return (
