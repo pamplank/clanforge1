@@ -826,10 +826,21 @@ const supa = {
       // auction_id actually succeeds — Postgres itself enforces it, not
       // any client-side "have I already done this?" check, which can't
       // see what a DIFFERENT tab/session just did a moment ago.
+      //
+      // Same members-specific return=minimal swap as upsert() above, and
+      // for the same reason: return=representation makes PostgREST do a
+      // RETURNING * after the write, which needs SELECT on every column
+      // including password — anon doesn't have that (see
+      // scripts/lock_down_password_column_v2.sql), so a brand-new
+      // member's plain INSERT 401'd even though nothing about the insert
+      // itself was invalid. Confirmed live: AddMemberModal's insert was
+      // failing for every new member with "permission denied for table
+      // members" until this matched upsert()'s existing fix.
       async insert(data) {
+        const preferReturn = table === "members" ? "return=minimal" : "return=representation";
         const res = await fetchWithTimeout(base, {
           method: "POST",
-          headers,
+          headers: { ...headers, "Prefer": preferReturn },
           body: JSON.stringify(Array.isArray(data) ? data : [data]),
         });
         if (res.status === 409) return { conflict: true };
@@ -1149,6 +1160,29 @@ async function dbUpsertReliable(table, data, retries = 2) {
     if (attempt < retries) await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
   }
   return false;
+}
+// For a genuinely-new row, where dbUpsertReliable's ON CONFLICT DO UPDATE
+// is the wrong tool: PostgreSQL requires UPDATE privilege on every column
+// in the DO UPDATE SET list even when no conflict actually occurs, and
+// anon deliberately lacks UPDATE on members.coins/tx_log/decay_log/
+// attend_log (see scripts/lock_down_coins_columns_v2.sql) — so an upsert
+// carrying those columns 401s on every call, conflict or not, confirmed
+// live as the cause of AddMemberModal's "Couldn't save to the roster"
+// error. A plain INSERT only needs INSERT privilege (granted on every
+// column), so it's unaffected. Retries only on a genuinely transient
+// failure, same as claimAuctionWin — a real 409 (id already exists) is a
+// final answer, not something retrying fixes.
+async function dbInsertReliable(table, data, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const t = await supa.from(table);
+      const result = await t.insert(data);
+      return !result.conflict;
+    } catch {
+      if (attempt < retries) { await new Promise(r => setTimeout(r, 600 * (attempt + 1))); continue; }
+      return false;
+    }
+  }
 }
 async function dbDelete(table, match) {
   // Returns true/false based on whether the delete actually succeeded,
@@ -4934,8 +4968,14 @@ function AppInner({ onMusicTrackChange }) {
           localStorage.setItem(seedFlag, "1");
           // password set via the dedicated RPC below, not in this upsert
           // payload -- see set_member_password.sql for why including it
-          // here would 401 the whole seed write.
-          await Promise.all(SEED_MEMBERS.map(m => dbUpsert("members", {
+          // here would 401 the whole seed write. Plain insert, not upsert:
+          // these are brand-new rows into an empty table, and this payload
+          // carries coins/decay_log/tx_log/attend_log the same way
+          // AddMemberModal's does -- an upsert's ON CONFLICT DO UPDATE
+          // needs UPDATE privilege on those columns, which anon lacks (see
+          // dbInsertReliable's comment), so this would 401 every seed run
+          // the same way it did for Add Member.
+          await Promise.all(SEED_MEMBERS.map(m => dbInsertReliable("members", {
             id: String(m.id), name: m.name, username: m.username,
             role: m.role, cls: m.cls, power: m.power, coins: m.coins,
             attendance: m.attendance, join_date: m.joinDate, auction_wins: m.auctionWins,
@@ -12903,7 +12943,14 @@ function AddMemberModal({ ctx }) {
     // deliberately excluded from that payload — see setMembers's own
     // comment), so the new member ends up with none of the password they
     // were given, and can't log in.
-    const inserted = await dbUpsertReliable("members", {
+    //
+    // dbInsertReliable, not dbUpsertReliable: this payload includes coins/
+    // decay_log/tx_log/attend_log to initialize a brand-new member, and an
+    // upsert's ON CONFLICT DO UPDATE needs UPDATE privilege on every column
+    // it would write — which anon doesn't have for those four columns (see
+    // dbInsertReliable's own comment). That 401'd this insert unconditionally,
+    // confirmed live as the "Couldn't save to the roster" error.
+    const inserted = await dbInsertReliable("members", {
       id: String(newM.id), name: newM.name, username: newM.username,
       role: newM.role, cls: newM.cls, power: newM.power, coins: newM.coins,
       attendance: newM.attendance, join_date: newM.joinDate,
